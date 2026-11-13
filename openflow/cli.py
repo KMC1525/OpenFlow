@@ -349,7 +349,7 @@ def _sd_latest(force: bool = False) -> bool:
     if res.returncode != 0:
         print(_("⚠  Não consegui compilar a versão mais nova. O OpenFlow segue com a que já está instalada; tente de novo depois com:  flow libs --sd-latest"))
         return False
-    for f in (marker,):
+    for f in (marker, _sd_dir() / "sd_unsupported.txt"):   # a biblioteca nova pode reconhecer os modelos que a antiga recusava
         try:
             f.unlink()
         except OSError:

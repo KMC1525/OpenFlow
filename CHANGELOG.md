@@ -2,6 +2,14 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.3.0] — 2026-11-14
+
+### Corrigido
+- **FLUX.3 Image Klein (e outros modelos que a biblioteca recusa) ainda mostrava «get sd version from file failed» no terminal a cada geração.** A mensagem vinha da biblioteca, que tentava carregar o modelo inteiro antes de o OpenFlow cair no `sd-cli`. Agora, depois da primeira recusa, o modelo fica registrado (`sd_unsupported.txt` na pasta de dados) e as gerações seguintes vão **direto ao `sd-cli`**, sem recarregar nem repetir o erro. `flow libs --sd-latest` limpa o registro (a biblioteca nova pode reconhecer o modelo).
+
+### Não verificado
+- Eu não tinha a mensagem de erro do nó nem o resultado do `sd-cli` no seu computador: se o `sd-cli` também recusar o FLUX.3 Klein (a versão dele pode ainda não ter esse formato), o nó mostrará a saída dele. Testado só com a lógica simulada; sem o modelo nem o download do `sd-cli` aqui.
+
 ## [0.2.0] — 2026-11-14
 
 ### Corrigido

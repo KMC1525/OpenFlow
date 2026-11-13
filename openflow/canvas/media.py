@@ -1853,6 +1853,29 @@ _SD_LITE: set = set()   # modelos que só funcionaram sem as opções abaixo
 _SD_LITE_KEYS = ("diffusion_flash_attn", "flash_attn", "offload_params_to_cpu")
 
 
+def _unsupported_file() -> Path:
+    from ..util import flow_home
+
+    return flow_home() / "sd_unsupported.txt"
+
+
+def _lib_unsupported(name: str) -> bool:
+    """A biblioteca já recusou este modelo («get sd version from file failed»)? Então as próximas gerações vão direto ao sd-cli, sem carregar tudo para falhar de novo (e sem a mensagem de erro no terminal)."""
+    try:
+        return name in _unsupported_file().read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return False
+
+
+def _mark_lib_unsupported(name: str) -> None:
+    try:
+        if not _lib_unsupported(name):
+            with open(_unsupported_file(), "a", encoding="utf-8") as fh:
+                fh.write(name + "\n")
+    except OSError:
+        pass
+
+
 def _install_sd_log(sdc: Any) -> None:
     """Troca o callback de log da stable-diffusion-cpp-python por um que guarda as últimas mensagens (e continua mostrando-as no terminal)."""
     global _SD_CB
@@ -2131,6 +2154,7 @@ class GGUFMedia(MediaProvider):
                 from ..util import flow_home
 
                 (flow_home() / "sd_needs_newer").write_text(path.name, encoding="utf-8")
+                _mark_lib_unsupported(path.name)
             except OSError:
                 pass
             return _SDUnsupportedModel(
@@ -2214,6 +2238,8 @@ class GGUFMedia(MediaProvider):
         load = {**base.get("load", {}), **(extra.pop("load", None) or {})}
         if path.name in _SD_LITE:   # este modelo já falhou com flash attention/offload nesta máquina: começa sem eles (não recarrega duas vezes a cada imagem)
             load = {k: v for k, v in load.items() if k not in _SD_LITE_KEYS}
+        if _lib_unsupported(path.name) and self._cli_fallback(_SDUnsupportedModel(path.name)):   # já se sabe que a biblioteca não o reconhece
+            return self._image_cli(path, load, extra, prompt, size, count, seed, negative, refs)
         try:
             sd = self._engine("image", path, load)
         except ProviderError as exc:
