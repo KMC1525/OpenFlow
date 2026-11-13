@@ -116,3 +116,45 @@ class ProjectApiTests(ServerCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ImportAndTerminalTests(ServerCase):
+    def test_a_downloaded_project_zip_imports_as_a_new_project(self):
+        s, p = self.c.json("POST", "/api/projects", {"name": "Origem", "template": "text_image", "prompt": "um farol"})
+        from tests.test_canvas import PNG  # noqa: PLC0415
+
+        s, a = self.c.json("POST", f"/api/projects/{p['id']}/assets", raw=PNG, headers={"X-Filename": "ref.png", "Content-Type": "image/png"})
+        st, _h, zbytes = self.c.req("GET", f"/api/projects/{p['id']}/download")
+        self.assertEqual(st, 200)
+        s, new = self.c.json("POST", "/api/projects/import", raw=zbytes, headers={"Content-Type": "application/zip"})
+        self.assertEqual(s, 201, new)
+        self.assertNotEqual(new["id"], p["id"])
+        got = self.c.json("GET", f"/api/projects/{new['id']}")[1]
+        self.assertEqual((got["name"], len(got["assets"]), len(got["nodes"])), ("Origem", 1, 2))
+        st, _h, body = self.c.req("GET", f"/api/projects/{new['id']}/assets/{got['assets'][0]['file']}")
+        self.assertEqual((st, body), (200, PNG))
+
+    def test_bad_or_hostile_zips_are_refused(self):
+        import io
+        import json
+        import zipfile
+
+        self.assertEqual(self.c.json("POST", "/api/projects/import", raw=b"nao e zip")[0], 400)
+        z = io.BytesIO()
+        with zipfile.ZipFile(z, "w") as f:
+            f.writestr("project.json", json.dumps({"name": "Mau", "assets": [{"id": "a", "kind": "image", "file": "../../evil.png"}, {"id": "b", "kind": "image", "file": "ok.png"}]}))
+            f.writestr("assets/../../evil.png", b"x")
+        s, r = self.c.json("POST", "/api/projects/import", raw=z.getvalue())
+        self.assertEqual(s, 201)
+        got = self.c.json("GET", f"/api/projects/{r['id']}")[1]
+        self.assertEqual(got["assets"], [])                                          # nome fora da regra e arquivo ausente: nada entra
+        self.assertFalse((self.store.home / "evil.png").exists())
+
+    def test_terminal_codes_never_reach_the_screen(self):
+        from openflow.canvas import sdcli
+        from openflow.canvas.media import clean_terminal
+
+        raw = "|##########################| 359/359 - 2.08GB/s\x1b[K"
+        self.assertEqual(clean_terminal(raw), "|##########################| 359/359 - 2.08GB/s")
+        self.assertEqual(clean_terminal("a\rb\x1b[2K\rpronto"), "pronto")
+        self.assertEqual(sdcli._STEPS.search(sdcli.progress_text(raw)).groups(), ("359", "359", "2.08GB/s"))

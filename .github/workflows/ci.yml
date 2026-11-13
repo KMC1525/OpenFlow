@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-22.04, windows-latest, macos-latest]   # ubuntu-22.04 fixo: no ubuntu-latest (26.04) o setup-python não tem Python 3.9
         python: ["3.9", "3.13"]
     steps:
       - uses: actions/checkout@v4

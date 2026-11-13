@@ -8,7 +8,7 @@ Inspirado no ElevenLabs Flow e muito mais leve que o ComfyUI: ligue alguns nós,
 
 [Instalar](#instalar) · [O comando `flow`](#o-comando-flow) · [Projetos](#projetos--a-tela-inicial) · [Nós](#os-nós) · [Style Folder](#style-folder--pastas-e-subpastas) · [Modelos](#modelos--os-arquivos-de-apoio-se-instalam-sozinhos) · [Provedores](#provedores-de-ia) · [Núcleo Rust](#núcleo-rust) · [Desenvolvimento](#desenvolvimento) · [Changelog](CHANGELOG.md) · [English](README.md)
 
-`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Núcleo Rust` · `sem dependências obrigatórias` · `v0.1.0`
+`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Núcleo Rust` · `sem dependências obrigatórias` · `v0.2.0`
 
 </div>
 
@@ -103,7 +103,7 @@ Extras: menções com `@` a imagens, vídeos e sons do projeto dentro dos prompt
 
 ## Style Folder — pastas e subpastas
 
-O nó **Style Folder** guarda as imagens, vídeos e áudios que definem o visual do projeto. Na v0.1 ele se organiza como um gerenciador de arquivos:
+O nó **Style Folder** guarda as imagens, vídeos e áudios que definem o visual do projeto. Desde a v0.1 ele se organiza como um gerenciador de arquivos:
 
 - **Nova pasta** (na raiz do nó) e **Nova subpasta** (dentro de qualquer pasta), até **6 níveis** e 60 pastas por nó.
 - **Renomear** uma pasta pelo botão de lápis ou com duplo clique no nome; `Enter` confirma e `Esc` cancela. Os nomes são únicos entre pastas irmãs (`Luz`, `Luz (2)`…).
@@ -182,7 +182,7 @@ node tests/js/i18n_check.mjs                     # toda frase da interface tem t
 
 Os testes de navegador precisam de Node, Playwright e Chromium (`NODE_PATH` apontando para a sua instalação do `playwright`). Código compatível com Python 3.9 (sem `match`, sem `X | Y` em tempo de execução). Todo texto da interface e do terminal é em português primeiro, com tradução para o inglês (`openflow/web/js/en.js`, `openflow/term_en.py`); os testes conferem.
 
-## Limites honestos (v0.1.0)
+## Limites honestos (v0.2.0)
 
 Verificado aqui (Linux, Python 3.13): a suíte completa de testes em Python (442 testes), os testes de navegador no Chromium, os testes em Rust e o `install.sh` de ponta a ponta contra uma cópia local. **Não verificado:** o `install.ps1` num Windows de verdade e o `install.sh` no macOS (os jobs de CI estão escritos mas não rodaram); a compilação do núcleo Rust para macOS/Windows/ARM; downloads reais de VAEs, codificadores de texto e `mmproj` do Hugging Face (os testes simulam os downloads — os nomes de arquivo dos repositórios curados e de exemplo foram conferidos nas listagens do Hugging Face); inferência com modelos GGUF e GPUs reais; entrada de imagens por `mmproj` com um modelo real; provedores de nuvem com chaves reais (os testes usam servidores falsos). Não há medições de desempenho.
 

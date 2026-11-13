@@ -32,6 +32,7 @@ class ProjectRoutes:
         a("GET", r"/api/project-templates", self.r_templates)
         a("GET", r"/api/projects", self.r_list)
         a("POST", r"/api/projects", self.r_create)
+        a("POST", r"/api/projects/import", self.r_import)
         a("GET", r"/api/projects/(?P<cid>[\w-]+)", self.r_get)
         a("PUT", r"/api/projects/(?P<cid>[\w-]+)", self.r_save)
         a("DELETE", r"/api/projects/(?P<cid>[\w-]+)", self.r_delete)
@@ -120,6 +121,14 @@ class ProjectRoutes:
             nodes.append({"id": new_id("n_"), "type": "text", "x": -360, "y": y, "title": name[:40], "params": {"text": body_text}})
             y += 240
         return self.cs.append_nodes(cid, nodes) if nodes else None
+
+    def r_import(self, req) -> None:
+        """Cria um projeto a partir de um `.zip` baixado do OpenFlow (corpo cru do arquivo)."""
+        limit = int(self.store.get_settings()["server"].get("max_upload_mb", 200)) * 1024 * 1024
+        c = self.cs.import_zip(req.body_bytes(limit))
+        if not c:
+            raise HttpError(400, "Este arquivo não é um projeto do OpenFlow (.zip com project.json e assets/).")
+        req.json(self.cs.summary(c), 201)
 
     def r_get(self, req, cid: str) -> None:
         self._canvas(cid)

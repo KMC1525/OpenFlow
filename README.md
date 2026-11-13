@@ -8,7 +8,7 @@ Inspired by ElevenLabs Flow and much lighter than ComfyUI: connect a few nodes, 
 
 [Install](#install) · [The `flow` command](#the-flow-command) · [Projects](#projects--the-home-screen) · [Nodes](#the-nodes) · [Style Folder](#style-folder--folders-and-subfolders) · [Models](#models--support-files-install-themselves) · [Providers](#ai-providers) · [Rust core](#rust-core) · [Development](#development) · [Changelog](CHANGELOG.en.md) · [Português](README.pt-BR.md)
 
-`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Rust core` · `no required dependencies` · `v0.1.0`
+`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Rust core` · `no required dependencies` · `v0.2.0`
 
 </div>
 
@@ -103,7 +103,7 @@ Extras: `@` mentions of images, videos and sounds of the project inside prompts;
 
 ## Style Folder — folders and subfolders
 
-The **Style Folder** node holds the images, videos and audio that define the look of the project. In v0.1 it is organized like a file manager:
+The **Style Folder** node holds the images, videos and audio that define the look of the project. In v0.1+ it is organized like a file manager:
 
 - **New folder** (at the node root) and **New subfolder** (inside any folder), up to **6 levels** and 60 folders per node.
 - **Rename** a folder with the pencil button, by double-clicking its name, and confirm with `Enter` (`Esc` cancels). Names are unique among sibling folders (`Light`, `Light (2)`…).
@@ -182,7 +182,7 @@ node tests/js/i18n_check.mjs                     # every UI phrase has an Englis
 
 Browser tests need Node, Playwright and Chromium (`NODE_PATH` pointing at your `playwright` install). Python 3.9 compatible code (no `match`, no runtime `X | Y`). Every UI and terminal string is Portuguese-first with an English translation (`openflow/web/js/en.js`, `openflow/term_en.py`); tests enforce it.
 
-## Honest limits (v0.1.0)
+## Honest limits (v0.2.0)
 
 Verified here (Linux, Python 3.13): the full Python test suite (442 tests), the Chromium browser tests, the Rust tests, and `install.sh` end to end against a local checkout. **Not verified:** `install.ps1` on a real Windows machine and `install.sh` on macOS (CI jobs are written but were not run); Rust core builds for macOS/Windows/ARM; real downloads of VAEs, text encoders and `mmproj` from Hugging Face (tests simulate the downloads — file names of the curated and example repositories were checked against Hugging Face listings); inference with real GGUF models and GPUs; vision input through `mmproj` with a real model; cloud providers with real keys (tests use fake servers). Performance numbers are not benchmarked.
 

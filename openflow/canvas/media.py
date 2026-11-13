@@ -154,6 +154,15 @@ def _nearest(value: float, options: Sequence[float]) -> float:
     return min(options, key=lambda o: abs(o - value))
 
 
+_ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b[@-Z\\-_]")
+
+
+def clean_terminal(msg: str) -> str:
+    """Tira códigos de terminal (cores, «apagar linha» \\x1b[K) e retornos de carro de uma linha de log; fica o último trecho visível."""
+    msg = _ANSI.sub("", str(msg or "")).replace("\x1b", "")
+    return (msg.split("\r")[-1] if "\r" in msg else msg).strip()
+
+
 class Ctl:
     """Ligação do provedor com o job: cancelamento e mensagens de progresso."""
 
@@ -165,7 +174,8 @@ class Ctl:
             self._check()
 
     def note(self, msg: str) -> None:
-        if self._note:
+        msg = clean_terminal(msg)
+        if self._note and msg:
             self._note(msg)
 
     def sleep(self, secs: float) -> None:
@@ -2076,10 +2086,21 @@ class GGUFMedia(MediaProvider):
         except Exception:  # noqa: BLE001  (o `check` do job levanta o cancelamento)
             return True
 
-    @staticmethod
-    def _cli_fallback(exc: Exception) -> bool:
-        """A biblioteca não serve para este modelo (não o reconhece ou nem está instalada) e há um `sd-cli` pré-compilado para tentar? (`sdcli.find`; é baixado só a pedido, pelo botão do nó)"""
-        return sdcli.find() is not None and (isinstance(exc, _SDUnsupportedModel) or "bibliotecas opcionais" in str(exc))
+    def _cli_fallback(self, exc: Exception) -> bool:
+        """A biblioteca não serve para este modelo (não o reconhece ou nem está instalada) e há um `sd-cli` pré-compilado para tentar?
+        Se ainda não há `sd-cli`, o OpenFlow baixa o executável pronto sozinho (uns 30 MB; desligue com OPENFLOW_SD_CLI_AUTO=0) em vez de pedir um clique no nó."""
+        if not (isinstance(exc, _SDUnsupportedModel) or "bibliotecas opcionais" in str(exc)):
+            return False
+        if sdcli.find() is None and os.environ.get("OPENFLOW_SD_CLI_AUTO", "1") not in ("0", "no", "false"):
+            self.ctl.note("A stable-diffusion.cpp da biblioteca não reconhece este modelo: baixando o sd-cli pronto (a versão mais nova, sem compilar)…")
+            try:
+                sdcli.install(lambda done, total: self.ctl.note(f"Baixando o sd-cli… {int(100 * done / total)}%") if total else None, self._cancelled, self.ctl.note)
+                _media_unload()
+            except ProviderError as err:
+                if str(err) == "cancelado":
+                    self.ctl.check()
+                self.ctl.note(f"Não consegui baixar o sd-cli sozinho ({str(err)[:160]}); use o botão do nó.")
+        return sdcli.find() is not None
 
     def _engine(self, cap: str, path: Path, load: Dict[str, Any]) -> Any:
         (sdc,) = _local_import("stable_diffusion_cpp", extra="local")
