@@ -237,3 +237,17 @@ class AutoCliTests(unittest.TestCase):
         with mock.patch.object(M.sdcli, "find", lambda: None), mock.patch.object(M.sdcli, "install", side_effect=M.ProviderError("sem rede")):
             self.assertFalse(p._cli_fallback(M._SDUnsupportedModel("x")))
         self.assertTrue(any("use o botão do nó" in n for n in notes))
+
+
+class RememberedUnsupportedTests(TmpCase):
+    def test_a_refused_model_goes_straight_to_the_cli_next_time(self):
+        os.environ["OPENFLOW_HOME"] = str(self.tmp)
+        try:
+            self.assertFalse(M._lib_unsupported("flux-3-image-klein-Q4_K_M.gguf"))
+            M._mark_lib_unsupported("flux-3-image-klein-Q4_K_M.gguf")
+            M._mark_lib_unsupported("flux-3-image-klein-Q4_K_M.gguf")
+            self.assertTrue(M._lib_unsupported("flux-3-image-klein-Q4_K_M.gguf"))
+            self.assertFalse(M._lib_unsupported("outro.gguf"))
+            self.assertEqual((self.tmp / "sd_unsupported.txt").read_text().splitlines(), ["flux-3-image-klein-Q4_K_M.gguf"])    # sem repetir
+        finally:
+            os.environ.pop("OPENFLOW_HOME", None)
