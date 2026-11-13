@@ -1,0 +1,104 @@
+"""Nó Imagem com várias referências (Texto com @ + Mídia + Style Folder): modelos que juntam referências as usam também no modo Gerar e o tamanho pedido não é trocado pela 1ª foto."""
+import io
+import sys
+import unittest
+from pathlib import Path
+from unittest import mock
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from openflow.canvas import media as M  # noqa: E402
+from tests.test_canvas import PNG  # noqa: E402
+from tests.helpers import TmpCase  # noqa: E402
+
+
+def png(w, h):
+    from PIL import Image
+
+    b = io.BytesIO()
+    Image.new("RGB", (w, h), (200, 30, 30)).save(b, format="PNG")
+    return b.getvalue()
+
+
+class RefsInGenerateModeTests(TmpCase):
+    def fake(self):
+        runs = []
+
+        class Img:
+            def save(self, buf, format="PNG"):
+                buf.write(PNG)
+
+        class SD:
+            def __init__(self, **kw):
+                pass
+
+            def generate_image(self, prompt, width, height, seed, cfg_scale=1.0, sample_steps=20, sample_method="euler", ref_images=None, init_image=None):
+                runs.append({"w": width, "h": height, "refs": len(ref_images or [])})
+                return [Img()]
+
+        return mock.MagicMock(StableDiffusion=SD), runs
+
+    def prov(self, name):
+        (self.tmp / "image").mkdir(exist_ok=True)
+        for n in (name, "flux2-vae.safetensors", "Qwen3-4B-Instruct-2507-Q4_K_M.gguf"):
+            (self.tmp / "image" / n).write_bytes(b"x")
+        M._LOCAL_CACHE.clear()
+        return M._KINDS["gguf_local"]({"id": "gguf_local", "label": "g", "models_dir": str(self.tmp), "models": {"image": name}, "needs_key": False})
+
+    def test_models_that_merge_references_use_them_in_generate_mode_and_the_others_do_not(self):
+        for name, need in (("flux-2-klein-4b-Q4_K_M.gguf", False), ("qwen-image-2.1-Q4_K_M.gguf", False), ("flux2-dev-Q4_K_M.gguf", False), ("flux-3-image-klein-Q4_K_M.gguf", False),
+                           ("FLUX.1-Kontext-dev-Q4_K_S.gguf", False), ("flux1-dev-Q4_K_S.gguf", True), ("sd-turbo-Q8_0.gguf", True)):
+            self.assertEqual(self.prov(name).refs_need_edit(), need, name)
+        hf = M._KINDS["local_hf"]({"id": "local_hf", "label": "l", "models_dir": str(self.tmp), "models": {}, "needs_key": False})
+        self.assertFalse(hf.refs_need_edit("black-forest-labs/FLUX.2-klein-4B"))
+        self.assertFalse(hf.refs_need_edit("black-forest-labs/flux-3-image-klein"))
+        self.assertTrue(hf.refs_need_edit("stabilityai/sd-turbo"))
+        self.assertTrue(M.MediaProvider({}).refs_need_edit() is False)   # o padrão segue o atributo antigo
+
+    def test_several_references_keep_the_requested_thumbnail_size(self):
+        mod, runs = self.fake()
+        p = self.prov("flux-2-klein-4b-Q4_K_M.gguf")
+        refs = [(png(512, 768), "image/png"), (png(768, 512), "image/png"), (png(640, 640), "image/png"), (png(1000, 500), "image/png")]
+        with mock.patch.dict(sys.modules, {"stable_diffusion_cpp": mod}):
+            p.image("thumb de gameplay", size="1280x720", refs=refs)
+            p.image("editar a foto", size="1280x720", refs=refs[:1])
+        self.assertEqual(runs[0], {"w": 1024, "h": 576, "refs": 4})   # uma montagem: o tamanho pedido (16:9), não o retrato da 1ª foto
+        self.assertEqual((runs[1]["w"], runs[1]["h"], runs[1]["refs"]), (672, 1024, 1))   # edição de uma imagem: mantém a proporção dela
+
+    def test_the_engine_sends_references_in_generate_mode_to_a_multi_reference_model(self):
+        from openflow.canvas import engine as E
+        from tests.test_canvas import edge, node
+        from openflow.canvas import procedural as proc
+        from openflow.storage import Store
+
+        store = Store(self.tmp / "home")
+        cs = store.projects
+        c = cs.create("t")
+        ids = [cs.add_asset(c["id"], proc.image(f"i{i}", "64x64", i + 1), "png", "image", name=f"f{i}.png", mime="image/png")["id"] for i in range(3)]
+        cs.save_layout(c["id"], {"nodes": [node("upload", nid="u", files=ids), node("image", nid="g", prompt="uma thumb")], "edges": [edge("u", "g", "refs")]})
+        seen = {}
+
+        class Multi:
+            supports_refs = True
+            refs_edit_only = True
+            label = "Multi"
+
+            def max_refs(self, model=""):
+                return 4
+
+            def refs_need_edit(self, model=""):
+                return False
+
+            def image(self, prompt, *, refs=(), **k):
+                seen["n"] = len(refs)
+                return [M.Media(PNG, "image/png")]
+
+        events = []
+        with mock.patch.object(E, "build_media", lambda *a, **k: Multi()):
+            E.CanvasEngine(store, c["id"], events.append).run(None, False)
+        self.assertEqual(seen["n"], 3)
+        self.assertFalse([w for e in events for w in (e.get("warnings") or []) if "Editar" in w])
+
+
+if __name__ == "__main__":
+    unittest.main()

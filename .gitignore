@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+# Rust: a biblioteca compilada vai para ~/.openflow/native (nunca para o repositório)
+openflow/native/target/
+node_modules/
+.DS_Store

@@ -1,0 +1,96 @@
+# Release do OpenFlow: a cada push na main que muda a versão, o núcleo em Rust ou os instaladores, este workflow gera o núcleo pré-compilado
+# de cada plataforma (flow-core-<plataforma>.so/.dylib/.dll + SHA256SUMS.txt) e publica tudo na Release vX.Y.Z.
+# O `flow native setup` (e o instalador) baixam essa biblioteca, conferem o SHA-256 e só compilam na máquina se o download falhar.
+# Também roda à mão (Actions → release → Run workflow).
+name: release
+on:
+  push:
+    branches: [main]
+    paths: ["openflow/__init__.py", "openflow/native/**", "install.sh", "install.ps1", ".github/workflows/release.yml"]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      tag: ${{ steps.v.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: |
+          V=$(python3 -c "import re;print(re.search(r'__version__ = \"([^\"]+)\"',open('openflow/__init__.py').read()).group(1))")
+          echo "version=$V" >> "$GITHUB_OUTPUT"; echo "tag=v$V" >> "$GITHUB_OUTPUT"
+
+  core:
+    needs: meta
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.optional || false }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-22.04, tag: linux-x86_64, lib: libopenflow_core.so, ext: so }
+          - { os: ubuntu-22.04-arm, tag: linux-aarch64, lib: libopenflow_core.so, ext: so, optional: true }
+          - { os: macos-latest, tag: macos-aarch64, lib: libopenflow_core.dylib, ext: dylib }
+          - { os: macos-latest, tag: macos-x86_64, lib: libopenflow_core.dylib, ext: dylib, target: x86_64-apple-darwin }
+          - { os: windows-latest, tag: windows-x86_64, lib: openflow_core.dll, ext: dll }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Testes do núcleo
+        if: ${{ !matrix.target }}
+        run: cargo test --release --manifest-path openflow/native/Cargo.toml
+      - name: Compilar
+        shell: bash
+        run: |
+          if [ -n "${{ matrix.target }}" ]; then
+            cargo build --release --manifest-path openflow/native/Cargo.toml --target "${{ matrix.target }}"
+            OUT="openflow/native/target/${{ matrix.target }}/release/${{ matrix.lib }}"
+          else
+            cargo build --release --manifest-path openflow/native/Cargo.toml
+            OUT="openflow/native/target/release/${{ matrix.lib }}"
+          fi
+          mkdir -p core && cp "$OUT" "core/flow-core-${{ matrix.tag }}.${{ matrix.ext }}"
+          ls -la core
+      - uses: actions/upload-artifact@v4
+        with: { name: "core-${{ matrix.tag }}", path: core/*, if-no-files-found: error }
+
+  publish:
+    needs: [meta, core]
+    if: ${{ always() && needs.core.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { path: artifacts, merge-multiple: true }
+      - name: Juntar os arquivos e calcular o SHA-256
+        run: |
+          mkdir release && cp artifacts/* release/
+          cp install.sh install.ps1 release/
+          (cd release && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt)
+      - name: Publicar
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          TAG="${{ needs.meta.outputs.tag }}"
+          V="${{ needs.meta.outputs.version }}"
+          python3 - "$V" > notes.md <<'PY'
+          import re, sys
+          v = sys.argv[1]
+          s = open("CHANGELOG.en.md", encoding="utf-8").read()
+          m = re.search(r"^## \[%s\][^\n]*\n(.*?)(?=^## \[|\Z)" % re.escape(v), s, re.S | re.M)
+          print((m.group(1).strip() if m else "OpenFlow " + v) + "\n\nInstall / update (Linux, macOS): `curl -fsSL https://raw.githubusercontent.com/KMC1525/OpenFlow/main/install.sh | sh` · (Windows PowerShell): `irm https://raw.githubusercontent.com/KMC1525/OpenFlow/main/install.ps1 | iex` — then run `flow`.")
+          PY
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "OpenFlow $TAG" --notes-file notes.md --latest
+            gh release upload "$TAG" release/* --clobber
+          else
+            gh release create "$TAG" release/* --target "$GITHUB_SHA" --title "OpenFlow $TAG" --latest --notes-file notes.md
+          fi
