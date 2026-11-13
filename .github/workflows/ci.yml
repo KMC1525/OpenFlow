@@ -1,0 +1,116 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Testes (${{ matrix.os }}, Python ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.9", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: ffmpeg completo (testes do Editor; o do Homebrew/Chocolatey não traz drawtext/webp, por isso só no Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Núcleo Rust (testes e compilação — parte do OpenFlow)
+        shell: bash
+        run: |
+          cargo test --release --manifest-path openflow/native/Cargo.toml
+          cargo build --release --manifest-path openflow/native/Cargo.toml
+          case "$RUNNER_OS" in Windows) L=openflow_core.dll ;; macOS) L=libopenflow_core.dylib ;; *) L=libopenflow_core.so ;; esac
+          echo "OPENFLOW_NATIVE_LIB=$PWD/openflow/native/target/release/$L" >> "$GITHUB_ENV"
+      - name: Instalar
+        run: python -m pip install -e .
+      - name: Testes
+        run: python -m unittest discover -s tests -t . -v
+
+  browser:
+    name: Navegador e editor (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Playwright e Chromium
+        run: |
+          mkdir -p "$RUNNER_TEMP/pw" && cd "$RUNNER_TEMP/pw"
+          npm init -y >/dev/null
+          npm install playwright
+          npx playwright install --with-deps chromium
+      - name: Instalar
+        run: python -m pip install -e .
+      - name: Testes de navegador e do editor
+        env:
+          NODE_PATH: ${{ runner.temp }}/pw/node_modules
+        run: python -m unittest tests.test_browser tests.test_canvas -v
+
+  installer-unix:
+    name: Instalador no terminal (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    env:
+      OPENFLOW_MODELS: none  # nada de baixar vários GB de modelos no CI
+      OPENFLOW_PYTHON: keep  # o Python do runner é gerenciado pelo GitHub; o teste do instalador não deve trocá-lo
+      OPENFLOW_RUST: "no"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sintaxe do install.sh
+        run: |
+          sh -n install.sh
+          bash --posix -n install.sh
+      - name: Instalar a partir desta pasta e reinstalar (atualização), com uma biblioteca opcional leve
+        run: |
+          OPENFLOW_SOURCE="$PWD" OPENFLOW_EXTRAS=docs sh install.sh
+          OPENFLOW_SOURCE="$PWD" OPENFLOW_EXTRAS=docs sh install.sh
+          "$HOME/.local/bin/flow" version
+          "$HOME/.local/bin/flow" doctor
+          "$HOME/.openflow/app/venv/bin/python" -c "import pypdf"
+      - name: Comandos do flow (modelos, apoio, pasta de dados)
+        run: |
+          "$HOME/.local/bin/flow" models list
+          "$HOME/.local/bin/flow" models support
+          "$HOME/.local/bin/flow" folder --print
+
+  installer-windows:
+    name: Instalador no terminal (Windows)
+    runs-on: windows-latest
+    env:
+      OPENFLOW_MODELS: none
+      OPENFLOW_PYTHON: keep
+      OPENFLOW_RUST: "no"
+      OPENFLOW_EXTRAS: none
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Instalar a partir desta pasta (PowerShell) e conferir o comando flow
+        shell: pwsh
+        run: |
+          $env:OPENFLOW_SOURCE = $PWD.Path
+          ./install.ps1
+          & "$env:LOCALAPPDATA\OpenFlow\bin\flow.cmd" version
+          & "$env:LOCALAPPDATA\OpenFlow\app\venv\Scripts\flow.exe" doctor

@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openflow"
+dynamic = ["version"]
+description = "OpenFlow: criação criativa com IA em fluxos de nós (estilo ElevenLabs Flow) — imagens, vídeos, sons e vozes, num app local, aberto e simples. Comando: flow."
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "KMC" }]
+keywords = ["ai", "flow", "node-editor", "image-generation", "video-generation", "text-to-speech", "sound", "video-editor", "stable-diffusion", "gguf", "local-first", "webui"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Rust",
+  "Operating System :: OS Independent",
+  "Topic :: Multimedia :: Graphics",
+  "Topic :: Multimedia :: Video",
+]
+# Zero dependências obrigatórias: o núcleo usa apenas a biblioteca padrão do Python.
+dependencies = []
+
+[project.optional-dependencies]
+# Modelos GGUF embutidos: texto (llama.cpp) e imagem/vídeo (stable-diffusion.cpp)
+local = ["llama-cpp-python>=0.2.90", "stable-diffusion-cpp-python"]
+# Extração de texto de PDFs mais precisa
+docs = ["pypdf>=4.0"]
+# Modelos locais do Hugging Face (imagem, vídeo, som, voz e transcrição)
+media = ["torch", "torchvision", "diffusers>=0.30", "transformers>=4.44", "accelerate", "safetensors", "sentencepiece", "numpy", "pillow"]
+# Tudo de uma vez (é o que os instaladores e o `flow update` usam por padrão)
+all = ["pypdf>=4.0", "torch", "torchvision", "diffusers>=0.30", "transformers>=4.44", "accelerate", "safetensors", "sentencepiece", "numpy", "pillow", "llama-cpp-python>=0.2.90", "stable-diffusion-cpp-python"]
+
+[project.urls]
+Homepage = "https://github.com/KMC1525/OpenFlow"
+Issues = "https://github.com/KMC1525/OpenFlow/issues"
+
+[project.scripts]
+flow = "openflow.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["openflow*"]
+
+[tool.setuptools.package-data]
+openflow = ["web/**/*", "native/Cargo.toml", "native/Cargo.lock", "native/src/*.rs"]
+
+[tool.setuptools.dynamic]
+version = { attr = "openflow.__version__" }

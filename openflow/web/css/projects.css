@@ -1,0 +1,20 @@
+/* Tela inicial: todos os projetos + barra de pesquisa */
+.pj-bar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:0 0 8px}
+.pj-bar .search{flex:1 1 320px;max-width:560px;position:relative;display:block}
+.pj-bar .search input{width:100%;min-height:44px;font-size:15px;padding:11px 52px 11px 42px;border-radius:var(--r-lg)}
+.pj-bar .search input::-webkit-search-cancel-button{cursor:pointer;margin-right:4px}
+.pj-bar .search .kbd{position:absolute;right:12px;top:50%;transform:translateY(-50%);pointer-events:none}
+.pj-bar .search input:focus:not(:placeholder-shown)~.kbd{display:none}
+.pj-sort{display:flex;align-items:center;gap:8px;white-space:nowrap}
+.pj-sort select{min-height:44px}
+.pj-status{margin:0 0 14px;min-height:1.4em}
+.cv-card .cv-open{display:flex;flex-direction:column;flex:1;color:inherit;text-decoration:none;border-radius:inherit}
+.cv-card .cv-open:focus-visible{outline:2px solid var(--text);outline-offset:-2px}
+.cv-card:focus-within{border-color:var(--line3)}
+.cv-card .mt.match{color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cv-card .mt.match em{font-style:normal;color:var(--muted)}
+.cv-card mark,.pj-bar mark{background:color-mix(in srgb,#f2c46d 38%,transparent);color:inherit;border-radius:3px;padding:0 1px}
+.cv-card .mn{opacity:.85}
+.cv-card:hover .mn,.cv-card:focus-within .mn,.cv-card .mn:focus-visible{opacity:1}
+@media (pointer:coarse){.cv-card .mn{opacity:1;width:40px;height:40px}}
+@media (max-width:600px){.pj-bar .search{flex-basis:100%;max-width:none}.pj-sort{width:100%}.pj-sort select{flex:1}}

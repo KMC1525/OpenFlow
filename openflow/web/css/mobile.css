@@ -1,0 +1,52 @@
+/* App mobile: adaptação automática ao aparelho. Os atributos vêm de boot.js (data-device: phone|foldable|tablet|desktop · data-layout: compact|medium|expanded · data-orient · data-fold · data-platform · data-standalone). */
+html{-webkit-text-size-adjust:100%}
+html[data-device]:not([data-device="desktop"]){-webkit-tap-highlight-color:transparent;overscroll-behavior-y:none}
+html[data-standalone="yes"] body{padding-top:env(safe-area-inset-top)}
+
+/* toque: alvos de 44px, campos a 16px (o iOS não dá zoom ao focar), sem depender de hover */
+@media (pointer:coarse){
+  .btn{min-height:44px;padding-top:10px;padding-bottom:10px}.btn.sm{min-height:38px}.btn.icon{width:44px;height:44px}.btn.icon.sm{width:38px;height:38px}
+  input,select,textarea{font-size:16px}
+  .tabs button{min-height:44px}
+  #side .item{min-height:48px}
+  .palette-item,.modal .foot .btn{min-height:44px}
+}
+
+/* áreas seguras (notch, barra de gestos, cantos arredondados) */
+html[data-device]:not([data-device="desktop"]) #side{padding-bottom:max(6px,env(safe-area-inset-bottom));padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
+html[data-device]:not([data-device="desktop"]) .page{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}
+html[data-device]:not([data-device="desktop"]) #toasts{bottom:calc(72px + env(safe-area-inset-bottom))}
+
+/* celular deitado: a barra de baixo come altura demais, vira uma coluna estreita à esquerda */
+html[data-device="phone"][data-orient="landscape"] #app,html[data-device="foldable"][data-fold="closed"][data-orient="landscape"] #app{flex-direction:row}
+html[data-device="phone"][data-orient="landscape"] #side,html[data-device="foldable"][data-fold="closed"][data-orient="landscape"] #side{width:64px!important;flex-direction:column;border-top:0;border-right:1px solid var(--line);padding:6px 0;overflow-y:auto;overflow-x:hidden;justify-content:flex-start}
+html[data-device="phone"][data-orient="landscape"] #side nav,html[data-device="foldable"][data-fold="closed"][data-orient="landscape"] #side nav{flex-direction:column;min-width:0;width:100%}
+html[data-device="phone"][data-orient="landscape"] #side .item,html[data-device="foldable"][data-fold="closed"][data-orient="landscape"] #side .item{flex:none;width:100%;min-width:0}
+
+/* tablet e dobrável aberto: mais espaço de leitura, grades com mais colunas */
+html[data-layout="medium"]:not([data-device="desktop"]) .page{max-width:980px;margin-left:auto;margin-right:auto}
+html[data-layout="medium"]:not([data-device="desktop"]) .page.narrow{max-width:860px}
+html[data-device="tablet"][data-layout="expanded"] .page,html[data-device="foldable"][data-layout="expanded"] .page{max-width:1200px}
+html[data-device="tablet"] .grid2,html[data-device="foldable"][data-fold="open"] .grid2{grid-template-columns:1fr 1fr}
+html[data-device="tablet"] #side:not(:hover) .lbl{font-size:11px}
+
+/* dobrável com a tela dividida pela dobradiça (Surface Duo, Galaxy Fold em modo mesa/livro): menu numa tela e conteúdo na outra */
+@media (horizontal-viewport-segments:2){
+  #app{display:grid!important;grid-template-columns:env(viewport-segment-width 0 0) env(viewport-segment-width 1 0)}
+  #side{width:100%!important;flex-direction:column!important;border-top:0!important;border-right:0!important;overflow-y:auto}
+  #side nav{flex-direction:column!important;min-width:0!important}
+  #side .brand,#side .foot{display:flex!important}
+  #side .item{flex-direction:row!important;font-size:14px!important;justify-content:flex-start!important;flex:none!important;width:100%!important}
+  #side .lbl{font-size:14px!important}
+}
+@media (vertical-viewport-segments:2){#app{padding-bottom:0}}
+
+/* faixa de instalação */
+.install-bar{position:fixed;left:12px;right:12px;bottom:calc(68px + env(safe-area-inset-bottom));z-index:60;display:flex;gap:10px;align-items:center;background:var(--bg2);border:1px solid var(--line2);border-radius:16px;padding:10px 12px;box-shadow:0 8px 30px rgba(0,0,0,.4);font-size:13px}
+html[data-device="phone"][data-orient="landscape"] .install-bar{left:76px}
+
+/* Configuração → Celular e tablet */
+.mob-qr{display:flex;gap:20px;flex-wrap:wrap;align-items:center}
+.mob-qr .qr{background:#fff;border-radius:14px;padding:8px;line-height:0}.mob-qr .qr svg{width:220px;height:220px;max-width:100%}
+.mob-qr ol{margin:0;padding-left:20px;line-height:1.7;flex:1;min-width:220px}
+.mob-table{width:100%;border-collapse:collapse;font-size:13px}.mob-table td,.mob-table th{border-top:1px solid var(--line);padding:7px 8px;text-align:left;vertical-align:top}.mob-table th{color:var(--muted);font-weight:500;width:34%}
