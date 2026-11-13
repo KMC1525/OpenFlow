@@ -174,6 +174,45 @@ class ProjectStore:
                 cur["description"] = description[:400]
             return self._write(cur)
 
+    def import_zip(self, data: bytes, max_total: int = 4 * 1024 ** 3) -> Optional[Dict[str, Any]]:
+        """Cria um projeto novo a partir de um `.zip` baixado do OpenFlow (`project.json` + `assets/`). O arquivo é tratado como não confiável: só entram os nomes
+        seguros listados no próprio projeto, sem caminhos de fora, com limite de tamanho. Devolve o projeto (id novo) ou None se o zip não é um projeto."""
+        import io
+        import zipfile
+
+        try:
+            z = zipfile.ZipFile(io.BytesIO(data))
+        except zipfile.BadZipFile:
+            return None
+        with z:
+            names = {i.filename: i for i in z.infolist()}
+            info = names.get("project.json") or names.get("canvas.json")
+            if not info or info.file_size > 32 * 1024 * 1024 or sum(i.file_size for i in z.infolist()) > max_total:
+                return None
+            try:
+                import json
+
+                raw = json.loads(z.read(info).decode("utf-8"))
+            except (ValueError, UnicodeDecodeError):
+                return None
+            if not isinstance(raw, dict):
+                return None
+            with self._lock:
+                cid = new_id("pj_")
+                ad = self.folder / cid / "assets"
+                ad.mkdir(parents=True, exist_ok=True)
+                keep = []
+                for a in raw.get("assets") if isinstance(raw.get("assets"), list) else []:
+                    na = normalize_asset(a)
+                    member = names.get("assets/" + na["file"]) if na else None
+                    if na and member and not member.is_dir():
+                        (ad / na["file"]).write_bytes(z.read(member))
+                        keep.append(na)
+                raw["assets"] = keep
+                canvas = normalize_canvas(raw, keep_id=cid)
+                canvas["created"] = now_iso()
+                return self._write(canvas)
+
     def delete(self, cid: str) -> bool:
         d = self._dir(cid)
         if not d or not d.exists():

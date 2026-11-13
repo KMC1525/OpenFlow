@@ -2,6 +2,19 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.2.0] — 2026-11-14
+
+### Corrigido
+- **Modelos que a stable-diffusion.cpp da biblioteca não reconhece** (ex.: FLUX.3 Image Klein: «get sd version from file failed» no terminal e a geração parada). Agora o OpenFlow **baixa sozinho o `sd-cli` pronto** (a stable-diffusion.cpp mais nova, sem compilar) e gera por ele, com os mesmos arquivos de apoio; antes era preciso clicar num botão do nó. Desligue com `OPENFLOW_SD_CLI_AUTO=0`; se o download falhar, o botão do nó continua valendo.
+- **Barra de progresso com lixo na tela** (`########… 359/359 - 2.08GB/s[K`): os códigos de terminal do sd-cli (como «apagar linha») eram mostrados no nó. Agora são removidos de todas as mensagens de progresso, que aparecem como «Etapa 359/359 · 2.08GB/s».
+- No CI, os testes em Python 3.9 no Linux rodam em `ubuntu-22.04` (o `ubuntu-latest` atual não tem Python 3.9 no `setup-python`).
+
+### Novo
+- **Importar projeto (.zip)** na tela inicial: cria um projeto novo a partir de um `.zip` baixado do OpenFlow (`POST /api/projects/import`). O arquivo é tratado como não confiável (só entram os arquivos listados no projeto, com nomes seguros e limite de tamanho).
+
+### Verificado / não verificado
+- Testes automáticos novos para o download automático do sd-cli, a limpeza do progresso e a importação (incluindo `.zip` hostil). **Não verificado:** a geração com o FLUX.3 Klein de verdade (precisa do modelo, da GPU/CPU e do download do `sd-cli` do GitHub, bloqueado aqui): a correção foi validada com a saída do sd-cli simulada.
+
 ## [0.1.0] — 2026-11-13
 
 Primeira versão do **OpenFlow**: o modo Canvas do [ASTA](https://github.com/KMC1525/ASTA) virou um app próprio, focado só em criação criativa com IA por fluxos de nós (estilo ElevenLabs Flow), com interface simples e acessível.

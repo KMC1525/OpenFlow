@@ -214,6 +214,16 @@ def build_args(exe: Path, load: Dict[str, Any], run: Dict[str, Any], *, prompt: 
     return args, warns
 
 
+_ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b[@-Z\\-_]")
+_STEPS = re.compile(r"(\d+)/(\d+)(?:\s*-\s*([\d.]+\s*\S*?(?:/s|s/it|it/s)))?\s*$")
+
+
+def progress_text(line: str) -> str:
+    """Uma linha do sd-cli sem códigos de terminal (o “[K” que apagava a linha aparecia na tela) e só com o último estado da barra."""
+    line = _ANSI.sub("", line).replace("\x1b", "")
+    return (line.split("\r")[-1] if "\r" in line else line).strip()
+
+
 def run(args: Sequence[str], exe: Path, cancelled: Callable[[], bool] = lambda: False, note: Callable[[str], None] = lambda m: None, timeout: float = 7200) -> str:
     """Roda o sd-cli (com cancelamento) e devolve as últimas linhas do log; levanta ProviderError com o motivo se falhar."""
     tail: List[str] = []
@@ -222,11 +232,12 @@ def run(args: Sequence[str], exe: Path, cancelled: Callable[[], bool] = lambda: 
     try:
         assert p.stdout is not None
         for line in p.stdout:
-            line = line.rstrip()
+            line = progress_text(line)
             if line:
                 tail = (tail + [line])[-12:]
-                if "|" in line and "/" in line:   # barra de progresso das etapas
-                    note(line[-90:])
+                m = _STEPS.search(line)
+                if m:   # barra de progresso das etapas: «|####| 359/359 - 2.08GB/s» vira «Etapa 359/359 · 2.08GB/s»
+                    note(f"Etapa {m.group(1)}/{m.group(2)}" + (f" · {m.group(3)}" if m.group(3) else ""))
             if cancelled():
                 p.terminate()
                 raise ProviderError("cancelado")

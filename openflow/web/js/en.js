@@ -871,4 +871,6 @@ export default {
   'Vem junto:': 'Comes along:',
   'Tipo': 'Type',
   'Buscar modelos no Hugging Face': 'Search models on Hugging Face',
+  'Importar projeto (.zip)': 'Import project (.zip)',
+  'Projeto importado': 'Project imported',
 };

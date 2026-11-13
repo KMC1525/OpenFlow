@@ -101,6 +101,11 @@ export default async function render(root, ctx) {
     status.textContent = query ? (list.length ? t('{n} de {m} projetos', { n: list.length, m: total }) : t('Nenhum projeto encontrado.')) : (total ? t('{n} projetos', { n: total }) : '');
   }
 
+  const importIn = h('input', { type: 'file', accept: '.zip,application/zip', class: 'hidden', id: 'pj-import-file', 'aria-label': t('Importar projeto (.zip)'), onchange: async (e) => {
+    const f = e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    try { const c = await api('/api/projects/import', { method: 'POST', body: f, raw: true, headers: { 'Content-Type': 'application/zip' } }); toast(t('Projeto importado'), 'ok'); openProject(c.id); } catch (err) { toast(err.message, 'err'); }
+  } });
   const input = h('input', { type: 'search', id: 'pj-search', placeholder: t('Pesquisar projetos…'), 'aria-label': t('Pesquisar projetos'), autocomplete: 'off', spellcheck: 'false',
     oninput: debounce(() => { query = input.value.trim(); load(); }, 180),
     onkeydown: (e) => { if (e.key === 'Escape' && input.value) { e.preventDefault(); input.value = ''; query = ''; load(); } else if (e.key === 'Enter') { e.preventDefault(); query = input.value.trim(); load(); } } });
@@ -109,7 +114,7 @@ export default async function render(root, ctx) {
 
   fill(root, h('div', { class: 'page cv-pg' },
     h('div', { class: 'page-h' }, h('div', null, h('h1', null, t('Projetos')), h('p', null, t('Todos os seus fluxos de criação: imagens, vídeos, sons e vozes com modelos de empresas (API) ou locais.'))),
-      h('div', { class: 'row' }, h('button', { class: 'btn primary', type: 'button', id: 'pj-new', onclick: () => create() }, icon('plus', 14), t('Novo projeto')))),
+      h('div', { class: 'row' }, h('button', { class: 'btn', type: 'button', id: 'pj-import', onclick: () => importIn.click() }, icon('upload', 14), t('Importar projeto (.zip)')), importIn, h('button', { class: 'btn primary', type: 'button', id: 'pj-new', onclick: () => create() }, icon('plus', 14), t('Novo projeto')))),
     h('form', { class: 'pj-bar', role: 'search', onsubmit: (e) => e.preventDefault() },
       h('div', { class: 'search' }, icon('search', 17), input, h('span', { class: 'kbd', 'aria-hidden': 'true' }, '/')), h('label', { class: 'pj-sort' }, h('span', { class: 'dim small' }, t('Ordenar por')), sortSel)),
     status, grid, empty));

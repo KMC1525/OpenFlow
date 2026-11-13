@@ -196,3 +196,44 @@ class NeedCompanionsTests(TmpCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AutoCliTests(unittest.TestCase):
+    """Modelo que a biblioteca não reconhece («get sd version from file failed», ex.: FLUX.3 Klein): o OpenFlow baixa o sd-cli sozinho e segue."""
+
+    def provider(self):
+        from openflow.canvas import media as M
+
+        notes = []
+        p = M.GGUFMedia.__new__(M.GGUFMedia)
+        p.ctl = M.Ctl(note=notes.append)
+        p._cancelled = lambda: False
+        return M, p, notes
+
+    def test_downloads_the_cli_once_and_then_uses_it(self):
+        M, p, notes = self.provider()
+        state = {"exe": None, "installs": 0}
+
+        def install(progress, cancelled, note):
+            state["installs"] += 1
+            state["exe"] = Path("/tmp/sd-cli")
+            return state["exe"]
+
+        with mock.patch.object(M.sdcli, "find", lambda: state["exe"]), mock.patch.object(M.sdcli, "install", install), mock.patch.object(M, "_media_unload", lambda: None):
+            self.assertTrue(p._cli_fallback(M._SDUnsupportedModel("get sd version from file failed")))
+            self.assertTrue(p._cli_fallback(M._SDUnsupportedModel("de novo")))
+        self.assertEqual(state["installs"], 1)
+        self.assertTrue(any("baixando o sd-cli" in n for n in notes))
+
+    def test_other_errors_and_the_off_switch_do_not_download(self):
+        M, p, _ = self.provider()
+        with mock.patch.object(M.sdcli, "find", lambda: None), mock.patch.object(M.sdcli, "install", side_effect=AssertionError("não devia baixar")):
+            self.assertFalse(p._cli_fallback(M._SDLoadError("sem memória")))
+            with mock.patch.dict("os.environ", {"OPENFLOW_SD_CLI_AUTO": "0"}):
+                self.assertFalse(p._cli_fallback(M._SDUnsupportedModel("x")))
+
+    def test_a_failed_download_keeps_the_button_message(self):
+        M, p, notes = self.provider()
+        with mock.patch.object(M.sdcli, "find", lambda: None), mock.patch.object(M.sdcli, "install", side_effect=M.ProviderError("sem rede")):
+            self.assertFalse(p._cli_fallback(M._SDUnsupportedModel("x")))
+        self.assertTrue(any("use o botão do nó" in n for n in notes))
