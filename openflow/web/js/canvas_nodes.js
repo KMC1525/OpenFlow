@@ -412,8 +412,12 @@ export function nodeResult(c, n) {
   if (error) {
     const sup = /\[\[flow-support:([^\]]+)\]\]/.exec(error);   // GGUF de difusão sem VAE/codificador de texto: oferece baixar o que falta
     const upd = /\[\[flow-sd-update\]\]/.test(error);   // a stable-diffusion.cpp instalada não reconhece o modelo: oferece compilar a versão mais nova
+    const repoHit = /\[\[flow-sd-repo:([^\]]+)\]\]/.exec(error);   // o arquivo é para o ComfyUI/diffusers: oferece abrir o repositório compatível com a stable-diffusion.cpp
     const tools = /\[\[flow-sd-tools\]\]/.test(error), cli = tools || /\[\[flow-sd-cli\]\]/.test(error);   // «tools»: faltam git/compilador: o botão instala o que falta e compila; «cli»:   // sem compilar: baixa o executável pronto (sd-cli) da stable-diffusion.cpp
-    box.append(h('div', { class: 'err' }, error.replace(/\s*\[\[flow-support:[^\]]+\]\]/, '').replace(/\s*\[\[flow-sd-update\]\]/, '').replace(/\s*\[\[flow-sd-cli\]\]/, '').replace(/\s*\[\[flow-sd-tools\]\]/, '')));
+    box.append(h('div', { class: 'err' }, error.replace(/\s*\[\[flow-support:[^\]]+\]\]/, '').replace(/\s*\[\[flow-sd-update\]\]/, '').replace(/\s*\[\[flow-sd-cli\]\]/, '').replace(/\s*\[\[flow-sd-tools\]\]/, '').replace(/\s*\[\[flow-sd-repo:[^\]]+\]\]/, '')));
+    if (repoHit) {
+      box.append(h('button', { class: 'btn sm primary nodrag', type: 'button', id: 'sdrepo-' + n.id, style: { marginTop: '6px' }, onclick: async () => { const { go } = await import('./main.js'); go('models', { repo: repoHit[1], kind: 'image' }); } }, icon('download', 13), t('Abrir {r} em Modelos', { r: repoHit[1] })));
+    }
     if (cli) {
       const cb = h('button', { class: 'btn sm primary nodrag', type: 'button', id: 'sdcli-' + n.id, style: { marginTop: '6px', marginRight: '6px' } }, icon('download', 13), tools ? t('Instalar o que falta e compilar o sd-cli') : t('Baixar o executável pronto (sem compilar)'));
       cb.onclick = async () => {

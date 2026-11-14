@@ -157,6 +157,31 @@ def download_spec(fam: Dict[str, Any], key: str, filename: str) -> Dict[str, Any
     return d
 
 
+
+#: Famílias cujo GGUF «certo» para a stable-diffusion.cpp vem de um repositório específico (convertido por ela, com os nomes de tensores que ela conhece). Os GGUF feitos para o ComfyUI/diffusers
+#: (ex.: unsloth/flux-3-image-klein-GGUF, com os nomes do checkpoint original) fazem o sd-cli parar em «get sd version from file failed».
+SD_NATIVE = [
+    {"name": r"flux[-_. ]?3(?!.*pup)", "repo": "leejet/flux-3-image-klein-GGUF", "example": "flux3-image-klein-Q4_K.gguf", "label": "FLUX.3 Image Klein"},
+]
+
+
+def sd_native_for(name: str, repo: str = "") -> Optional[Dict[str, str]]:
+    """O repositório compatível com a stable-diffusion.cpp para um modelo (pelo nome do arquivo ou do repositório), se a família tem um conhecido."""
+    for f in SD_NATIVE:
+        if re.search(f["name"], Path(name).name, re.I) or (repo and re.search(f["name"], repo.split("/")[-1], re.I)):
+            return f
+    return None
+
+
+def sd_compat_warning(repo: str) -> Optional[Dict[str, str]]:
+    """Aviso para quem abre, na busca, um repositório da família que NÃO é o convertido para a stable-diffusion.cpp: {text, repo} (None se está certo ou se a família não tem repositório de referência)."""
+    nat = sd_native_for("", repo)
+    if not nat or repo.lower() == nat["repo"].lower() or "stable-diffusion" in repo.lower():
+        return None
+    return {"repo": nat["repo"], "text": f"Só o repositório {nat['repo']} é confirmadamente convertido para a stable-diffusion.cpp (o programa que o OpenFlow usa). Os GGUF de outros repositórios costumam ser para o ComfyUI/diffusers "
+                                        f"(nomes de tensores diferentes) e o sd-cli os recusa com «get sd version from file failed». Prefira {nat['repo']} (ex.: {nat['example']})."}
+
+
 def run_for(fam: Dict[str, Any], filename: str) -> Dict[str, Any]:
     """Os parâmetros de geração da família; a variante «base» (sem destilação) usa os de `run_base`, se a família tem, e `variants` (ex.: «turbo») trocam os parâmetros pelo nome do arquivo."""
     name = Path(filename).name

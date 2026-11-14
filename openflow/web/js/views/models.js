@@ -8,7 +8,7 @@ import { checkbox, confirmDialog, debounce, fmtBytes, h, icon, toast } from '../
 // Tela «Modelos»: o que está instalado (com o estado dos arquivos de apoio: VAE, codificador de texto e mmproj), os recomendados e a busca no Hugging Face.
 // Ao baixar um modelo, o OpenFlow baixa junto o que ele precisa para rodar (a menos que isso seja desligado aqui).
 
-export default async function render(root) {
+export default async function render(root, ctx) {
   let kind = 'image';
   const ram = state.hardware.ram_gb || 8;
   const auto = { on: state.settings.hf.auto_support !== false };
@@ -135,7 +135,8 @@ export default async function render(root) {
       };
       btn.onclick = () => pick && dl(repo, pick, r.support || []);
       paint(); paintComes();
-      files.replaceChildren(h('div', { class: 'small muted' }, repo + ' — ' + t('Escolha a quantização: menos bits = arquivo menor e mais rápido, mas com menos qualidade. Sua RAM: {n} GB; ✓ = cabe (até ~60% da RAM).', { n: ram })), list, comes,
+      const compat = r.compat ? h('div', { class: 'res err', role: 'note', style: { marginBottom: '10px' } }, t(r.compat.text), ' ', r.compat.repo.toLowerCase() === repo.toLowerCase() ? null : h('button', { class: 'btn sm primary', type: 'button', onclick: () => { q.value = r.compat.repo; search(); openRepo(r.compat.repo); } }, t('Abrir {r}', { r: r.compat.repo }))) : null;
+      files.replaceChildren(compat, h('div', { class: 'small muted' }, repo + ' — ' + t('Escolha a quantização: menos bits = arquivo menor e mais rápido, mas com menos qualidade. Sua RAM: {n} GB; ✓ = cabe (até ~60% da RAM).', { n: ram })), list, comes,
         checkbox(t('Baixar junto o VAE, os codificadores de texto e o mmproj que o modelo precisa (recomendado)'), auto.on, async (v) => { auto.on = v; paintComes(); await saveSettings({ hf: { auto_support: v } }); }),
         h('div', { style: { marginTop: '10px' } }, btn));
     } catch (e) { if (my === repoSeq) files.replaceChildren(h('div', { class: 'res err', role: 'alert' }, e.message)); }
@@ -170,4 +171,5 @@ export default async function render(root) {
     h('div', { class: 'card' }, h('h3', null, t('Token do Hugging Face (opcional)')), h('p', { class: 'muted small', style: { marginTop: 0 } }, t('Necessário apenas para modelos restritos (gated).')),
       h('div', { class: 'row nw' }, tokenIn, h('button', { class: 'btn', type: 'button', onclick: async () => { if (tokenIn.value) { await saveSettings({ hf: { token: tokenIn.value } }); await refreshState(); toast(t('Salvo'), 'ok'); } } }, t('Salvar'))))));
   await Promise.all([paintInstalled(), paintPre()]);
+  if (ctx && ctx.repo) { kind = ctx.kind || 'image'; paintKind(); q.value = ctx.repo; await search(); openRepo(ctx.repo); }   // vindo do aviso de um nó: já abre o repositório indicado
 }
