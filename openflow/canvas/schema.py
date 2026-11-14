@@ -13,7 +13,10 @@ from . import nodes_ext
 
 SCHEMA = "openflow.project.v1"
 MAX_NODES, MAX_EDGES, MAX_CLIPS = 200, 600, 400
-SIZES = ("512x512", "768x768", "1024x1024", "1280x720", "720x1280", "1024x576", "576x1024", "1536x1024", "1024x1536")
+SIZES = (   # quadrado · paisagem · retrato (largura×altura); os modelos locais ajustam para múltiplos de 16 e o lado maior vai até MAX_SIDE
+    "512x512", "768x768", "1024x1024", "1280x1280", "1536x1536", "2048x2048",
+    "768x512", "1024x576", "1024x768", "1280x720", "1344x768", "1216x832", "1536x1024", "1536x864", "1920x1080", "2048x1152", "2048x1536", "2560x1080",
+    "512x768", "576x1024", "768x1024", "720x1280", "768x1344", "832x1216", "1024x1536", "864x1536", "1080x1920", "1152x2048", "1536x2048")
 ASPECTS = ("16:9", "9:16", "1:1", "4:3", "3:4")
 KINDS = ("image", "video", "audio", "text")
 CAPS = ("image", "video", "sound", "voice", "stt")  # capacidades de provedores de mídia

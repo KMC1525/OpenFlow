@@ -62,8 +62,8 @@ class RefsInGenerateModeTests(TmpCase):
         with mock.patch.dict(sys.modules, {"stable_diffusion_cpp": mod}):
             p.image("thumb de gameplay", size="1280x720", refs=refs)
             p.image("editar a foto", size="1280x720", refs=refs[:1])
-        self.assertEqual(runs[0], {"w": 1024, "h": 576, "refs": 4})   # uma montagem: o tamanho pedido (16:9), não o retrato da 1ª foto
-        self.assertEqual((runs[1]["w"], runs[1]["h"], runs[1]["refs"]), (672, 1024, 1))   # edição de uma imagem: mantém a proporção dela
+        self.assertEqual(runs[0], {"w": 1280, "h": 720, "refs": 4})   # uma montagem: o tamanho pedido (16:9), não o retrato da 1ª foto
+        self.assertEqual((runs[1]["w"], runs[1]["h"], runs[1]["refs"]), (848, 1280, 1))   # edição de uma imagem: mantém a proporção dela
 
     def test_the_engine_sends_references_in_generate_mode_to_a_multi_reference_model(self):
         from openflow.canvas import engine as E

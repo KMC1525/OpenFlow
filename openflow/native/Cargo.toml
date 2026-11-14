@@ -1,6 +1,6 @@
 [package]
 name = "openflow_core"
-version = "0.5.0"
+version = "0.6.0"
 edition = "2021"
 description = "Núcleo em Rust do OpenFlow: síntese de áudio, conversões em lote e carga/inferência de modelos locais (cabeçalhos GGUF/safetensors, hardware, planejador e pré-carga), vários agentes locais, armazenamento (varredura e duplicados) e memória (biblioteca C carregada pelo Python via ctypes; só a biblioteca padrão, sem dependências)."
 license = "MIT"
