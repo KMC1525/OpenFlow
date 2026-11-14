@@ -8,7 +8,7 @@ Inspired by ElevenLabs Flow and much lighter than ComfyUI: connect a few nodes, 
 
 [Install](#install) · [The `flow` command](#the-flow-command) · [Projects](#projects--the-home-screen) · [Nodes](#the-nodes) · [Style Folder](#style-folder--folders-and-subfolders) · [Models](#models--support-files-install-themselves) · [Providers](#ai-providers) · [Rust core](#rust-core) · [Development](#development) · [Changelog](CHANGELOG.en.md) · [Português](README.pt-BR.md)
 
-`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Rust core` · `no required dependencies` · `v0.7.0`
+`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Rust core` · `no required dependencies` · `v0.8.0`
 
 </div>
 
@@ -123,7 +123,7 @@ Open **Models** to install and manage local models (GGUF, via llama.cpp and stab
 
   | File | When |
   |---|---|
-  | **VAE** | Image/video models of a known family (FLUX.2/3, Qwen-Image, Z-Image, Wan 2.1/2.2…) from the right repositories, or a VAE the model's own repository ships next to it. |
+  | **VAE** | Image/video models of a known family (FLUX.1 Krea/FLUX.2/3, Qwen-Image and Qwen-Image-Edit, Krea 2, Bria FIBO 2.0, Z-Image, Wan 2.1/2.2…) from the right repositories, or a VAE the model's own repository ships next to it. |
   | **Text encoders** (`clip_l`, `t5xxl`, `umt5`, Qwen3/Mistral/Qwen-VL as LLM encoders…) | Same rule as the VAE. |
   | **`mmproj`** (vision projector) | Text/vision models whose repository has `mmproj-*.gguf`; the best one is chosen (F16, BF16, Q8_0, F32) and saved as `<model>.mmproj.gguf` so two models never share the wrong projector. |
 
@@ -136,7 +136,7 @@ With the optional `local` library, a model that has an `mmproj` next to it is lo
 
 **Text** (AI text node, flow planner, style description): Claude (Anthropic), ChatGPT (OpenAI), Grok (xAI), Gemini, OpenRouter, Hugging Face Inference, LM Studio (detected automatically), Ollama / llama.cpp server / vLLM / any OpenAI-compatible endpoint, embedded Hugging Face GGUF, and **Demo** (offline).
 
-**Media** (set per type in *Settings → Image, video, sound and voice*, and overridable on every node): OpenAI (gpt-image, TTS, Whisper), OpenAI-compatible servers (Kokoro, faster-whisper, LocalAI…), ElevenLabs, Google (Gemini/Veo), Stability AI, Replicate, Hugging Face Inference, Stable Diffusion WebUI (local), **Hugging Face local** (diffusers + transformers), **GGUF local** (stable-diffusion.cpp) and **Demo** (offline: procedural images, synthesized sound, Ken Burns video — needs `ffmpeg`).
+**Media** (set per type in *Settings → Image, video, sound and voice*, and overridable on every node): OpenAI (gpt-image, TTS, Whisper), OpenAI-compatible servers (Kokoro, faster-whisper, LocalAI…), ElevenLabs, Google (Gemini/Veo), Stability AI, **Qwen (Alibaba Cloud)**, **Krea**, **Bria**, Replicate, Hugging Face Inference, Stable Diffusion WebUI (local), **Hugging Face local** (diffusers + transformers), **GGUF local** (stable-diffusion.cpp) and **Demo** (offline: procedural images, synthesized sound, Ken Burns video — needs `ffmpeg`).
 
 ## Rust core
 
@@ -182,7 +182,7 @@ node tests/js/i18n_check.mjs                     # every UI phrase has an Englis
 
 Browser tests need Node, Playwright and Chromium (`NODE_PATH` pointing at your `playwright` install). Python 3.9 compatible code (no `match`, no runtime `X | Y`). Every UI and terminal string is Portuguese-first with an English translation (`openflow/web/js/en.js`, `openflow/term_en.py`); tests enforce it.
 
-## Honest limits (v0.7.0)
+## Honest limits (v0.8.0)
 
 Verified here (Linux, Python 3.13): the full Python test suite (442 tests), the Chromium browser tests, the Rust tests, and `install.sh` end to end against a local checkout. **Not verified:** `install.ps1` on a real Windows machine and `install.sh` on macOS (CI jobs are written but were not run); Rust core builds for macOS/Windows/ARM; real downloads of VAEs, text encoders and `mmproj` from Hugging Face (tests simulate the downloads — file names of the curated and example repositories were checked against Hugging Face listings); inference with real GGUF models and GPUs; vision input through `mmproj` with a real model; cloud providers with real keys (tests use fake servers). Performance numbers are not benchmarked.
 

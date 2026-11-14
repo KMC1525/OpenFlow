@@ -33,8 +33,8 @@ jobs:
           cargo build --release --manifest-path openflow/native/Cargo.toml
           case "$RUNNER_OS" in Windows) L=openflow_core.dll ;; macOS) L=libopenflow_core.dylib ;; *) L=libopenflow_core.so ;; esac
           echo "OPENFLOW_NATIVE_LIB=$PWD/openflow/native/target/release/$L" >> "$GITHUB_ENV"
-      - name: Instalar
-        run: python -m pip install -e .
+      - name: Instalar (e Pillow/numpy: os testes de imagem os usam)
+        run: python -m pip install -e . pillow numpy
       - name: Testes
         run: python -m unittest discover -s tests -t . -v
 
@@ -57,8 +57,8 @@ jobs:
           npm init -y >/dev/null
           npm install playwright
           npx playwright install --with-deps chromium
-      - name: Instalar
-        run: python -m pip install -e .
+      - name: Instalar (e Pillow/numpy: os testes de imagem os usam)
+        run: python -m pip install -e . pillow numpy
       - name: Testes de navegador e do editor
         env:
           NODE_PATH: ${{ runner.temp }}/pw/node_modules

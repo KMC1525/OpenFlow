@@ -2569,6 +2569,14 @@ MEDIA_PRESETS: Dict[str, Dict[str, Any]] = {
 _KINDS = {"demo": DemoMedia, "openrouter": OpenRouterMedia, "openai": OpenAIMedia, "elevenlabs": ElevenLabsMedia, "google": GoogleMedia, "stability": StabilityMedia, "replicate": ReplicateMedia,
           "huggingface": HFInferenceMedia, "a1111": A1111Media, "local_hf": LocalHFMedia, "gguf_local": GGUFMedia, "voice_settings": VoiceSettingsMedia}
 
+from . import media_cloud as _cloud   # noqa: E402  (v0.8: Qwen, Krea e Bria; o módulo usa as classes acima)
+
+_KINDS.update(_cloud.KINDS)
+_at = list(MEDIA_PRESETS)
+MEDIA_PRESETS.update({k: v for k, v in _cloud.PRESETS.items()})
+_order = _at[:_at.index("replicate")] + list(_cloud.PRESETS) + _at[_at.index("replicate"):]   # as nuvens novas ficam junto das outras, antes das locais e do «personalizado»
+MEDIA_PRESETS = {k: MEDIA_PRESETS[k] for k in _order}
+
 
 def media_config(settings: Dict[str, Any], pid: str) -> Dict[str, Any]:
     preset = MEDIA_PRESETS.get(pid)

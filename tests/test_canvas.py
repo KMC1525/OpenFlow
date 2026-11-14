@@ -760,7 +760,7 @@ class GGUFMediaTests(TmpCase):
             with self.assertRaises(ProviderError) as cm:
                 self.prov(video="wan-Q4_0.gguf").video("x")  # esta versão da biblioteca não gera vídeo
             self.assertIn("não gera vídeo", str(cm.exception))
-        with mock.patch.dict(sys.modules, {"stable_diffusion_cpp": None}):
+        with mock.patch.dict(sys.modules, {"stable_diffusion_cpp": None}), mock.patch.object(M.GGUFMedia, "_cli_fallback", return_value=False):   # sem rede: o sd-cli não é baixado
             with self.assertRaises(ProviderError) as cm:
                 self.prov(image="flux-Q4_K_S.gguf").image("x")
             self.assertIn('pip install "openflow[local]"', str(cm.exception))

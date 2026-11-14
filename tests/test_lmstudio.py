@@ -185,7 +185,7 @@ class WhyNotConnectedTests(LMStudioBase):
     def test_probe_of_a_closed_port_reports_why(self):
         info = lmstudio.probe(f"http://127.0.0.1:{free_port()}", timeout=1)
         self.assertFalse(info["running"])
-        self.assertEqual(info["kind"], "refused")
+        self.assertIn(info["kind"], ("refused", "timeout") if os.name == "nt" else ("refused",))   # o Windows pode deixar a conexão expirar em vez de recusar
 
 
 class ExplainTests(LMStudioBase):

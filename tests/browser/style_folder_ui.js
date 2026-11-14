@@ -64,6 +64,7 @@ run('style_folder', async ({ api, open, check }) => {
   await page.waitForTimeout(300);
   const labels = await page.locator('.sf-tree > .sf-folder > .sf-head .sf-label').allInnerTexts();
   check('renomear:nome-repetido-vira-numerado', labels.length === 2 && labels.includes('Estilo A') && labels.includes('estilo a (2)'));
+  await page.addStyleTag({ content: '#cv-dock{display:none!important}' });   // o painel flutuante do prompt cobre o nó em alguns sistemas (fontes maiores)
   await page.locator('.sf-tree > .sf-folder').nth(1).locator('.sf-label').first().dblclick();
   const dbl = page.locator('.sf-tree > .sf-folder').nth(1).locator('.sf-name').first();
   await dbl.waitFor({ timeout: 5000 });

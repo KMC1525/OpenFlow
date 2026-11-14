@@ -60,11 +60,11 @@ class BuildArgsTests(unittest.TestCase):
         load = {"diffusion_model_path": "/m/model.gguf", "vae_path": "/m/vae.safetensors", "llm_path": "/m/llm.gguf", "offload_params_to_cpu": True, "diffusion_flash_attn": True, "estranho": 1}
         args, warns = sdcli.build_args(exe, load, {"cfg_scale": 1.0, "sample_steps": 4, "sample_method": "euler", "outra": 3}, prompt="um gato", width=1024, height=576, seed=7, negative="feio",
                                        refs=[Path("/t/r0.png"), Path("/t/r1.png")], out=Path("/t/out.png"))
-        self.assertEqual(args[:3], ["/x/sd-cli", "-M", "img_gen"])
+        self.assertEqual(args[:3], [str(exe), "-M", "img_gen"])   # str(Path): no Windows a barra muda
         pairs = {args[i]: args[i + 1] for i in range(len(args) - 1)}
         self.assertEqual((pairs["--diffusion-model"], pairs["--vae"], pairs["--llm"], pairs["--cfg-scale"], pairs["--steps"], pairs["--sampling-method"]), ("/m/model.gguf", "/m/vae.safetensors", "/m/llm.gguf", "1.0", "4", "euler"))
         self.assertEqual((pairs["-W"], pairs["-H"], pairs["-s"], pairs["-n"], pairs["-p"]), ("1024", "576", "7", "feio", "um gato"))
-        self.assertEqual([args[i + 1] for i, a in enumerate(args) if a == "-r"], ["/t/r0.png", "/t/r1.png"])   # várias referências: -r repetido
+        self.assertEqual([args[i + 1] for i, a in enumerate(args) if a == "-r"], [str(Path("/t/r0.png")), str(Path("/t/r1.png"))])   # várias referências: -r repetido
         self.assertIn("--offload-to-cpu", args)
         self.assertEqual(sorted(warns), ["estranho", "outra"])
         v, _ = sdcli.build_args(exe, {}, {"video_frames": 73, "fps": 24}, prompt="x", width=1280, height=704, seed=1, out=Path("/t/f_%05d.png"), video=True)
@@ -296,8 +296,8 @@ class DeviceChoiceTests(TmpCase):
         p = M.GGUFMedia.__new__(M.GGUFMedia)
         p.ctl, p._cancelled = M.Ctl(note=notes.append), (lambda: False)
         self.perf.configure({"device": "gpu"})
-        with mock.patch.object(sdcli, "_nvidia", lambda: True), mock.patch.object(sdcli, "find", lambda: Path("/tmp/sd-cli")), mock.patch.object(M, "_media_unload", lambda: None), \
-                mock.patch.object(sdcli, "install", lambda *a, **k: calls.append(sdcli.backend())):
+        with mock.patch.object(sdcli.platform, "system", lambda: "Linux"), mock.patch.object(sdcli, "_nvidia", lambda: True), mock.patch.object(sdcli, "find", lambda: Path("/tmp/sd-cli")), \
+                mock.patch.object(M, "_media_unload", lambda: None), mock.patch.object(sdcli, "install", lambda *a, **k: calls.append(sdcli.backend())):
             self.assertTrue(p._cli_fallback(M._SDUnsupportedModel("x")))
         self.assertEqual(calls, ["cuda12"])
 
