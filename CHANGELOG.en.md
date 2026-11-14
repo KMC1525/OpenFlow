@@ -2,6 +2,15 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.10.0] — 2026-11-14
+
+### Fixed
+- **Image edits barely changed anything:** with a loose request like "make the title bigger, keep the rest", local models that edit by reference (FLUX.3/FLUX.2 klein, Kontext, Qwen-Image-Edit…) returned almost the same image (in your example the title grew only ~6%). In **Edit** mode, when the request is not expanded by the text model, OpenFlow now sends it as a clear editing instruction ("Edit the provided reference image. Apply exactly this change: … make the change clearly visible and keep everything else the same"). When generating, the text goes as-is.
+- **Warning when an edit had no effect:** if the result is almost identical to the input image, the node shows a warning saying what to do (describe the change in more detail, configure a text model to expand the request, or regenerate with another seed).
+
+### Not verified yet
+- I could not reproduce the edit with the real model (no FLUX.3 and no GPU here): the instruction framing follows the format edit models expect, but the gain only shows in your use. FLUX.3 Klein works best with the text model configured (Settings → Model), which expands the request into a full caption.
+
 ## [0.9.0] — 2026-11-14
 
 ### New

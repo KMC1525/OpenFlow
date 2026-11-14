@@ -224,6 +224,10 @@ class MediaProvider:
         """Quantas imagens de referência o modelo realmente usa (as demais seriam ignoradas em silêncio)."""
         return 8
 
+    def frames_edit_for(self, model: str = "") -> bool:
+        """O OpenFlow deve reescrever o pedido do modo Editar como instrução de edição? Só nos modelos locais que editam por referência (Kontext, FLUX.2 klein, FLUX.3, Qwen-Image-Edit…)."""
+        return False
+
     def refs_need_edit(self, model: str = "") -> bool:
         """As referências só valem no modo Editar? Modelos que juntam várias referências na mesma imagem (FLUX.2 klein, Qwen-Image 2.1, Kontext…) as usam também no modo Gerar; os de «imagem → imagem» não."""
         return bool(self.refs_edit_only)
@@ -1850,6 +1854,20 @@ def _max_side() -> int:
         return 2048
 
 
+def image_difference(a: bytes, b: bytes) -> Optional[float]:
+    """Quanto duas imagens diferem (0 = iguais, 1 = opostas): diferença média de brilho depois de reduzir as duas a 64×64. None se não dá para calcular (sem a Pillow ou formato ilegível)."""
+    try:
+        from PIL import Image  # type: ignore
+
+        def small(data: bytes) -> Any:
+            return Image.open(io.BytesIO(data)).convert("L").resize((64, 64))
+
+        pa, pb = small(a).tobytes(), small(b).tobytes()
+        return sum(abs(x - y) for x, y in zip(pa, pb)) / (255.0 * len(pa))
+    except Exception:   # noqa: BLE001 — só um aviso: nunca derruba a geração
+        return None
+
+
 def _size_like(ref: Any, w: int, h: int, mult: int) -> Tuple[int, int]:
     """Tamanho com a proporção da imagem de referência e o mesmo lado maior do tamanho pedido (editar não deve esticar a imagem)."""
     rw, rh = ref.size
@@ -2100,6 +2118,10 @@ class GGUFMedia(MediaProvider):
         if re.search(r"flux[-_. ]?3", name, re.I):
             return 10
         return 4 if _GGUF_MULTI_REF.search(name) else 1   # os demais modelos usam só uma imagem de partida
+
+    def frames_edit_for(self, model: str = "") -> bool:
+        name = Path(self.model_for("image", model) or model or "").name
+        return bool(_GGUF_MULTI_REF.search(name) or re.search(r"flux[-_. ]?3", name, re.I))
 
     def refs_need_edit(self, model: str = "") -> bool:
         name = Path(self.model_for("image", model) or model or "").name
