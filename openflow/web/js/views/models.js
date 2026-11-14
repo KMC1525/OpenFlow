@@ -3,7 +3,7 @@ import { t } from '../i18n.js';
 import { refreshState, renderSide, saveSettings, state } from '../main.js';
 import { ROLE_LABEL } from '../labels.js';
 import { GGUF_HINT, GGUF_KINDS, QUALITY_LABEL } from '../model_labels.js';
-import { checkbox, confirmDialog, fmtBytes, h, icon, toast } from '../ui.js';
+import { checkbox, confirmDialog, debounce, fmtBytes, h, icon, toast } from '../ui.js';
 
 // Tela «Modelos»: o que está instalado (com o estado dos arquivos de apoio: VAE, codificador de texto e mmproj), os recomendados e a busca no Hugging Face.
 // Ao baixar um modelo, o OpenFlow baixa junto o que ele precisa para rodar (a menos que isso seja desligado aqui).
@@ -15,7 +15,9 @@ export default async function render(root) {
   const installed = h('div', { class: 'col', 'aria-live': 'polite' }), preBox = h('div', { class: 'col', style: { gap: '10px' } });
   const results = h('div', { class: 'col' }), files = h('div', { class: 'col', style: { marginTop: '14px' } }), prog = h('div', { 'aria-live': 'polite' });
   const kindHint = h('p', { class: 'muted small', style: { margin: '10px 0 0' } });
-  const q = h('input', { type: 'search', id: 'md-q', 'aria-label': t('Buscar modelos'), onkeydown: (e) => { if (e.key === 'Enter') search(); } });
+  const q = h('input', { type: 'search', id: 'md-q', 'aria-label': t('Buscar modelos'), autocomplete: 'off', spellcheck: 'false',
+    oninput: debounce(() => { if (q.value.trim().length >= 3) search(); }, 500),   // pesquisa enquanto digita (depois de uma pausa); Enter pesquisa na hora
+    onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); search(); } } });
 
   // ---------------------------------------------------------------------------------------------- progresso de um job (download)
   function track(jid, title, area, done) {
@@ -91,18 +93,24 @@ export default async function render(root) {
   }
 
   // ---------------------------------------------------------------------------------------------- busca no Hugging Face
+  let searchSeq = 0, repoSeq = 0;   // só a resposta mais recente vale: uma busca lenta e antiga não pode apagar a nova
+  const waiting = (msg) => h('div', { class: 'muted small', role: 'status' }, h('span', { class: 'spinner' }), ' ', msg);
   async function search() {
-    results.replaceChildren(h('div', { class: 'spinner' }));
+    const my = ++searchSeq, term = (q.value || '').trim() || 'gguf';
+    results.replaceChildren(waiting(t('Buscando “{q}” no Hugging Face…', { q: term })));
     try {
-      const r = await api('/api/hf/search?q=' + encodeURIComponent(q.value || 'gguf') + '&kind=' + kind);
+      const r = await api('/api/hf/search?q=' + encodeURIComponent(term) + '&kind=' + kind);
+      if (my !== searchSeq) return;
       results.replaceChildren(...(r.results.length ? r.results.map((m) => h('button', { type: 'button', class: 'li', onclick: () => openRepo(m.id) }, h('div', { class: 'grow', style: { minWidth: 0, textAlign: 'left' } }, h('div', { class: 't' }, m.id), h('div', { class: 's' }, '⬇ ' + (m.downloads || 0).toLocaleString() + ' · ♥ ' + (m.likes || 0))), icon('chev', 15)))
         : [h('div', { class: 'muted small' }, t('Nada encontrado. Tente outro nome.'))]));
-    } catch (e) { results.replaceChildren(h('div', { class: 'res err', role: 'alert' }, e.message)); }
+    } catch (e) { if (my === searchSeq) results.replaceChildren(h('div', { class: 'res err', role: 'alert' }, e.message)); }
   }
   async function openRepo(repo) {
-    files.replaceChildren(h('div', { class: 'spinner' }));
+    const my = ++repoSeq;
+    files.replaceChildren(waiting(t('Lendo as quantizações de {r}…', { r: repo })));
     try {
       const [r, loc] = await Promise.all([api('/api/hf/files?repo=' + encodeURIComponent(repo) + '&kind=' + kind), api('/api/hf/local?kind=' + kind)]);
+      if (my !== repoSeq) return;
       const have = new Set(loc.models.map((m) => m.name));
       if (!r.files.length) return files.replaceChildren(h('div', { class: 'res err' }, t('Nenhum arquivo GGUF utilizável neste repositório.')));
       let pick = null;   // nada vem escolhido: o usuário decide a quantização antes de qualquer download
@@ -130,7 +138,7 @@ export default async function render(root) {
       files.replaceChildren(h('div', { class: 'small muted' }, repo + ' — ' + t('Escolha a quantização: menos bits = arquivo menor e mais rápido, mas com menos qualidade. Sua RAM: {n} GB; ✓ = cabe (até ~60% da RAM).', { n: ram })), list, comes,
         checkbox(t('Baixar junto o VAE, os codificadores de texto e o mmproj que o modelo precisa (recomendado)'), auto.on, async (v) => { auto.on = v; paintComes(); await saveSettings({ hf: { auto_support: v } }); }),
         h('div', { style: { marginTop: '10px' } }, btn));
-    } catch (e) { files.replaceChildren(h('div', { class: 'res err', role: 'alert' }, e.message)); }
+    } catch (e) { if (my === repoSeq) files.replaceChildren(h('div', { class: 'res err', role: 'alert' }, e.message)); }
   }
   async function dl(repo, f, support) {
     const fitNote = f.fits ? t('Cabe na sua RAM.') : t('Pode não caber na sua RAM ({n} GB).', { n: ram });

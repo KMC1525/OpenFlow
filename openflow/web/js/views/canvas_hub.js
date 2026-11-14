@@ -26,10 +26,12 @@ export function modelSearchBar(c) {
   const close = () => panel.classList.add('hidden');
   document.addEventListener('pointerdown', (e) => { if (!root.isConnected) return; if (!root.contains(e.target)) close(); });
 
+  let searchSeq = 0;   // só a resposta mais recente vale (uma busca lenta e antiga não apaga a nova)
   async function search() {
     if (!st.q) return toast(t('Escreva o nome ou o assunto do modelo (ex.: flux, sdxl, whisper, wan).'));
+    const my = ++searchSeq;
     st.busy = true; st.err = ''; st.open = null; openPanel();
-    try { const r = await api(`/api/media/hub/search?q=${encodeURIComponent(st.q)}&cap=${st.cap}&format=${st.fmt}`); st.results = r.results; st.fmt = r.format; syncFmt(); } catch (e) { st.err = e.message; st.results = []; }
+    try { const r = await api(`/api/media/hub/search?q=${encodeURIComponent(st.q)}&cap=${st.cap}&format=${st.fmt}`); if (my !== searchSeq) return; st.results = r.results; st.fmt = r.format; syncFmt(); } catch (e) { if (my !== searchSeq) return; st.err = e.message; st.results = []; }
     st.busy = false; paint();
   }
 
