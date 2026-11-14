@@ -232,11 +232,17 @@ class AutoCliTests(unittest.TestCase):
             with mock.patch.dict("os.environ", {"OPENFLOW_SD_CLI_AUTO": "0"}):
                 self.assertFalse(p._cli_fallback(M._SDUnsupportedModel("x")))
 
-    def test_a_failed_download_keeps_the_button_message(self):
+    def test_a_failed_download_remembers_why_and_the_node_error_offers_the_button_again(self):
         M, p, notes = self.provider()
         with mock.patch.object(M.sdcli, "find", lambda: None), mock.patch.object(M.sdcli, "install", side_effect=M.ProviderError("sem rede")):
             self.assertFalse(p._cli_fallback(M._SDUnsupportedModel("x")))
-        self.assertTrue(any("use o botão do nó" in n for n in notes))
+        self.assertTrue(any("Não consegui baixar o sd-cli sozinho (sem rede)" in n for n in notes))
+        err = str(p._no_cli_error(Path("flux-3-image-klein-Q4_K_M.gguf")))
+        self.assertIn("sem rede", err)                    # o motivo verdadeiro aparece no erro do nó
+        self.assertIn("flow update", err)
+        self.assertIn("[[flow-sd-cli]]", err)             # falha de rede: o botão pode ajudar
+        p._cli_error = "exige a glibc 2.43 e este Linux tem 2.39"
+        self.assertNotIn("[[flow-sd-cli]]", str(p._no_cli_error(Path("m.gguf"))))   # glibc antiga: o botão falharia de novo
 
 
 class RememberedUnsupportedTests(TmpCase):

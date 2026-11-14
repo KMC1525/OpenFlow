@@ -2,6 +2,15 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.14.0] — 2026-11-14
+
+### Corrigido
+- **«A stable-diffusion.cpp instalada não reconhece o modelo flux-3-image-klein… e fechou (código -11)»:** o FLUX.3 Klein é mais novo que a biblioteca do PyPI (0.4.7) e deve ir direto ao `sd-cli` pronto. Quando o OpenFlow **não conseguia** esse executável (sem rede, glibc antiga demais…), ele caía na biblioteca, que carregava o modelo inteiro, fechava com «código -11» e mostrava uma mensagem que mandava usar o mesmo botão que tinha acabado de falhar — escondendo o motivo real. Agora, sem `sd-cli`, o OpenFlow **nem carrega a biblioteca** e o erro do nó diz **por que o download falhou** (ex.: «exige a glibc 2.43 e este Linux tem 2.39») e o que fazer: `flow update` (compila a stable-diffusion.cpp mais nova do GitHub), apontar `OPENFLOW_SD_CLI` para um sd-cli seu ou usar outro modelo. O botão «Baixar o executável pronto» só é oferecido quando uma nova tentativa pode ajudar (falha de rede, não de glibc).
+- **Com a biblioteca do GitHub o FLUX.3 volta a tentar a biblioteca:** o OpenFlow assumia que a biblioteca nunca conhece o FLUX.3. Depois de um `flow update` (que agora compila a do GitHub, v0.13) ou com uma versão acima da 0.4.7, ele tenta primeiro a própria biblioteca, em vez de sempre usar o `sd-cli`.
+
+### Ainda não verificado
+- Não reproduzi o «código -11» com o modelo real (sem FLUX.3 e sem a biblioteca aqui); os testes cobrem a escolha do caminho, o motivo mostrado e a detecção da biblioteca do GitHub.
+
 ## [0.13.0] — 2026-11-14
 
 ### Mudou
