@@ -2174,6 +2174,21 @@ class GGUFMedia(MediaProvider):
                 self.ctl.note(f"Não consegui baixar o sd-cli sozinho ({str(err)[:160]}); use o botão do nó.")
         return sdcli.find() is not None
 
+    def _cli_call(self, path: Path, fn: Callable[[Path], Any]) -> Any:
+        """Roda `fn(sd-cli)`. Se o executável não roda neste Linux (glibc antiga), o OpenFlow o apaga, baixa o pacote compatível e tenta mais uma vez, sem pedir que a pessoa gere de novo."""
+        cli = sdcli.find()
+        assert cli is not None
+        try:
+            return fn(cli)
+        except sdcli.GlibcError as exc:
+            self.ctl.note(str(exc)[:200] + " Baixando o pacote compatível…")
+            if not self._cli_fallback(_SDUnsupportedModel(path.name)):
+                raise
+            cli = sdcli.find()
+            if cli is None:
+                raise
+            return fn(cli)
+
     def _engine(self, cap: str, path: Path, load: Dict[str, Any]) -> Any:
         (sdc,) = _local_import("stable_diffusion_cpp", extra="local")
         _install_sd_log(sdc)   # guarda as mensagens da stable-diffusion.cpp: quando a geração falha com «NULL pointer access», o motivo de verdade está nelas
@@ -2254,8 +2269,8 @@ class GGUFMedia(MediaProvider):
         for i in range(max(1, count)):
             self.ctl.check()
             try:
-                data, warns = sdcli.generate_image(cli, kw, run_p, prompt=prompt, width=w, height=h, seed=int(seed + i) if seed else int(time.time() * 1000) % (2 ** 31) + i, negative=negative,
-                                                    refs=ref_png if multi else [], init=None if multi or not ref_png else ref_png[0], cancelled=self._cancelled, note=self.ctl.note)
+                data, warns = self._cli_call(path, lambda c: sdcli.generate_image(c, kw, run_p, prompt=prompt, width=w, height=h, seed=int(seed + i) if seed else int(time.time() * 1000) % (2 ** 31) + i, negative=negative,
+                                                                                  refs=ref_png if multi else [], init=None if multi or not ref_png else ref_png[0], cancelled=self._cancelled, note=self.ctl.note))
             except ProviderError as exc:
                 if str(exc) == "cancelado":
                     self.ctl.check()   # o trabalho foi cancelado: levanta o cancelamento de verdade
@@ -2471,7 +2486,7 @@ class GGUFMedia(MediaProvider):
                 init = b.getvalue()
         self.ctl.note(f"A stable-diffusion-cpp-python não reconhece este modelo: gerando o vídeo pelo sd-cli ({cli.name}). Pode demorar bastante.")
         try:
-            frames, warns = sdcli.generate_video(cli, self._load_kwargs(path, load), run_p, prompt=prompt, width=w, height=h, seed=int(seed) if seed else -1, fps=fps, init=init, cancelled=self._cancelled, note=self.ctl.note)
+            frames, warns = self._cli_call(path, lambda c: sdcli.generate_video(c, self._load_kwargs(path, load), run_p, prompt=prompt, width=w, height=h, seed=int(seed) if seed else -1, fps=fps, init=init, cancelled=self._cancelled, note=self.ctl.note))
         except ProviderError as exc:
             if str(exc) == "cancelado":
                 self.ctl.check()

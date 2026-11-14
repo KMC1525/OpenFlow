@@ -39,7 +39,7 @@ def find() -> Optional[Path]:
         hit = next(iter(sorted(bin_dir().rglob(EXE))), None)
     except OSError:
         hit = None
-    if hit and hit.is_file():
+    if hit and hit.is_file() and (bin_dir() / "VERSION").is_file():   # sem VERSION a instalação não terminou ou o pacote não passou no teste (ex.: glibc antiga): não serve
         return hit
     which = shutil.which("sd-cli")
     return Path(which) if which else None
@@ -73,9 +73,55 @@ def installed_backend() -> str:
         return ""
 
 
-def pick_asset(assets: Sequence[Dict[str, Any]], system: str, machine: str, want: str = "cpu") -> Optional[Dict[str, Any]]:
-    """O arquivo `.zip` da Release que serve a este sistema. Os nomes seguem `sd-<branch>-<commit>-bin-<SO>-<distro>-<versão>-<arq>[-vulkan|-rocm-…].zip` (Linux/macOS) e
-    `sd-<branch>-<commit>-bin-win-<cpu|cuda12|vulkan>-x64.zip` (Windows)."""
+
+# glibc que cada versão do Ubuntu traz: os pacotes `Linux-Ubuntu-X` da Release foram compilados nela e só rodam em sistemas com glibc igual ou mais nova
+UBUNTU_GLIBC = {"18.04": (2, 27), "20.04": (2, 31), "22.04": (2, 35), "24.04": (2, 39), "26.04": (2, 43)}
+_GLIBC_MISSING = re.compile(r"GLIBC(?:XX)?_(\d+)\.(\d+)(?:\.\d+)?['`\"]? not found")
+
+
+def glibc_version() -> Optional[Tuple[int, int]]:
+    """A versão da glibc deste Linux (None fora do Linux ou em musl/Alpine, onde o pacote `Linux-Ubuntu` não serve)."""
+    if sys_platform() != "linux":
+        return None
+    try:
+        raw = os.confstr("CS_GNU_LIBC_VERSION") or ""
+    except (ValueError, OSError, AttributeError):
+        raw = ""
+    m = re.search(r"glibc\s+(\d+)\.(\d+)", raw)
+    if not m:
+        lib, ver = platform.libc_ver()
+        m = re.match(r"(\d+)\.(\d+)", ver) if lib == "glibc" else None
+    return (int(m.group(1)), int(m.group(2))) if m else None
+
+
+def asset_glibc(name: str) -> Optional[Tuple[int, int]]:
+    """A glibc mínima que o pacote exige (pela versão do Ubuntu no nome); None se o nome não diz."""
+    m = re.search(r"-Linux-Ubuntu-(\d+\.\d+)-", name)
+    if not m:
+        return None
+    if m.group(1) in UBUNTU_GLIBC:
+        return UBUNTU_GLIBC[m.group(1)]
+    yy = int(m.group(1).split(".")[0])
+    return (2, 43 + 2 * max(0, (yy - 26) // 2))   # Ubuntu mais novo que a tabela: assume que exige pelo menos a glibc do último conhecido
+
+
+class GlibcError(ProviderError):
+    """O sd-cli não roda neste Linux por causa da glibc (o OpenFlow já apagou o executável baixado: o próximo pedido baixa o pacote compatível)."""
+
+
+def glibc_error(text: str) -> str:
+    """Se a saída do sd-cli é «GLIBC_x.y not found», a explicação em português (senão vazio)."""
+    m = _GLIBC_MISSING.search(text or "")
+    if not m:
+        return ""
+    have = glibc_version()
+    return (f"O sd-cli baixado exige a glibc {m.group(1)}.{m.group(2)} e este Linux tem {'%d.%d' % have if have else 'uma mais antiga'}. "
+            "O OpenFlow o apagou: ao gerar de novo ele baixa o pacote compatível com a sua glibc (Ubuntu 22.04/24.04). "
+            "Se a Release só trouxer pacotes mais novos, compile a stable-diffusion.cpp (flow libs) ou aponte OPENFLOW_SD_CLI para um sd-cli seu.")
+
+
+def pick_assets(assets: Sequence[Dict[str, Any]], system: str, machine: str, want: str = "cpu", glibc: Optional[Tuple[int, int]] = None) -> List[Dict[str, Any]]:
+    """Os pacotes que servem a este sistema, do melhor para o pior. No Linux, com `glibc` conhecida, só entram os que ela consegue rodar, do mais novo para o mais antigo."""
     m = (machine or "").lower()
     arch = "arm64" if m in ("arm64", "aarch64") else "x86_64" if m in ("x86_64", "amd64", "x64") else m
     want = "cuda12" if want == "cuda" else want
@@ -83,22 +129,28 @@ def pick_asset(assets: Sequence[Dict[str, Any]], system: str, machine: str, want
     sysname = (system or "").lower()
     if sysname == "windows":
         if arch != "x86_64":
-            return None
+            return []
+        out: List[Dict[str, Any]] = []
         for key in (want, "cpu", "avx2"):
-            hit = next((a for a in zips if re.search(rf"-bin-win-{key}-x64\.zip$", a["name"])), None)
-            if hit:
-                return hit
-        return None
+            out += [a for a in zips if re.search(rf"-bin-win-{key}-x64\.zip$", a["name"]) and a not in out]
+        return out
     if sysname == "darwin":
-        return next((a for a in zips if re.search(rf"-bin-Darwin-.*-{arch}\.zip$", a["name"]) and "vulkan" not in a["name"]), None)
-    if sysname == "linux":
-        cands = [a for a in zips if re.search(rf"-bin-Linux-.*-{arch}(-[\w.]+)?\.zip$", a["name"])]
-        if want == "vulkan":
-            hit = next((a for a in cands if a["name"].endswith("-vulkan.zip")), None)
-            if hit:
-                return hit
-        return next((a for a in cands if not re.search(r"-(vulkan|rocm[\w.-]*)\.zip$", a["name"])), None)
-    return None
+        return [a for a in zips if re.search(rf"-bin-Darwin-.*-{arch}\.zip$", a["name"]) and "vulkan" not in a["name"]]
+    if sysname != "linux":
+        return []
+    cands = [a for a in zips if re.search(rf"-bin-Linux-.*-{arch}(-[\w.]+)?\.zip$", a["name"])]
+    if glibc:
+        cands = [a for a in cands if (asset_glibc(a["name"]) or (0, 0)) <= glibc]
+    cands.sort(key=lambda a: asset_glibc(a["name"]) or (0, 0), reverse=True)   # estável: a ordem da Release vale dentro da mesma versão
+    plain = [a for a in cands if not re.search(r"-(vulkan|rocm[\w.-]*)\.zip$", a["name"])]
+    vulkan = [a for a in cands if a["name"].endswith("-vulkan.zip")]
+    return (vulkan + plain) if want == "vulkan" else plain
+
+
+def pick_asset(assets: Sequence[Dict[str, Any]], system: str, machine: str, want: str = "cpu", glibc: Optional[Tuple[int, int]] = None) -> Optional[Dict[str, Any]]:
+    """O arquivo `.zip` da Release que serve a este sistema. Os nomes seguem `sd-<branch>-<commit>-bin-<SO>-<distro>-<versão>-<arq>[-vulkan|-rocm-…].zip` (Linux/macOS) e
+    `sd-<branch>-<commit>-bin-win-<cpu|cuda12|vulkan>-x64.zip` (Windows)."""
+    return next(iter(pick_assets(assets, system, machine, want, glibc)), None)
 
 
 def latest_release() -> Dict[str, Any]:
@@ -128,7 +180,8 @@ def _download(url: str, dest: Path, progress: Optional[Callable[[int, int], None
 
 
 def install(progress: Optional[Callable[[int, int], None]] = None, cancelled: Callable[[], bool] = lambda: False, note: Callable[[str], None] = lambda m: None) -> Path:
-    """Baixa o executável da Release mais nova para `<dados>/bin/sd-cpp/` e confere que ele roda. Devolve o caminho do `sd-cli`."""
+    """Baixa o executável da Release mais nova para `<dados>/bin/sd-cpp/` e confere que ele roda **antes** de trocar o que já existe. No Linux só tenta os pacotes que a glibc daqui roda
+    (do mais novo para o mais antigo). Devolve o caminho do `sd-cli`."""
     from .. import archives
 
     note("Procurando a versão mais nova da stable-diffusion.cpp…")
@@ -136,43 +189,54 @@ def install(progress: Optional[Callable[[int, int], None]] = None, cancelled: Ca
         rel = latest_release()
     except ProviderError as exc:
         raise ProviderError(f"Não consegui consultar as versões da stable-diffusion.cpp ({exc}).") from None
-    asset = pick_asset(rel.get("assets") or [], platform.system(), platform.machine(), backend())
-    if not asset:
+    glibc = glibc_version()
+    assets = rel.get("assets") or []
+    cands = pick_assets(assets, platform.system(), platform.machine(), backend(), glibc)
+    if not cands:
+        if glibc and pick_assets(assets, platform.system(), platform.machine(), backend()):   # há pacotes, mas todos pedem uma glibc mais nova que a daqui
+            need = min((asset_glibc(a["name"]) or (0, 0)) for a in pick_assets(assets, platform.system(), platform.machine(), backend()))
+            raise ProviderError(f"Os executáveis prontos da stable-diffusion.cpp ({rel.get('tag_name', '?')}) exigem a glibc {need[0]}.{need[1]} ou mais nova e este Linux tem {glibc[0]}.{glibc[1]}. "
+                                "Compile a stable-diffusion.cpp (flow libs; git + compilador C/C++) ou aponte OPENFLOW_SD_CLI para um sd-cli seu.")
         raise ProviderError(f"Não há executável pronto da stable-diffusion.cpp para {platform.system()} {platform.machine()} nesta versão ({rel.get('tag_name', '?')}). "
                             "Use a compilação (git + compilador C/C++) ou aponte OPENFLOW_SD_CLI para um sd-cli seu.")
     dest = bin_dir()
-    tmp_zip = dest.parent / (asset["name"] + ".part")
     dest.parent.mkdir(parents=True, exist_ok=True)
-    note(f"Baixando {asset['name']} (≈ {int(asset.get('size') or 0) / 1e6:.0f} MB)…")
-    _download(asset["browser_download_url"], tmp_zip, progress, cancelled)
-    new = dest.parent / (dest.name + ".new")
-    shutil.rmtree(new, ignore_errors=True)
-    try:
-        archives.extract(tmp_zip, new, asset["name"])
-    except Exception as exc:  # noqa: BLE001
-        raise ProviderError(f"O pacote baixado não abriu ({exc}).") from None
-    finally:
-        tmp_zip.unlink(missing_ok=True)
-    exe = next(iter(sorted(new.rglob(EXE))), None)
-    if not exe:
+    last = ""
+    for asset in cands[:3]:
+        tmp_zip = dest.parent / (asset["name"] + ".part")
+        note(f"Baixando {asset['name']} (≈ {int(asset.get('size') or 0) / 1e6:.0f} MB)…")
+        _download(asset["browser_download_url"], tmp_zip, progress, cancelled)
+        new = dest.parent / (dest.name + ".new")
         shutil.rmtree(new, ignore_errors=True)
-        raise ProviderError("O pacote baixado não traz o sd-cli.")
-    for f in new.rglob("*"):
-        if f.is_file() and (f.suffix == "" or f.name == EXE):
-            try:
-                f.chmod(f.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-            except OSError:
-                pass
-    shutil.rmtree(dest, ignore_errors=True)
-    new.rename(dest)
-    exe = next(iter(sorted(dest.rglob(EXE))), exe)
-    ok, out = _probe(exe)
-    if not ok:
-        raise ProviderError("O sd-cli baixado não roda neste computador" + (f": {out[-200:]}" if out else "") + ". Tente OPENFLOW_SD_BACKEND=cpu ou compile a biblioteca.")
-    (dest / "VERSION").write_text(str(rel.get("tag_name") or asset["name"]), encoding="utf-8")
-    (dest / "BACKEND").write_text(backend(), encoding="utf-8")
-    note("sd-cli pronto.")
-    return exe
+        try:
+            archives.extract(tmp_zip, new, asset["name"])
+        except Exception as exc:  # noqa: BLE001
+            raise ProviderError(f"O pacote baixado não abriu ({exc}).") from None
+        finally:
+            tmp_zip.unlink(missing_ok=True)
+        exe = next(iter(sorted(new.rglob(EXE))), None)
+        if not exe:
+            shutil.rmtree(new, ignore_errors=True)
+            raise ProviderError("O pacote baixado não traz o sd-cli.")
+        for f in new.rglob("*"):
+            if f.is_file() and (f.suffix == "" or f.name == EXE):
+                try:
+                    f.chmod(f.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+                except OSError:
+                    pass
+        ok, out = _probe(exe)   # testa o pacote novo ANTES de trocar o que já está instalado: um pacote que não roda nunca fica no lugar
+        if ok:
+            shutil.rmtree(dest, ignore_errors=True)
+            new.rename(dest)
+            exe = next(iter(sorted(dest.rglob(EXE))), exe)
+            (dest / "VERSION").write_text(str(rel.get("tag_name") or asset["name"]), encoding="utf-8")
+            (dest / "BACKEND").write_text(backend(), encoding="utf-8")
+            note("sd-cli pronto.")
+            return exe
+        shutil.rmtree(new, ignore_errors=True)
+        last = glibc_error(out) or out[-200:]
+        note(f"O pacote {asset['name']} não roda aqui" + ("; tentando outro…" if asset is not cands[:3][-1] and len(cands) > 1 else "."))
+    raise ProviderError("O sd-cli baixado não roda neste computador" + (f": {last}" if last else "") + ". Tente OPENFLOW_SD_BACKEND=cpu ou compile a biblioteca.")
 
 
 def _probe(exe: Path) -> Tuple[bool, str]:
@@ -275,6 +339,14 @@ def run(args: Sequence[str], exe: Path, cancelled: Callable[[], bool] = lambda: 
         if p.stdout:
             p.stdout.close()
     if p.returncode != 0:
+        why = glibc_error("\n".join(tail))
+        if why:   # o executável não roda neste Linux (glibc antiga): se foi o OpenFlow que o baixou, apaga para a próxima geração baixar o pacote certo
+            try:
+                if bin_dir() in Path(exe).resolve().parents or bin_dir().resolve() in Path(exe).resolve().parents:
+                    shutil.rmtree(bin_dir(), ignore_errors=True)
+            except OSError:
+                pass
+            raise GlibcError(why)
         oom = " O sistema o encerrou por falta de memória (RAM): use uma resolução ou quantização menores, ou feche outros programas." if p.returncode in (-9, 137) else ""
         raise ProviderError(f"O sd-cli falhou (código {p.returncode}):{oom} " + " | ".join(tail)[-500:])
     return "\n".join(tail)

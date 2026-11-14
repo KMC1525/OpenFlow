@@ -2,6 +2,16 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.12.0] — 2026-11-14
+
+### Fixed
+- **The Image node failed with "sd-cli failed … version `GLIBC_2.43' not found":** the prebuilt stable-diffusion.cpp package OpenFlow downloaded was built on a newer glibc (Ubuntu 26.04 = 2.43) than your Linux has. Now, on Linux, OpenFlow **picks the package your glibc can run** (newest compatible Ubuntu to oldest), **tests the package before replacing** what is installed (before, it replaced first and, if the test failed, the broken executable stayed in place and was used for the next generations) and, if a package does not run, tries the next one.
+- An sd-cli that OpenFlow downloaded and that cannot run because of glibc is **deleted** and, in the same generation, the compatible package is downloaded and the request is redone by itself. Unfinished installs (without the `VERSION` file) are no longer used: yours, already broken, is downloaded again on the next generation.
+- When no package fits (glibc older than all of them), the error says which glibc they need, which one you have and what to do (build with `flow libs` or point `OPENFLOW_SD_CLI`).
+
+### Not verified yet
+- I did not test with the real stable-diffusion.cpp Release (no GitHub access here): the choice uses the Ubuntu version in the package name (20.04, 22.04, 24.04, 26.04 → glibc 2.31, 2.35, 2.39, 2.43). If the Release has no package your glibc can run, you need to build it.
+
 ## [0.11.0] — 2026-11-14
 
 ### Fixed
