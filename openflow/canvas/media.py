@@ -2183,6 +2183,7 @@ class GGUFMedia(MediaProvider):
         if not (isinstance(exc, _SDUnsupportedModel) or "bibliotecas opcionais" in str(exc)):
             return False
         self._cli_error = ""
+        self._cli_tools_missing = False
         if (sdcli.find() is None or sdcli.installed_backend() not in ("", sdcli.backend())) and os.environ.get("OPENFLOW_SD_CLI_AUTO", "1") not in ("0", "no", "false"):   # sem sd-cli, ou o instalado é de outro tipo (CPU/GPU) que o escolhido nas configurações
             self.ctl.note("A stable-diffusion.cpp da biblioteca não reconhece este modelo: baixando o sd-cli pronto (a versão mais nova, sem compilar)…")
             try:
@@ -2192,12 +2193,20 @@ class GGUFMedia(MediaProvider):
                 if str(err) == "cancelado":
                     self.ctl.check()
                 self._cli_error = str(err)
+                self._cli_tools_missing = isinstance(err, sdcli.BuildToolsMissing)
                 self.ctl.note(f"Não consegui baixar o sd-cli sozinho ({str(err)[:160]}).")
         return sdcli.find() is not None
 
     def _no_cli_error(self, path: Path) -> ProviderError:
-        """O modelo é mais novo que a biblioteca Python e não há `sd-cli` para gerá-lo: diz por quê (o motivo do download que falhou) e o que fazer, em vez de tentar a biblioteca, que fecharia com «código -11»."""
+        """O modelo é mais novo que a biblioteca Python e não há `sd-cli` para gerá-lo: diz por quê e o que fazer, em vez de tentar a biblioteca (que fecharia com «código -11»). Faltando git/compilador, o erro
+        oferece o botão que instala o que falta e compila; senão mostra o motivo do download que falhou."""
         why = (getattr(self, "_cli_error", "") or "").strip()
+        if getattr(self, "_cli_tools_missing", False):
+            miss = ", ".join(sdcli.build_tools_missing()) or "git e compilador C/C++"
+            return ProviderError(
+                f"O modelo {path.name} é mais novo que a stable-diffusion.cpp da biblioteca Python (a do PyPI, 0.4.7): ele precisa do sd-cli, que o OpenFlow compila neste computador, mas faltam: {miss}. "
+                f"Use o botão abaixo (instala o que falta, pede a senha de administrador e compila; leva alguns minutos) ou rode  flow update  no terminal. Se preferir, instale a mão ({sdcli.build_tools_hint()}) "
+                "ou aponte OPENFLOW_SD_CLI para um sd-cli seu. [[flow-sd-tools]]")
         retry = "" if re.search(r"glibc|executável pronto", why, re.I) else " [[flow-sd-cli]]"   # com glibc antiga o botão falharia de novo
         return ProviderError(
             f"O modelo {path.name} é mais novo que a stable-diffusion.cpp da biblioteca Python (a do PyPI, 0.4.7) e o OpenFlow não conseguiu o executável pronto (sd-cli) para gerá-lo"

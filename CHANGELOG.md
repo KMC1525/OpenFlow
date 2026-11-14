@@ -2,6 +2,16 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.17.0] — 2026-11-14
+
+### Corrigido
+- **«… faltam: git. Rode flow update … ou instale com: sudo apt install git build-essential…» no nó Imagem (FLUX.3):** o erro se repetia (a mesma frase duas vezes, com «..» no meio) e só mandava você ao terminal. Agora é **uma mensagem só**, que nomeia o que falta e traz o botão **«Instalar o que falta e compilar o sd-cli»**: ele instala git/compilador pelo gerenciador de pacotes do sistema (pede a **senha de administrador**: no terminal onde o OpenFlow está aberto com `sudo` ou, se o OpenFlow foi aberto sem terminal numa sessão gráfica, numa **janela de senha do sistema** com `pkexec`), compila o `sd-cli` (alguns minutos) e o nó volta a funcionar — sem precisar rodar nada no terminal. O botão é o seu consentimento; `OPENFLOW_AUTO_TOOLS=0` só desliga a instalação automática do `flow update`.
+- **`flow update`/`flow libs`: as ferramentas de compilação agora vêm ANTES das bibliotecas «local».** Antes, o `llama-cpp-python` (que compila código nativo) era instalado primeiro, falhava sem compilador e, depois que o compilador entrava, não era refeito.
+- O instalador de ferramentas escolhe como pedir a senha: `sudo` com terminal, `pkexec` (janela) em sessão gráfica sem terminal, `sudo -n` nos outros casos; os dois comandos do `apt` (`update` e `install`) pedem a senha uma vez só no `pkexec`, e o passo pode ser cancelado.
+
+### Ainda não verificado
+- Não abri a janela de senha do `pkexec` nem rodei o `sudo apt-get install` de verdade aqui (sem terminal/sudo/ambiente gráfico): os testes cobrem a escolha do método, os comandos, o botão e a nova tentativa depois de instalar.
+
 ## [0.16.0] — 2026-11-14
 
 ### Novo

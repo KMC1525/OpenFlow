@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 EN = {
+    'As bibliotecas «local» compilam código nativo: instalando antes o que falta para compilar…': 'The «local» libraries build native code: first installing what is missing to build…',
+    'Digite a senha no terminal onde o OpenFlow está aberto.': 'Type the password in the terminal where OpenFlow is open.',
+    'Digite a senha na janela que abriu.': 'Type the password in the window that opened.',
     'Ferramentas de compilação instaladas.': 'Build tools installed.',
     '⚠  Ainda falta: {m}.': '⚠  Still missing: {m}.',
     '⚠  Faltam ferramentas para compilar ({m}). Instale com:  {c}': '⚠  Build tools are missing ({m}). Install with:  {c}',
