@@ -216,6 +216,7 @@ class MediaProvider:
     id = "media"
     label = "Provedor"
     caps: Tuple[str, ...] = ()
+    edit_mode = False      # o nó está no modo Editar (a engine liga antes de gerar): só então uma única referência dita a proporção do resultado
     supports_refs = False  # aceita imagens de referência (edição/estilo) no nó Imagem
     refs_edit_only = False  # só usa as referências no modo Editar (imagem → imagem); no modo Gerar elas não podem virar a imagem de partida
 
@@ -1610,7 +1611,7 @@ class LocalHFMedia(MediaProvider):
             raise ProviderError("Não consegui ler as imagens de referência ligadas ao nó (formato não suportado).")
         i2i = None
         if pil:
-            if len(pil) == 1:   # só uma imagem (edição): mantém a proporção dela; com várias referências vale o tamanho pedido
+            if len(pil) == 1 and self.edit_mode:   # só no modo Editar com uma imagem: mantém a proporção dela; ao Gerar (e com várias referências) vale o tamanho pedido
                 w, h = _size_like(pil[0], w, h, 16 if (klein or flux3) else 8)
             if not klein and not flux3:   # imagem → imagem: reaproveita os pesos já carregados (o FLUX.2 klein edita pelo próprio pipeline, com várias imagens)
                 i2i = diffusers.AutoPipelineForImage2Image.from_pipe(pipe)   # compartilha os pesos de `pipe` (não passa por _local_load: ele guarda um modelo só e descartaria o principal)
@@ -2223,7 +2224,7 @@ class GGUFMedia(MediaProvider):
             im.save(b, format="PNG")
             ref_png.append(b.getvalue())
         multi = bool(_GGUF_MULTI_REF.search(path.name) or re.search(r"flux[-_. ]?3", path.name, re.I))
-        if len(pil) == 1:
+        if len(pil) == 1 and self.edit_mode:
             w, h = _size_like(pil[0], w, h, 16)
         run_p = {k2: v for k2, v in extra.items() if k2 not in ("load",)}
         out: List[Media] = []
@@ -2297,7 +2298,7 @@ class GGUFMedia(MediaProvider):
                 params = set(getattr(sd, "_params", None) or (inspect.signature(gen_fn).parameters if gen_fn else ()))   # no processo à parte, os parâmetros vêm da carga
             except (TypeError, ValueError):
                 params = set()
-            if len(pil) == 1:   # uma só imagem (edição): mantém a proporção dela; com várias referências vale o tamanho pedido (uma thumb não pode herdar a forma da 1ª foto)
+            if len(pil) == 1 and self.edit_mode:   # só no modo Editar com uma imagem: mantém a proporção dela; ao Gerar (ou com várias referências) vale o tamanho pedido (uma thumb não herda a forma da foto)
                 w, h = _size_like(pil[0], w, h, 16)
             if _GGUF_MULTI_REF.search(path.name) and "ref_images" in params:
                 ref_kw["ref_images"] = pil                       # modelos de edição: as imagens guiam a edição

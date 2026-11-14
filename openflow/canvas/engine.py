@@ -511,6 +511,7 @@ class CanvasEngine:
             if ment_ids and not use_refs:   # as imagens citadas não chegam ao modelo: sem a marcação «reference image N», que não apontaria para nada
                 body = mentions_mod.plain(canvas, raw_base)
                 prompt = body + (f"\n\nStyle: {style.text}" if style.text else "")
+            prov.edit_mode = p["mode"] == "edit"   # só ao editar uma imagem o resultado herda a proporção dela
             extra = dict(p["extra"])
             if extra.pop("upsample", True) and upsample.wants(p["model"] or model) and not upsample.is_caption(body):   # FLUX.3 Image Klein: pede legendas de cena completas
                 try:
