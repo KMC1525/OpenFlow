@@ -873,4 +873,11 @@ export default {
   'Buscar modelos no Hugging Face': 'Search models on Hugging Face',
   'Importar projeto (.zip)': 'Import project (.zip)',
   'Projeto importado': 'Project imported',
+  'Rodar em': 'Run on',
+  'Automático (GPU se houver)': 'Automatic (GPU if available)',
+  'Só CPU': 'CPU only',
+  'GPU (placa de vídeo)': 'GPU (graphics card)',
+  'Onde os modelos rodam. «GPU» usa a placa de vídeo (NVIDIA: CUDA; AMD/Intel: Vulkan); «Só CPU» nunca a usa. O executável sd-cli certo é baixado sozinho na próxima geração.': 'Where the models run. “GPU” uses the graphics card (NVIDIA: CUDA; AMD/Intel: Vulkan); “CPU only” never uses it. The right sd-cli executable is downloaded by itself on the next generation.',
+  'GPU detectada: {g}': 'GPU detected: {g}',
+  'Nenhuma GPU NVIDIA detectada.': 'No NVIDIA GPU detected.',
 };

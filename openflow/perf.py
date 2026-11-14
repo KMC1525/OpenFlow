@@ -19,7 +19,8 @@ import time
 from typing import Any, Callable, Dict, Optional
 
 MODES = ("auto", "light", "balanced", "max")
-DEFAULTS = {"mode": "auto", "idle_unload_min": 10}
+DEVICES = ("auto", "cpu", "gpu")   # `settings.performance.device`: onde os modelos rodam
+DEFAULTS = {"mode": "auto", "idle_unload_min": 10, "device": "auto"}
 
 
 def resolve(mode: str, hw: Dict[str, Any]) -> str:
@@ -90,6 +91,12 @@ CURRENT: Dict[str, Any] = {}   # settings["performance"] em vigor (o Store atual
 def configure(perf_cfg: Optional[Dict[str, Any]]) -> None:
     CURRENT.clear()
     CURRENT.update(perf_cfg if isinstance(perf_cfg, dict) else {})
+
+
+def device() -> str:
+    """Onde rodar os modelos: ``auto`` (usa a placa de vídeo se houver), ``cpu`` (nunca usa a GPU) ou ``gpu`` (usa a placa de vídeo, mesmo que o OpenFlow não a detecte)."""
+    v = str(CURRENT.get("device") or "auto").lower()
+    return v if v in DEVICES else "auto"
 
 
 def run(cmd: list, **kw: Any) -> "subprocess.CompletedProcess":

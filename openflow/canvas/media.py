@@ -1300,6 +1300,8 @@ def _local_import(*names: str, extra: str = "media") -> List[Any]:
 
 def _device() -> Tuple[str, Any]:
     (torch,) = _local_import("torch")
+    if _perf.device() == "cpu":   # Configurações → Desempenho → Rodar em: só CPU
+        return "cpu", torch.float32
     if torch.cuda.is_available():
         return "cuda", torch.float16
     if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
@@ -1678,7 +1680,7 @@ class LocalHFMedia(MediaProvider):
         ready = self._ready(model)
         if not lm.downloaded_precision(ORPHEUS_CODEC):
             raise ProviderError(f'O Orpheus usa o decodificador "{ORPHEUS_CODEC}" (≈ 80 MB), que ainda não foi baixado. Baixe-o em Configuração → Mídia antes de usar.', status=424)
-        dev = "cuda" if torch.cuda.is_available() else "cpu"
+        dev = "cuda" if torch.cuda.is_available() and _perf.device() != "cpu" else "cpu"
 
         def load() -> Any:
             old = os.environ.get("HF_HUB_OFFLINE")
@@ -1716,7 +1718,7 @@ class LocalHFMedia(MediaProvider):
         (tf,) = _local_import("transformers")
         (torch,) = _local_import("torch")
         ready = self._ready(model)
-        dev = "cuda" if torch.cuda.is_available() else "cpu"
+        dev = "cuda" if torch.cuda.is_available() and _perf.device() != "cpu" else "cpu"
 
         def load() -> Any:
             old = os.environ.get("HF_HUB_OFFLINE")
@@ -2114,10 +2116,10 @@ class GGUFMedia(MediaProvider):
         Se ainda não há `sd-cli`, o OpenFlow baixa o executável pronto sozinho (uns 30 MB; desligue com OPENFLOW_SD_CLI_AUTO=0) em vez de pedir um clique no nó."""
         if not (isinstance(exc, _SDUnsupportedModel) or "bibliotecas opcionais" in str(exc)):
             return False
-        if sdcli.find() is None and os.environ.get("OPENFLOW_SD_CLI_AUTO", "1") not in ("0", "no", "false"):
+        if (sdcli.find() is None or sdcli.installed_backend() not in ("", sdcli.backend())) and os.environ.get("OPENFLOW_SD_CLI_AUTO", "1") not in ("0", "no", "false"):   # sem sd-cli, ou o instalado é de outro tipo (CPU/GPU) que o escolhido nas configurações
             self.ctl.note("A stable-diffusion.cpp da biblioteca não reconhece este modelo: baixando o sd-cli pronto (a versão mais nova, sem compilar)…")
             try:
-                sdcli.install(lambda done, total: self.ctl.note(f"Baixando o sd-cli… {int(100 * done / total)}%") if total else None, self._cancelled, self.ctl.note)
+                sdcli.install(lambda done, total: self.ctl.note(f"Baixando o sd-cli ({sdcli.backend()})… {int(100 * done / total)}%") if total else None, self._cancelled, self.ctl.note)
                 _media_unload()
             except ProviderError as err:
                 if str(err) == "cancelado":

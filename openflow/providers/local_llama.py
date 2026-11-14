@@ -236,7 +236,8 @@ class LocalLlamaProvider(Provider):
             if llm is not None:
                 _CACHE[key] = _CACHE.pop(key)   # mais recente por último
             if llm is None:
-                use_gpu = bool(hw.get("gpu")) or (hw["os"] == "Darwin" and "arm" in hw["arch"].lower())
+                dev = perf.device()   # Configurações → Desempenho → Rodar em: automático, só CPU ou GPU
+                use_gpu = dev != "cpu" and (dev == "gpu" or bool(hw.get("gpu")) or (hw["os"] == "Darwin" and "arm" in hw["arch"].lower()))
                 ngl = int(plan["n_gpu_layers"]) if plan and use_gpu else (-1 if use_gpu else 0)
                 threads = int(plan["n_threads"]) if plan else max(1, hw["cpus"] - 1)
                 base = dict(model_path=path, n_ctx=ctx, n_threads=threads, n_gpu_layers=ngl, verbose=False)

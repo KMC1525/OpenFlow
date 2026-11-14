@@ -45,10 +45,32 @@ def find() -> Optional[Path]:
     return Path(which) if which else None
 
 
+def _nvidia() -> bool:
+    return shutil.which("nvidia-smi") is not None
+
+
 def backend() -> str:
-    """cpu (padrão, funciona em qualquer máquina), vulkan ou cuda12 (`OPENFLOW_SD_BACKEND`)."""
-    v = (os.environ.get("OPENFLOW_SD_BACKEND") or "cpu").strip().lower()
-    return v if v in ("cpu", "vulkan", "cuda", "cuda12") else "cpu"
+    """Tipo do `sd-cli`: cpu, vulkan ou cuda12. `OPENFLOW_SD_BACKEND` manda; senão vale Configurações → Desempenho → Rodar em:
+    «CPU» = cpu; «GPU» = cuda12 (NVIDIA) ou vulkan (AMD/Intel; no macOS o executável padrão já usa a placa); «Automático» = cuda12 se há NVIDIA, senão cpu."""
+    v = (os.environ.get("OPENFLOW_SD_BACKEND") or "").strip().lower()
+    if v in ("cpu", "vulkan", "cuda", "cuda12"):
+        return "cuda12" if v == "cuda" else v
+    from .. import perf
+
+    dev = perf.device()
+    if dev == "cpu" or platform.system() == "Darwin":
+        return "cpu"
+    if _nvidia():
+        return "cuda12"
+    return "vulkan" if dev == "gpu" else "cpu"
+
+
+def installed_backend() -> str:
+    """O tipo do `sd-cli` que o OpenFlow baixou (vazio se não foi ele ou se não se sabe)."""
+    try:
+        return (bin_dir() / "BACKEND").read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
 
 
 def pick_asset(assets: Sequence[Dict[str, Any]], system: str, machine: str, want: str = "cpu") -> Optional[Dict[str, Any]]:
@@ -148,6 +170,7 @@ def install(progress: Optional[Callable[[int, int], None]] = None, cancelled: Ca
     if not ok:
         raise ProviderError("O sd-cli baixado não roda neste computador" + (f": {out[-200:]}" if out else "") + ". Tente OPENFLOW_SD_BACKEND=cpu ou compile a biblioteca.")
     (dest / "VERSION").write_text(str(rel.get("tag_name") or asset["name"]), encoding="utf-8")
+    (dest / "BACKEND").write_text(backend(), encoding="utf-8")
     note("sd-cli pronto.")
     return exe
 
