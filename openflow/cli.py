@@ -227,6 +227,29 @@ def _sd_cli_install() -> int:
     return 0
 
 
+def _sd_cli_refresh() -> None:
+    """Se o OpenFlow já baixou o `sd-cli` pronto da stable-diffusion.cpp, ele acompanha a Release mais nova (só baixa se a versão mudou). Falha vira aviso."""
+    from .canvas import sdcli
+
+    try:
+        have = (sdcli.bin_dir() / "VERSION").read_text(encoding="utf-8").strip()
+    except OSError:
+        return   # nunca foi baixado: o OpenFlow o baixa sozinho quando um modelo precisar
+    try:
+        latest = str(sdcli.latest_release().get("tag_name") or "")
+    except Exception as exc:  # noqa: BLE001
+        print(_("⚠  Não consegui consultar a versão mais nova do sd-cli ({e}); sigo com a instalada ({v}).", e=str(exc)[:100], v=have))
+        return
+    if latest and latest == have:
+        print("\n" + _("sd-cli {v}: já é a versão mais recente.", v=have))
+        return
+    print("\n" + _("Atualizando o sd-cli ({a} → {b})…", a=have, b=latest or "?"))
+    try:
+        sdcli.install(note=lambda m: print("  " + m))
+    except Exception as exc:  # noqa: BLE001
+        print(_("⚠  Não consegui atualizar o sd-cli agora ({e}); sigo com o que está instalado.", e=str(exc)[:200]))
+
+
 def _libs(args: argparse.Namespace) -> int:
     """Instala o que falta e atualiza (só se houver versão mais nova) as bibliotecas opcionais do OpenFlow. Uma que falhe não impede as outras.
     O que já está instalado não é instalado de novo: o pip só mexe nele se existir uma versão mais nova."""
@@ -243,6 +266,7 @@ def _libs(args: argparse.Namespace) -> int:
     if not _ensure_pip():
         return 1
     failed, present = [], []
+    changes: list = []   # (biblioteca, versão antes, versão depois) — o resumo mostra o que subiu de versão
     for extra in chosen:
         reqs = _lib_requirements(extra)
         if not reqs:
@@ -252,20 +276,41 @@ def _libs(args: argparse.Namespace) -> int:
         missing = [r for r in reqs if not have[r]]
         base = [sys.executable, "-m", "pip", "install", "--upgrade", "--upgrade-strategy", "eager", "--disable-pip-version-check"]
         if not missing:
-            print("\n" + _("Bibliotecas «{x}» ({d}): já instaladas ({v}) — só atualizo se houver versão mais nova.", x=extra, d=_lib_desc(extra), v=", ".join(f"{_req_name(r)} {v}" for r, v in have.items())))
-            res = subprocess.run([*base, "--quiet", *reqs])
-            if res.returncode != 0:
-                print(_("⚠  Não consegui verificar atualizações de «{x}» agora (sem internet?); sigo com as versões instaladas.", x=extra))
+            print("\n" + _("Bibliotecas «{x}» ({d}): já instaladas ({v}) — atualizando para as versões mais novas.", x=extra, d=_lib_desc(extra), v=", ".join(f"{_req_name(r)} {v}" for r, v in have.items())))
+            quiet = ["--quiet"]
+        else:
+            ok_now = [r for r in reqs if have[r]]
+            print("\n" + _("Bibliotecas «{x}» ({d}): instalando {m}", x=extra, d=_lib_desc(extra), m=", ".join(missing)) + (_(" · já instaladas (atualizo para a mais nova): {k}", k=", ".join(ok_now)) if ok_now else ""))
+            quiet = []
+        res = subprocess.run([*base, *quiet, *reqs])
+        bad: list = []
+        if res.returncode != 0 and len(reqs) > 1:   # o pip é «tudo ou nada»: uma biblioteca que não compila não pode impedir a atualização das outras do grupo → uma por uma
+            print(_("Tentando uma biblioteca por vez, para que uma que falhe não impeça as outras…"))
+            for r in reqs:
+                if subprocess.run([*base, *quiet, r]).returncode != 0:
+                    bad.append(_req_name(r))
+        elif res.returncode != 0:
+            bad = [_req_name(r) for r in reqs]
+        for r in reqs:
+            now = _installed_version(r)
+            if now and now != have[r]:
+                changes.append((_req_name(r), have[r], now))
+        if bad:
+            if missing:
+                failed.append(extra)
+                print(_("⚠  Não foi possível instalar «{x}» ({b}). O OpenFlow funciona sem ela; tente de novo depois com:  flow libs --extras {x}", x=extra, b=", ".join(bad)))
+            else:
+                print(_("⚠  Não consegui atualizar agora: {b} (sem internet, ou a compilação falhou); sigo com as versões instaladas. Tente de novo:  flow libs --extras {x}", b=", ".join(bad), x=extra))
+        if not missing:
             present.append(extra)
-            continue
-        ok_now = [r for r in reqs if have[r]]
-        print("\n" + _("Bibliotecas «{x}» ({d}): instalando {m}", x=extra, d=_lib_desc(extra), m=", ".join(missing)) + (_(" · já instaladas (só atualizo se precisar): {k}", k=", ".join(ok_now)) if ok_now else ""))
-        res = subprocess.run([*base, *reqs])
-        if res.returncode != 0:
-            failed.append(extra)
-            print(_("⚠  Não foi possível instalar «{x}». O OpenFlow funciona sem ela; tente de novo depois com:  flow libs --extras {x}", x=extra))
     if ("local" in chosen or sd_force) and not _sd_latest(sd_force):
         failed.append("local (stable-diffusion.cpp mais nova)")
+    if "local" in chosen or sd_force:
+        _sd_cli_refresh()
+    if changes:
+        print("\n" + _("Atualizadas: {l}", l=", ".join(f"{n} {a or '—'} → {b}" for n, a, b in changes)))
+    elif chosen:
+        print("\n" + _("Todas as bibliotecas já estavam nas versões mais novas."))
     if not chosen:   # só a stable-diffusion.cpp (botão do nó): sem o resumo das outras bibliotecas
         return 1 if failed else 0
     ok = [e for e in chosen if e not in failed]
@@ -558,7 +603,10 @@ def _setup(args: argparse.Namespace) -> int:
 
 
 def _update(args: argparse.Namespace) -> int:
-    """Atualiza o Python, o OpenFlow e todas as bibliotecas dele — só o que ainda não está instalado ou tem versão mais nova. --core: só o OpenFlow e as ferramentas do Python; --no-python: sem mexer no Python."""
+    """Atualiza o Python, o OpenFlow e **todas** as bibliotecas dele para as versões mais novas (e o sd-cli e a stable-diffusion.cpp do GitHub, se houver commit/versão nova).
+    --core: só o OpenFlow e as ferramentas do Python; --no-python: sem mexer no Python."""
+    if not getattr(args, "core", False):
+        os.environ.setdefault("OPENFLOW_SD_LATEST", "always")   # quem pede `flow update` quer a stable-diffusion.cpp mais nova mesmo sem modelo novo (a abertura automática do app segue em «auto»)
     if not getattr(args, "no_python", False) and not getattr(args, "core", False) and os.environ.get("OPENFLOW_PYTHON", "auto") != "keep":
         print(_("Atualizando o Python, o OpenFlow e as bibliotecas dele…"))
         code = _update_with_installer(args)

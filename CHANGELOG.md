@@ -2,6 +2,20 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.13.0] — 2026-11-14
+
+### Mudou
+- **`flow update` sempre atualiza todas as bibliotecas para as versões mais novas.** Antes, a stable-diffusion.cpp do GitHub só era recompilada se o OpenFlow tivesse avisado de um modelo não reconhecido ou se houvesse GGUF de difusão baixado, o `sd-cli` baixado nunca era atualizado, e uma biblioteca que não compilava fazia o pip desistir do grupo inteiro. Agora:
+  - as bibliotecas opcionais (`docs`, `media`, `local`) são atualizadas com `pip --upgrade --upgrade-strategy eager` (as dependências delas também);
+  - se o grupo falha, **cada biblioteca é tentada sozinha**: uma que não compila (ex.: `llama-cpp-python`) não impede as outras de atualizarem; o aviso diz qual falhou;
+  - a **stable-diffusion-cpp-python do GitHub** é recompilada sempre que houver commit novo (`OPENFLOW_SD_LATEST=always` no `flow update`; `=never` continua desligando), sem recompilar se já está no commit mais novo;
+  - o **`sd-cli`** baixado acompanha a Release mais nova (só baixa se a versão mudou);
+  - no fim aparece o resumo: «Atualizadas: pacote antes → depois» ou «Todas as bibliotecas já estavam nas versões mais novas».
+- `flow update --core` continua atualizando só o OpenFlow e as ferramentas do Python. A abertura automática do app (`flow`) segue no modo «auto», sem compilar a stable-diffusion.cpp à toa.
+
+### Ainda não verificado
+- Não rodei o `flow update` com internet e pip de verdade aqui (os testes simulam o pip e o GitHub); a stable-diffusion.cpp do GitHub precisa de git e de um compilador C/C++ para recompilar.
+
 ## [0.12.0] — 2026-11-14
 
 ### Corrigido
