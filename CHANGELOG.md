@@ -2,6 +2,15 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.15.0] — 2026-11-14
+
+### Corrigido
+- **«Os executáveis prontos da stable-diffusion.cpp (master-1104-5dcfa79) exigem a glibc 2.43 ou mais nova e este Linux tem 2.39»:** a Release só traz pacotes de Linux compilados no Ubuntu 26.04, que o seu Linux (glibc 2.39) não roda — antes o OpenFlow desistia e mandava você compilar na mão. Agora, quando nenhum executável pronto roda neste Linux, o OpenFlow **compila o `sd-cli` sozinho**: baixa o código-fonte (`git clone` da stable-diffusion.cpp), configura e compila com o cmake (se não há cmake, instala o do pip, com o ninja) e testa o resultado **antes** de trocar o que já existe. Mostra o progresso no nó («Compilando: [ 42%] …») e respeita o cancelamento. Compila para a GPU (CUDA ou Vulkan) só se as ferramentas dela existem (`nvcc`, `glslc`); senão compila para CPU e avisa. Leva alguns minutos, uma vez; as próximas gerações usam o executável compilado.
+- Precisa de **git** e de um **compilador C/C++**; se faltarem, o erro nomeia o que falta e o comando para instalar (ex.: `sudo apt install git build-essential`). Desligue a compilação automática com `OPENFLOW_SD_CLI_BUILD=0` (volta a mostrar a mensagem de glibc). Também vale quando os pacotes testados não rodam por outro motivo.
+
+### Ainda não verificado
+- Não compilei a stable-diffusion.cpp de verdade aqui (a compilação leva minutos e precisa de rede e de compilador): os testes simulam o git e o cmake e conferem os passos, as flags (CUDA só com `nvcc`), as bibliotecas copiadas, o teste antes de trocar e o apagamento do código-fonte. Se a compilação falhar no seu computador, o erro do nó traz as últimas linhas do compilador; mande-me.
+
 ## [0.14.0] — 2026-11-14
 
 ### Corrigido

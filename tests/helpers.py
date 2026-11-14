@@ -147,6 +147,9 @@ from pathlib import Path as _Path  # noqa: E402
 _sys.path.insert(0, str(_Path(__file__).resolve().parent.parent))
 
 
+__import__("os").environ.setdefault("OPENFLOW_SD_CLI_BUILD", "0")   # os testes nunca compilam o sd-cli de verdade (git clone + cmake); os testes da compilação trocam o que precisam por simulações
+
+
 class TmpCase(_unittest.TestCase):
     def setUp(self):
         self.tmp = _Path(_tempfile.mkdtemp(prefix="openflow-test-"))
