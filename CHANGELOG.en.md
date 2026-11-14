@@ -2,6 +2,12 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.5.0] — 2026-11-14
+
+### Fixed
+- **«get sd version from file failed» still showed in the terminal with FLUX.3.** FLUX.3 models (which the PyPI library never recognized) now go **straight to `sd-cli`**, without even trying to load in the library; and that refusal message is no longer echoed to the terminal (OpenFlow already handles the refusal itself). `OPENFLOW_SD_INPROC=1` forces the library.
+- Not verified: real generation with FLUX.3 Klein (no model or `sd-cli` here); if `sd-cli` refuses the model, the node shows its output.
+
 ## [0.4.0] — 2026-11-14
 
 ### New

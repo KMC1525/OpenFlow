@@ -1869,6 +1869,23 @@ def _lib_unsupported(name: str) -> bool:
         return False
 
 
+_NEWER_THAN_LIB = re.compile(r"flux[-_. ]?3", re.I)
+
+
+def _lib_never_knows(name: str) -> bool:
+    """Famílias novas que a biblioteca do PyPI (a 0.4.7, parada) nunca reconheceu (FLUX.3): vão direto ao sd-cli, sem nem tentar carregar na biblioteca. `OPENFLOW_SD_INPROC=1` força a biblioteca."""
+    return bool(_NEWER_THAN_LIB.search(name)) and os.environ.get("OPENFLOW_SD_INPROC", "") in ("", "0")
+
+
+_QUIET = re.compile(r"get sd version from file failed", re.I)
+
+
+def _echo(level: int, line: str) -> None:
+    """Mostra no terminal o log da biblioteca, menos a recusa de versão (o OpenFlow trata sozinho trocando para o sd-cli: o erro só assustava)."""
+    if level >= 1 and line and not _QUIET.search(line):
+        print(line, file=sys.stderr, flush=True)
+
+
 def _mark_lib_unsupported(name: str) -> None:
     try:
         if not _lib_unsupported(name):
@@ -1888,8 +1905,7 @@ def _install_sd_log(sdc: Any) -> None:
             try:
                 line = (text or b"").decode("utf-8", "replace").rstrip()
                 _SD_LOG.append((int(level), line))
-                if level >= 1 and line:
-                    print(line, file=sys.stderr, flush=True)
+                _echo(int(level), line)
             except Exception:  # noqa: BLE001 — um callback nunca pode derrubar a geração
                 pass
 
@@ -2240,7 +2256,7 @@ class GGUFMedia(MediaProvider):
         load = {**base.get("load", {}), **(extra.pop("load", None) or {})}
         if path.name in _SD_LITE:   # este modelo já falhou com flash attention/offload nesta máquina: começa sem eles (não recarrega duas vezes a cada imagem)
             load = {k: v for k, v in load.items() if k not in _SD_LITE_KEYS}
-        if _lib_unsupported(path.name) and self._cli_fallback(_SDUnsupportedModel(path.name)):   # já se sabe que a biblioteca não o reconhece
+        if (_lib_unsupported(path.name) or _lib_never_knows(path.name)) and self._cli_fallback(_SDUnsupportedModel(path.name)):   # já se sabe que a biblioteca não o reconhece
             return self._image_cli(path, load, extra, prompt, size, count, seed, negative, refs)
         try:
             sd = self._engine("image", path, load)
