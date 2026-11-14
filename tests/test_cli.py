@@ -157,7 +157,7 @@ class LibsTests(unittest.TestCase):
             self.assertIn("--quiet", c)  # só uma checagem: o pip não reinstala quem já está na versão mais nova
             self.assertNotIn("--force-reinstall", c)
         self.assertIn("já instaladas (pypdf 5.0)", out)
-        self.assertIn("só atualizo se houver versão mais nova", out)
+        self.assertIn("atualizando para as versões mais novas", out)
         self.assertIn("já estavam instaladas: docs, media, local", out)
         # sem internet: o que já está instalado não vira erro
         code, calls, out = run_cli(["libs"], installed=every, results={"pypdf": 1, "torch": 1, "llama": 1})
@@ -168,7 +168,7 @@ class LibsTests(unittest.TestCase):
         code, calls, out = run_cli(["libs", "--extras", "media"], installed={"torch": "2.5"})
         self.assertEqual(code, 0)
         self.assertIn("instalando diffusers>=0.30", out)
-        self.assertIn("já instaladas (só atualizo se precisar): torch", out)
+        self.assertIn("já instaladas (atualizo para a mais nova): torch", out)
         self.assertNotIn("--quiet", pip_installs(calls)[0])
 
     def test_choosing_libraries_and_the_environment_variable(self):

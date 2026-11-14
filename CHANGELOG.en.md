@@ -2,6 +2,20 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.13.0] — 2026-11-14
+
+### Changed
+- **`flow update` now always updates all libraries to the newest versions.** Before, the GitHub stable-diffusion.cpp was only rebuilt if OpenFlow had flagged an unrecognised model or you had a diffusion GGUF downloaded, the downloaded `sd-cli` was never updated, and a library that failed to build made pip give up on the whole group. Now:
+  - the optional libraries (`docs`, `media`, `local`) are updated with `pip --upgrade --upgrade-strategy eager` (their dependencies too);
+  - if the group fails, **each library is tried on its own**: one that does not build (e.g. `llama-cpp-python`) does not stop the others from updating; the warning says which one failed;
+  - the **GitHub stable-diffusion-cpp-python** is rebuilt whenever there is a new commit (`OPENFLOW_SD_LATEST=always` in `flow update`; `=never` still turns it off), without rebuilding if already at the newest commit;
+  - the downloaded **`sd-cli`** follows the newest Release (only downloads if the version changed);
+  - at the end you get a summary: "Updated: package before → after" or "All libraries were already at the newest versions".
+- `flow update --core` still updates only OpenFlow and the Python tools. The app's automatic launch update (`flow`) stays in "auto" mode, without rebuilding stable-diffusion.cpp needlessly.
+
+### Not verified yet
+- I did not run `flow update` against real internet and pip here (tests simulate pip and GitHub); the GitHub stable-diffusion.cpp needs git and a C/C++ compiler to rebuild.
+
 ## [0.12.0] — 2026-11-14
 
 ### Fixed
