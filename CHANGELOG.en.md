@@ -2,6 +2,22 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.16.0] — 2026-11-14
+
+### New
+- **`flow update` installs what is missing to build by itself and then installs/updates `sd-cli`.** Before, when git or a compiler was missing ("To build sd-cli here is missing: git. Install with: sudo apt install git build-essential"), you had to install it by hand and try again. Now `flow update`:
+  1. checks **git** and a **C/C++ compiler**; if missing, installs them with the system package manager (`apt-get` → `git`/`build-essential`; `dnf`/`yum`, `zypper`, `pacman`, `apk` too) using `sudo` — **it asks for your password in the terminal** (as administrator it does not use sudo; without a terminal it uses `sudo -n` and only goes on if sudo does not ask for a password). It installs only what is missing;
+  2. builds the GitHub stable-diffusion-cpp-python (v0.13) now with the tools;
+  3. **installs `sd-cli`** if you have models that need it (FLUX.3, Qwen-Image…) and never downloaded it — ready-made, or built here when no prebuilt executable runs on your Linux (v0.15) — and **updates** it when there is a new version.
+- On macOS and Windows there is no installation without windows: `flow update` shows the command (`xcode-select --install`…). With no recognised package manager or no `sudo`, it shows what to install. **`OPENFLOW_AUTO_TOOLS=0`** turns the automatic install off; `flow update --core` does not touch this.
+- The node's "git is missing" error now tells you to run `flow update`, which installs what is missing by itself.
+
+### Changed
+- The "has a compiler" check is now the same in `flow update` and in the `sd-cli` build (it needs a **C++** compiler: `c++`, `g++` or `clang++`).
+
+### Not verified yet
+- I did not run `sudo apt-get install` for real here (no sudo/terminal in the environment): the tests simulate the package managers and check the commands, the use of sudo (with and without a terminal, as administrator), the failures and the whole `flow update` flow.
+
 ## [0.15.0] — 2026-11-14
 
 ### Fixed

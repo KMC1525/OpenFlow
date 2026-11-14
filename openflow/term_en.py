@@ -2,6 +2,17 @@
 from __future__ import annotations
 
 EN = {
+    'Ferramentas de compilação instaladas.': 'Build tools installed.',
+    '⚠  Ainda falta: {m}.': '⚠  Still missing: {m}.',
+    '⚠  Faltam ferramentas para compilar ({m}). Instale com:  {c}': '⚠  Build tools are missing ({m}). Install with:  {c}',
+    '⚠  Faltam ferramentas para compilar ({m}), e não reconheci o gerenciador de pacotes deste sistema. Instale git e um compilador C/C++ e rode de novo.': "⚠  Build tools are missing ({m}), and I did not recognise this system's package manager. Install git and a C/C++ compiler and run again.",
+    'Instalando o que falta para compilar ({m}): {c}': 'Installing what is missing to build ({m}): {c}',
+    ' — pode pedir a sua senha.': ' — it may ask for your password.',
+    '⚠  Não consegui instalar ({c}). Instale por conta própria e rode de novo:  flow update': '⚠  Could not install ({c}). Install it yourself and run again:  flow update',
+    '⚠  Não consegui instalar o sd-cli agora ({e}).': '⚠  Could not install sd-cli right now ({e}).',
+    'Instalando o sd-cli (o executável da stable-diffusion.cpp que os modelos novos usam)…': 'Installing sd-cli (the stable-diffusion.cpp executable the newer models use)…',
+    'sd-cli instalado.': 'sd-cli installed.',
+    '⚠  Faltam ferramentas para compilar ({m}) e não há o sudo para instalá-las. Como administrador, rode:  {c}': '⚠  Build tools are missing ({m}) and there is no sudo to install them. As an administrator, run:  {c}',
     'Atualizando o sd-cli ({a} → {b})…': 'Updating sd-cli ({a} → {b})…',
     '⚠  Não consegui consultar a versão mais nova do sd-cli ({e}); sigo com a instalada ({v}).': '⚠  Could not check the newest sd-cli version ({e}); keeping the installed one ({v}).',
     'sd-cli {v}: já é a versão mais recente.': 'sd-cli {v}: already the latest version.',

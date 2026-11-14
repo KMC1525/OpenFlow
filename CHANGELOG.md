@@ -2,6 +2,22 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.16.0] — 2026-11-14
+
+### Novo
+- **`flow update` instala sozinho o que falta para compilar e depois instala/atualiza o `sd-cli`.** Antes, quando faltava git ou compilador («Para compilar o sd-cli aqui falta: git. Instale com: sudo apt install git build-essential»), você tinha que instalar na mão e tentar de novo. Agora o `flow update`:
+  1. confere **git** e **compilador C/C++**; se faltam, instala pelo gerenciador de pacotes do sistema (`apt-get` → `git`/`build-essential`; `dnf`/`yum`, `zypper`, `pacman`, `apk` também) usando `sudo` — **pede a sua senha no terminal** (como administrador não usa sudo; sem terminal usa `sudo -n` e só segue se ele não pedir senha). Instala só o que falta;
+  2. compila a stable-diffusion-cpp-python do GitHub (v0.13) já com as ferramentas;
+  3. **instala o `sd-cli`** se você tem modelos que precisam dele (FLUX.3, Qwen-Image…) e nunca o baixou — pronto, ou compilado aqui quando nenhum executável pronto roda no seu Linux (v0.15) — e o **atualiza** quando há versão nova.
+- No macOS e no Windows não existe instalação sem janelas: o `flow update` mostra o comando (`xcode-select --install`…). Sem gerenciador de pacotes reconhecido ou sem `sudo`, mostra o que instalar. **`OPENFLOW_AUTO_TOOLS=0`** desliga a instalação automática; `flow update --core` não mexe nisso.
+- O erro do nó «falta git» agora manda rodar `flow update`, que instala o que falta sozinho.
+
+### Mudou
+- O critério de «tem compilador» agora é o mesmo no `flow update` e na compilação do `sd-cli` (precisa de um compilador **C++**: `c++`, `g++` ou `clang++`).
+
+### Ainda não verificado
+- Não rodei o `sudo apt-get install` de verdade aqui (sem sudo/terminal no ambiente): os testes simulam os gerenciadores de pacotes e conferem os comandos, o uso do sudo (com e sem terminal, como administrador), as falhas e o fluxo completo do `flow update`.
+
 ## [0.15.0] — 2026-11-14
 
 ### Corrigido
