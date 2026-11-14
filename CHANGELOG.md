@@ -2,6 +2,15 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.10.0] — 2026-11-14
+
+### Corrigido
+- **A edição de imagem quase não mudava nada:** com um pedido solto como «aumente o tamanho do título, mantenha o resto», os modelos locais que editam por referência (FLUX.3/FLUX.2 klein, Kontext, Qwen-Image-Edit…) devolviam praticamente a mesma imagem (no seu exemplo o título cresceu só uns 6%). No modo **Editar**, quando o pedido não é expandido pelo modelo de texto, o OpenFlow agora o envia como instrução de edição clara («Edite a imagem de referência. Aplique exatamente esta mudança: … faça a mudança bem visível e mantenha todo o resto igual»). Ao Gerar, o texto segue como está.
+- **Aviso quando a edição não surtiu efeito:** se o resultado fica quase igual à imagem de entrada, o nó mostra um aviso dizendo o que fazer (descrever a mudança com mais detalhe, configurar um modelo de texto para expandir o pedido, ou gerar de novo com outra semente).
+
+### Ainda não verificado
+- Não consegui reproduzir a edição com o modelo real (sem o FLUX.3 e sem placa aqui): a moldura do pedido segue o formato que os modelos de edição esperam, mas o ganho só se confirma no seu uso. O FLUX.3 Klein rende melhor com o modelo de texto configurado (Configuração → Modelo), que expande o pedido numa legenda completa.
+
 ## [0.9.0] — 2026-11-14
 
 ### Novo

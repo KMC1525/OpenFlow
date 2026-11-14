@@ -79,6 +79,21 @@ class Style:
         return _sig(self.parts)
 
 
+SAME_IMAGE = 0.012   # diferença média (0–1) abaixo da qual a «edição» é tratada como «nada mudou»
+
+
+def edit_prompt(instruction: str) -> str:
+    """O pedido de edição como instrução clara para os modelos de edição locais (que seguem melhor «edite… mantenha o resto» do que um pedido solto)."""
+    return (f"Edit the provided reference image. Apply exactly this change: {instruction.strip()}\n"
+            "Make the change clearly visible, and keep everything else exactly the same (subject, face, pose, composition, colors, lighting and background).")
+
+
+def M_difference(a: bytes, b: bytes) -> Any:
+    from .media import image_difference
+
+    return image_difference(a, b)
+
+
 class CanvasEngine:
     def __init__(self, store: Any, cid: str, emit: Optional[Callable[[dict], None]] = None, cancelled: Callable[[], bool] = lambda: False, team: Optional[Dict[str, Any]] = None):
         self.store = store
@@ -525,7 +540,15 @@ class CanvasEngine:
                         warnings.append("Prompt expandido para o FLUX.3: " + caption[:300] + ("…" if len(caption) > 300 else ""))
                 except (ProviderError, ValueError) as exc:
                     warnings.append(f"Não consegui expandir o prompt ({exc}); usei o texto como está — o FLUX.3 rende melhor com legendas completas.")
+            expanded = any(w.startswith("Prompt expandido") for w in warnings)
+            if p["mode"] == "edit" and use_refs and not expanded and not upsample.is_caption(body) and getattr(prov, "frames_edit_for", lambda m="": False)(p["model"] or model):
+                prompt = edit_prompt(body) + (f"\n\nStyle: {style.text}" if style.text else "")   # sem o modelo de texto: o pedido vira uma instrução de edição clara
             medias = prov.image(prompt, size=p["size"], count=p["count"], seed=seed, negative=p["negative"], refs=use_refs, model=p["model"], extra=extra)
+            if p["mode"] == "edit" and use_refs and medias:
+                diff = M_difference(use_refs[0][0], medias[0].data)
+                if diff is not None and diff < SAME_IMAGE:
+                    warnings.append("O resultado ficou quase igual à imagem de entrada: o modelo mal aplicou a edição. Descreva a mudança com mais detalhe (de preferência em inglês e dizendo o que fica igual), "
+                                    "configure um modelo de texto em Configuração para o OpenFlow expandir o pedido, ou mude a semente (Gerar de novo).")
             for i, m in enumerate(medias):
                 ids.append(self._save(node, m, "image", f"{self._title(node, 'Imagem')} {i + 1}", prompt, pid, model))
             return {"assets": ids, "text": "", "warnings": warnings}

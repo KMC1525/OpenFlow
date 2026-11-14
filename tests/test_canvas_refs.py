@@ -104,5 +104,69 @@ class RefsInGenerateModeTests(TmpCase):
         self.assertFalse([w for e in events for w in (e.get("warnings") or []) if "Editar" in w])
 
 
+class EditModeTests(TmpCase):
+    def run_edit(self, mode, answer, frames=True):
+        from openflow.canvas import engine as E
+        from tests.test_canvas import edge, node
+        from openflow.canvas import procedural as proc
+        from openflow.storage import Store
+
+        store = Store(self.tmp / "home")
+        cs = store.projects
+        c = cs.create("t")
+        src = proc.image("original", "96x96", 3)
+        aid = cs.add_asset(c["id"], src, "png", "image", name="a.png", mime="image/png")["id"]
+        cs.save_layout(c["id"], {"nodes": [node("upload", nid="u", files=[aid]), node("image", nid="g", prompt="aumente o tamanho do título", mode=mode)], "edges": [edge("u", "g", "refs")]})
+        seen = {}
+
+        class Fake:
+            supports_refs = True
+            refs_edit_only = True
+            label = "Fake"
+            edit_mode = False
+
+            def max_refs(self, model=""):
+                return 4
+
+            def refs_need_edit(self, model=""):
+                return False
+
+            def frames_edit_for(self, model=""):
+                return frames
+
+            def image(self, prompt, *, refs=(), **k):
+                seen["prompt"] = prompt
+                return [M.Media(src if answer == "same" else proc.image("outra coisa", "96x96", 9), "image/png")]
+
+        events = []
+        with mock.patch.object(E, "build_media", lambda *a, **k: Fake()):
+            E.CanvasEngine(store, c["id"], events.append).run(None, False)
+        return seen["prompt"], [w for e in events for w in (e.get("warnings") or [])]
+
+    def test_the_edit_request_becomes_a_clear_instruction_only_in_edit_mode(self):
+        prompt, _ = self.run_edit("edit", "other")
+        self.assertIn("aumente o tamanho do título", prompt)
+        self.assertTrue(prompt.startswith("Edit the provided reference image."))
+        self.assertIn("keep everything else exactly the same", prompt)
+        prompt, _ = self.run_edit("generate", "other")
+        self.assertEqual(prompt, "aumente o tamanho do título")   # ao gerar, o texto vai como está
+        prompt, _ = self.run_edit("edit", "other", frames=False)
+        self.assertEqual(prompt, "aumente o tamanho do título")   # modelos que editam por imagem inicial (strength) também não recebem a moldura
+
+    def test_an_edit_that_changed_nothing_is_reported(self):
+        _, warns = self.run_edit("edit", "same")
+        self.assertTrue([w for w in warns if "quase igual à imagem de entrada" in w], warns)
+        _, warns = self.run_edit("edit", "other")
+        self.assertFalse([w for w in warns if "quase igual" in w], warns)
+
+    def test_image_difference(self):
+        from openflow.canvas import procedural as proc
+
+        a, b = proc.image("a", "96x96", 1), proc.image("b", "96x96", 2)
+        self.assertEqual(M.image_difference(a, a), 0.0)
+        self.assertGreater(M.image_difference(a, b), 0.05)
+        self.assertIsNone(M.image_difference(b"nao e imagem", a))
+
+
 if __name__ == "__main__":
     unittest.main()
