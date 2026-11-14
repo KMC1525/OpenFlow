@@ -81,7 +81,7 @@ class LibsTests(unittest.TestCase):
     def test_cmake_is_not_required_because_pip_fetches_it_when_building(self):
         marker = Path(tempfile.mkdtemp()) / "sd_needs_newer"
         marker.write_text("x")
-        have = {"git": "/usr/bin/git", "gcc": "/usr/bin/gcc"}   # sem cmake nem ninja no sistema
+        have = {"git": "/usr/bin/git", "gcc": "/usr/bin/gcc", "g++": "/usr/bin/g++"}   # sem cmake nem ninja no sistema (o compilador C++ é o que a stable-diffusion.cpp exige)
         with mock.patch.object(cli.shutil, "which", side_effect=lambda t: have.get(t)), mock.patch.object(cli.os, "name", "posix"):
             code, calls, out = run_cli(["libs", "--extras", "local"], marker=marker)
         self.assertEqual(code, 0, out)

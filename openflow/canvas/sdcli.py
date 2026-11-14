@@ -183,6 +183,10 @@ def _download(url: str, dest: Path, progress: Optional[Callable[[int, int], None
 SD_REPO_URL = f"https://github.com/{REPO}"
 
 
+class BuildToolsMissing(ProviderError):
+    """Faltam git e/ou um compilador C/C++ para compilar o sd-cli (o `flow update` os instala sozinho)."""
+
+
 def build_enabled() -> bool:
     """Compilar o sd-cli aqui quando nenhum executável pronto roda neste sistema? Desligue com OPENFLOW_SD_CLI_BUILD=0."""
     return os.environ.get("OPENFLOW_SD_CLI_BUILD", "1").strip().lower() not in ("0", "no", "false", "never")
@@ -246,7 +250,8 @@ def build_from_source(cancelled: Callable[[], bool] = lambda: False, note: Calla
     leva alguns minutos. O resultado é testado e só então substitui o instalado. Devolve o caminho do `sd-cli`."""
     miss = build_tools_missing()
     if miss:
-        raise ProviderError(f"Para compilar o sd-cli aqui falta: {', '.join(miss)}. Instale com:  {build_tools_hint()}  — e tente de novo (ou aponte OPENFLOW_SD_CLI para um sd-cli seu).")
+        raise BuildToolsMissing(f"Para compilar o sd-cli aqui falta: {', '.join(miss)}. Rode  flow update  (ele instala o que falta sozinho) ou instale com:  {build_tools_hint()}  — e tente de novo "
+                                "(ou aponte OPENFLOW_SD_CLI para um sd-cli seu).")
     dest = bin_dir()
     dest.parent.mkdir(parents=True, exist_ok=True)
     work = dest.parent / "sd-src"

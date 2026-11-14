@@ -227,14 +227,40 @@ def _sd_cli_install() -> int:
     return 0
 
 
-def _sd_cli_refresh() -> None:
-    """Se o OpenFlow já baixou o `sd-cli` pronto da stable-diffusion.cpp, ele acompanha a Release mais nova (só baixa se a versão mudou). Falha vira aviso."""
+def _sd_cli_install(note=print) -> bool:
+    """Baixa o `sd-cli` pronto ou, se nenhum roda neste Linux (glibc), o compila. Faltando git/compilador, no `flow update` os instala sozinho e tenta de novo. True se instalou."""
+    from .canvas import sdcli
+
+    for attempt in (1, 2):
+        try:
+            sdcli.install(note=lambda m: note("  " + m))
+            return True
+        except sdcli.BuildToolsMissing as exc:
+            if attempt == 1 and _auto_tools() and _install_build_tools():
+                continue
+            print(_("⚠  Não consegui instalar o sd-cli agora ({e}).", e=str(exc)[:300]))
+            return False
+        except Exception as exc:  # noqa: BLE001
+            print(_("⚠  Não consegui instalar o sd-cli agora ({e}).", e=str(exc)[:300]))
+            return False
+    return False
+
+
+def _sd_cli_refresh(install_missing: bool = False) -> None:
+    """Se o OpenFlow já baixou o `sd-cli` da stable-diffusion.cpp, ele acompanha a Release mais nova (só baixa/compila se a versão mudou). `install_missing` (no `flow update`, para quem tem modelos que
+    precisam dele): instala o `sd-cli` mesmo que nunca tenha sido baixado. Falha vira aviso."""
     from .canvas import sdcli
 
     try:
         have = (sdcli.bin_dir() / "VERSION").read_text(encoding="utf-8").strip()
     except OSError:
-        return   # nunca foi baixado: o OpenFlow o baixa sozinho quando um modelo precisar
+        have = ""
+    if not have:
+        if install_missing:
+            print("\n" + _("Instalando o sd-cli (o executável da stable-diffusion.cpp que os modelos novos usam)…"))
+            if _sd_cli_install():
+                print(_("sd-cli instalado."))
+        return   # sem `install_missing`: o OpenFlow o baixa sozinho quando um modelo precisar
     try:
         latest = str(sdcli.latest_release().get("tag_name") or "")
     except Exception as exc:  # noqa: BLE001
@@ -244,10 +270,7 @@ def _sd_cli_refresh() -> None:
         print("\n" + _("sd-cli {v}: já é a versão mais recente.", v=have))
         return
     print("\n" + _("Atualizando o sd-cli ({a} → {b})…", a=have, b=latest or "?"))
-    try:
-        sdcli.install(note=lambda m: print("  " + m))
-    except Exception as exc:  # noqa: BLE001
-        print(_("⚠  Não consegui atualizar o sd-cli agora ({e}); sigo com o que está instalado.", e=str(exc)[:200]))
+    _sd_cli_install()
 
 
 def _libs(args: argparse.Namespace) -> int:
@@ -306,7 +329,7 @@ def _libs(args: argparse.Namespace) -> int:
     if ("local" in chosen or sd_force) and not _sd_latest(sd_force):
         failed.append("local (stable-diffusion.cpp mais nova)")
     if "local" in chosen or sd_force:
-        _sd_cli_refresh()
+        _sd_cli_refresh(install_missing=_auto_tools() and (sd_force or _uses_diffusion_ggufs() or _sd_marker().exists()))
     if changes:
         print("\n" + _("Atualizadas: {l}", l=", ".join(f"{n} {a or '—'} → {b}" for n, a, b in changes)))
     elif chosen:
@@ -354,15 +377,73 @@ def _uses_diffusion_ggufs() -> bool:
 
 def _build_tools_missing() -> list:
     """O que falta para compilar a stable-diffusion.cpp: git e um compilador C/C++. (O cmake e o ninja o próprio pip baixa na hora de compilar, não precisam estar instalados.)"""
-    if os.name == "nt":
-        return []   # no Windows o compilador (Visual Studio Build Tools) é conferido pelo próprio pip, que mostra o erro
-    return [t for t in ("git",) if not shutil.which(t)] + ([] if any(shutil.which(c) for c in ("cc", "gcc", "clang")) else ["compilador C/C++"])
+    from .canvas import sdcli
+
+    return sdcli.build_tools_missing()
 
 
 def _build_tools_hint() -> str:
-    if sys.platform == "darwin":
-        return "xcode-select --install"
-    return "sudo apt install git build-essential" if shutil.which("apt") else "sudo dnf install git gcc-c++" if shutil.which("dnf") else "instale git e um compilador C/C++"
+    from .canvas import sdcli
+
+    return sdcli.build_tools_hint()
+
+
+def _auto_tools() -> bool:
+    """Instalar sozinho o que falta para compilar? Vale no `flow update` (que define OPENFLOW_AUTO_TOOLS=yes); desligue com OPENFLOW_AUTO_TOOLS=0."""
+    return os.environ.get("OPENFLOW_AUTO_TOOLS", "").strip().lower() in ("1", "yes", "y", "true", "auto")
+
+
+def _tools_commands(missing) -> list:
+    """Os comandos do gerenciador de pacotes do sistema que instalam o que falta ([] se não há gerenciador conhecido). Cada comando é uma lista de argumentos (sem o sudo)."""
+    git = "git" in missing
+    cc = any("compilador" in m for m in missing)
+    if shutil.which("apt-get"):
+        pk = (["git"] if git else []) + (["build-essential"] if cc else [])
+        return [["apt-get", "update", "-qq"], ["apt-get", "install", "-y", *pk]]
+    if shutil.which("dnf") or shutil.which("yum"):
+        return [[("dnf" if shutil.which("dnf") else "yum"), "install", "-y", *((["git"] if git else []) + (["gcc-c++", "make"] if cc else []))]]
+    if shutil.which("zypper"):
+        return [["zypper", "--non-interactive", "install", *((["git"] if git else []) + (["gcc-c++", "make"] if cc else []))]]
+    if shutil.which("pacman"):
+        return [["pacman", "-S", "--noconfirm", "--needed", *((["git"] if git else []) + (["base-devel"] if cc else []))]]
+    if shutil.which("apk"):
+        return [["apk", "add", *((["git"] if git else []) + (["build-base"] if cc else []))]]
+    return []
+
+
+def _install_build_tools(missing=None) -> bool:
+    """Instala o que falta para compilar (git e compilador C/C++) pelo gerenciador de pacotes do sistema — pede a sua senha do `sudo` no terminal. True se agora está tudo instalado.
+    No macOS e no Windows não há instalação sem janelas: mostra o que fazer."""
+    missing = list(missing if missing is not None else _build_tools_missing())
+    if not missing:
+        return True
+    if sys.platform == "darwin" or os.name == "nt":
+        print("\n" + _("⚠  Faltam ferramentas para compilar ({m}). Instale com:  {c}", m=", ".join(missing), c=_build_tools_hint()))
+        return False
+    cmds = _tools_commands(missing)
+    if not cmds:
+        print("\n" + _("⚠  Faltam ferramentas para compilar ({m}), e não reconheci o gerenciador de pacotes deste sistema. Instale git e um compilador C/C++ e rode de novo.", m=", ".join(missing)))
+        return False
+    root = hasattr(os, "geteuid") and os.geteuid() == 0
+    prefix: list = []
+    if not root:
+        if not shutil.which("sudo"):
+            print("\n" + _("⚠  Faltam ferramentas para compilar ({m}) e não há o sudo para instalá-las. Como administrador, rode:  {c}", m=", ".join(missing), c=" ".join(cmds[-1])))
+            return False
+        prefix = ["sudo"] if sys.stdin.isatty() else ["sudo", "-n"]   # sem terminal não dá para digitar a senha: só funciona se o sudo não pedir
+    shown = " ".join(prefix + cmds[-1])
+    print("\n" + _("Instalando o que falta para compilar ({m}): {c}", m=", ".join(missing), c=shown) + (_(" — pode pedir a sua senha.") if prefix == ["sudo"] else ""))
+    for i, cmd in enumerate(cmds):
+        res = subprocess.run(prefix + cmd)
+        if res.returncode != 0 and i == len(cmds) - 1:
+            print(_("⚠  Não consegui instalar ({c}). Instale por conta própria e rode de novo:  flow update", c=" ".join(cmd)))
+            return False
+    left = _build_tools_missing()
+    if left:
+        print(_("⚠  Ainda falta: {m}.", m=", ".join(left)))
+        return False
+    print(_("Ferramentas de compilação instaladas."))
+    return True
 
 
 def _sd_latest(force: bool = False) -> bool:
@@ -386,6 +467,8 @@ def _sd_latest(force: bool = False) -> bool:
         print("\n" + _("stable-diffusion-cpp-python: já está na versão mais recente do GitHub."))
         return True
     miss = _build_tools_missing()
+    if miss and _auto_tools() and _install_build_tools(miss):
+        miss = _build_tools_missing()
     if miss:
         print("\n" + _("⚠  Para compilar a stable-diffusion.cpp mais nova falta: {m}. Instale com:  {c}  — e rode de novo:  flow libs --sd-latest", m=", ".join(miss), c=_build_tools_hint()))
         return False
@@ -606,6 +689,7 @@ def _update(args: argparse.Namespace) -> int:
     """Atualiza o Python, o OpenFlow e **todas** as bibliotecas dele para as versões mais novas (e o sd-cli e a stable-diffusion.cpp do GitHub, se houver commit/versão nova).
     --core: só o OpenFlow e as ferramentas do Python; --no-python: sem mexer no Python."""
     if not getattr(args, "core", False):
+        os.environ.setdefault("OPENFLOW_AUTO_TOOLS", "yes")   # `flow update`: instala sozinho git/compilador se faltarem (pede a senha do sudo); OPENFLOW_AUTO_TOOLS=0 desliga
         os.environ.setdefault("OPENFLOW_SD_LATEST", "always")   # quem pede `flow update` quer a stable-diffusion.cpp mais nova mesmo sem modelo novo (a abertura automática do app segue em «auto»)
     if not getattr(args, "no_python", False) and not getattr(args, "core", False) and os.environ.get("OPENFLOW_PYTHON", "auto") != "keep":
         print(_("Atualizando o Python, o OpenFlow e as bibliotecas dele…"))
