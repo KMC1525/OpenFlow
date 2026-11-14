@@ -28,7 +28,7 @@ def main() -> int:
         try:
             line = (text or b"").decode("utf-8", "replace").rstrip()
             send({"log": [int(level), line]})
-            if level >= 1 and line:
+            if level >= 1 and line and "get sd version from file failed" not in line:   # a recusa de versão é tratada pelo OpenFlow (usa o sd-cli): não assusta no terminal
                 print(line, file=sys.stderr, flush=True)
         except Exception:  # noqa: BLE001 — um callback nunca pode derrubar a geração
             pass

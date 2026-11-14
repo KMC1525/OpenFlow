@@ -308,3 +308,20 @@ class DeviceChoiceTests(TmpCase):
         self.assertEqual(st.get_settings()["performance"]["device"], "auto")
         st.save_settings({"performance": {"device": "cpu"}})
         self.assertEqual(st.get_settings()["performance"]["device"], "cpu")
+
+
+class QuietAndDirectTests(TmpCase):
+    def test_flux3_goes_straight_to_the_cli_and_the_version_error_is_not_echoed(self):
+        self.assertTrue(M._lib_never_knows("flux-3-image-klein-Q4_K_M.gguf"))
+        self.assertTrue(M._lib_never_knows("FLUX.3-dev-Q8_0.gguf"))
+        self.assertFalse(M._lib_never_knows("flux-2-klein-4b-Q4_K_M.gguf"))
+        with mock.patch.dict(os.environ, {"OPENFLOW_SD_INPROC": "1"}):
+            self.assertFalse(M._lib_never_knows("flux-3-image-klein-Q4_K_M.gguf"))
+        import contextlib
+
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            M._echo(3, "stable-diffusion.cpp:299  - get sd version from file failed: ''")
+            M._echo(1, "loading vae")
+            M._echo(0, "debug")
+        self.assertEqual(err.getvalue().strip(), "loading vae")
