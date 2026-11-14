@@ -2,6 +2,13 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.6.0] — 2026-11-14
+
+### Novo
+- **Mais resoluções para gerar e editar imagens:** de 25+ opções agrupadas em Quadrado, Paisagem e Retrato — de 512×512 a 2048×2048, 1920×1080, 1080×1920, 2560×1080, 832×1216, 1344×768 e outras (as grandes aparecem como «pesado»). Valem no modo Gerar e no modo Editar.
+- Os modelos locais (GGUF) geravam no máximo 1024 px no lado maior; agora o limite é **2048 px** (`OPENFLOW_MAX_SIDE`, de 512 a 4096). Resoluções grandes pedem muita RAM/VRAM e tempo, sobretudo na CPU. Provedores de nuvem continuam ajustando para os tamanhos que a API aceita.
+- Não verificado: geração real nas resoluções grandes (sem modelo aqui).
+
 ## [0.5.0] — 2026-11-14
 
 ### Corrigido

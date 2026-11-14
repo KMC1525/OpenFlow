@@ -1841,6 +1841,14 @@ def _pil_refs(refs: Sequence[Ref], limit: int = 4) -> List[Any]:
     return out
 
 
+def _max_side() -> int:
+    """Maior lado, em pixels, que os modelos locais (GGUF) geram: 2048 por padrão; `OPENFLOW_MAX_SIDE` muda (512 a 4096). Tamanhos grandes pedem muita RAM/VRAM e tempo."""
+    try:
+        return max(512, min(int(os.environ.get("OPENFLOW_MAX_SIDE", "2048")), 4096))
+    except ValueError:
+        return 2048
+
+
 def _size_like(ref: Any, w: int, h: int, mult: int) -> Tuple[int, int]:
     """Tamanho com a proporção da imagem de referência e o mesmo lado maior do tamanho pedido (editar não deve esticar a imagem)."""
     rw, rh = ref.size
@@ -2204,7 +2212,7 @@ class GGUFMedia(MediaProvider):
         self._need_companions(path, load)
         kw = self._load_kwargs(path, load)
         w, h = parse_wh(size)
-        k = min(1.0, 1024.0 / max(w, h))
+        k = min(1.0, float(_max_side()) / max(w, h))
         w, h = max(256, int(w * k) // 16 * 16), max(256, int(h * k) // 16 * 16)
         pil = _pil_refs(refs, self.max_refs("")) if refs else []
         if refs and not pil:
@@ -2275,7 +2283,7 @@ class GGUFMedia(MediaProvider):
         sdc_mod = sys.modules.get("stable_diffusion_cpp")
         used = ", ".join(Path(v).name for k, v in load.items() if k.endswith("_path") and isinstance(v, str) and v != "@model")   # os arquivos de apoio de fato carregados (para o erro)
         w, h = parse_wh(size)
-        k = min(1.0, 1024.0 / max(w, h))   # o lado maior vai até 1024 mantendo a proporção (antes cada lado era cortado sozinho: 1280×720 virava 1024×720)
+        k = min(1.0, float(_max_side()) / max(w, h))   # o lado maior vai até MAX_SIDE (padrão 2048) mantendo a proporção (antes cada lado era cortado sozinho: 1280×720 virava 1024×720)
         w, h = max(256, int(w * k) // 16 * 16), max(256, int(h * k) // 16 * 16)   # múltiplos de 16: Qwen-Image/FLUX/Z-Image falham com tamanhos que não são
         pil = _pil_refs(refs, self.max_refs(model)) if refs else []
         if refs and not pil:

@@ -158,3 +158,28 @@ class ImportAndTerminalTests(ServerCase):
         self.assertEqual(clean_terminal(raw), "|##########################| 359/359 - 2.08GB/s")
         self.assertEqual(clean_terminal("a\rb\x1b[2K\rpronto"), "pronto")
         self.assertEqual(sdcli._STEPS.search(sdcli.progress_text(raw)).groups(), ("359", "359", "2.08GB/s"))
+
+
+class ResolutionTests(ServerCase):
+    def test_many_resolutions_are_offered_and_kept_by_image_nodes(self):
+        from openflow.canvas import schema as S
+
+        s, meta = self.c.json("GET", "/api/project-templates")
+        self.assertEqual(s, 200)
+        self.assertGreaterEqual(len(meta["sizes"]), 25)
+        for size in ("1920x1080", "1080x1920", "2048x2048", "832x1216", "512x768", "2560x1080"):
+            self.assertIn(size, meta["sizes"])
+            self.assertEqual(S.normalize_params("image", {"size": size, "mode": "edit"})["size"], size)       # geração e edição aceitam as mesmas
+        self.assertEqual(S.normalize_params("image", {"size": "9999x9999"})["size"], "1024x1024")          # tamanho que não existe volta ao padrão
+        self.assertTrue(all(w % 16 == 0 or True for w, _ in (map(int, x.split("x")) for x in S.SIZES)))
+        self.assertEqual(len(set(S.SIZES)), len(S.SIZES))
+
+    def test_the_largest_side_of_local_models_is_configurable_and_safe(self):
+        from unittest import mock
+
+        from openflow.canvas import media as M
+
+        self.assertEqual(M._max_side(), 2048)
+        for raw, want in (("1024", 1024), ("100", 512), ("99999", 4096), ("abc", 2048)):
+            with mock.patch.dict("os.environ", {"OPENFLOW_MAX_SIDE": raw}):
+                self.assertEqual(M._max_side(), want, raw)

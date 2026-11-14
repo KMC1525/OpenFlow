@@ -880,4 +880,8 @@ export default {
   'Onde os modelos rodam. «GPU» usa a placa de vídeo (NVIDIA: CUDA; AMD/Intel: Vulkan); «Só CPU» nunca a usa. O executável sd-cli certo é baixado sozinho na próxima geração.': 'Where the models run. “GPU” uses the graphics card (NVIDIA: CUDA; AMD/Intel: Vulkan); “CPU only” never uses it. The right sd-cli executable is downloaded by itself on the next generation.',
   'GPU detectada: {g}': 'GPU detected: {g}',
   'Nenhuma GPU NVIDIA detectada.': 'No NVIDIA GPU detected.',
+  'Quadrado': 'Square',
+  'Paisagem': 'Landscape',
+  'Retrato': 'Portrait',
+  'pesado': 'heavy',
 };

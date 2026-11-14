@@ -150,7 +150,7 @@ class InstallAndUseTests(TmpCase):
         args = (self.tmp / "args.log").read_text().split("\n")
         self.assertEqual(args.count("-r"), 2)   # klein junta as duas referências
         self.assertEqual(args[args.index("--steps") + 1], "4")
-        self.assertEqual((args[args.index("-W") + 1], args[args.index("-H") + 1]), ("1024", "576"))   # o tamanho pedido, não o da foto
+        self.assertEqual((args[args.index("-W") + 1], args[args.index("-H") + 1]), ("1280", "720"))   # o tamanho pedido, não o da foto
         self.assertTrue(any("sd-cli" in n for n in notes))
 
     def test_without_the_cli_the_error_offers_the_download_before_compiling(self):

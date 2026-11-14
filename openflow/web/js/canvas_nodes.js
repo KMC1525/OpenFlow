@@ -75,6 +75,15 @@ const lab = (text, ctl) => h('div', null, h('label', { class: 'f' }, text), ctl)
 // Provedor + Modelo (+ Resolução, quando o tipo tem). v0.17.1: o antigo bloco «Avançado» (prompt negativo, semente, parâmetros extras em JSON, ignorar estilos) saiu da tela;
 // o que já estava salvo nos canvases continua valendo no motor.
 const ratio = (w, h) => { const g = (a, b) => (b ? g(b, a % b) : a), d = g(w, h); return (w / d) + ':' + (h / d); };
+// Lista de resoluções agrupada por formato (quadrado, paisagem, retrato), com os pixels totais: ajuda a escolher sem decorar
+export function sizeSelect(c, n) {
+  const kind = (s) => { const [w, h] = s.split('x').map(Number); return w === h ? 'sq' : w > h ? 'land' : 'port'; };
+  const groups = [['sq', 'Quadrado'], ['land', 'Paisagem'], ['port', 'Retrato']];
+  const el = h('select', { class: 'nodrag', 'aria-label': t('Resolução'), onchange: (e) => c.change(n, 'size', e.target.value) },
+    groups.map(([k, label]) => h('optgroup', { label: t(label) }, c.meta.sizes.filter((s) => kind(s) === k).map((s) => h('option', { value: s, selected: s === n.params.size }, sizeLabel(s) + (Number(s.split('x')[0]) * Number(s.split('x')[1]) >= 4e6 ? ' · ' + t('pesado') : ''))))));
+  el.value = n.params.size;
+  return el;
+}
 export const sizeLabel = (s) => { const [w, h] = s.split('x').map(Number); return `${w}×${h} (${ratio(w, h)})`; };
 // Seletor de modelo único (v0.17.5): sem «Provedor» no nó. A lista junta o que está instalado neste computador (GGUF e Hugging Face local) e os modelos de cada provedor de nuvem
 // que está pronto para uso (com chave, ou servidor local) — escolher um modelo já define também o provedor que o executa. Nós antigos com provedor salvo continuam valendo.
@@ -304,7 +313,7 @@ const BODY = {
     seg([['generate', t('Gerar')], ['edit', t('Editar')]], n.params.mode, (v) => c.change(n, 'mode', v, true)),
     ta(c, n, 'prompt', n.params.mode === 'edit' ? t('O que mudar na imagem ligada em “Referências” (ou citada com @)?') : t('Descreva a imagem (ou ligue um nó de texto). Digite @ para citar uma imagem, vídeo ou som do projeto.'), 3, true),
     lab(t('Quantidade'), select([1, 2, 3, 4].map((i) => [String(i), String(i)]), String(n.params.count), (v) => c.change(n, 'count', Number(v)))),
-    ...providerBlock(c, n, 'image', lab(t('Resolução'), select(c.meta.sizes.map((s) => [s, sizeLabel(s)]), n.params.size, (v) => c.change(n, 'size', v))))],
+    ...providerBlock(c, n, 'image', lab(t('Resolução'), sizeSelect(c, n)))],
   video: (c, n) => [
     ta(c, n, 'prompt', t('Descreva o vídeo (ou ligue um texto e/ou uma imagem inicial). Digite @ para citar a imagem inicial.'), 3, true),
     h('div', { class: 'r2' }, lab(t('Duração (s)'), txt(c, n, 'duration', '5', 'number')), lab(t('Proporção'), select(c.meta.aspects.map((a) => [a, a]), n.params.aspect, (v) => c.change(n, 'aspect', v)))),

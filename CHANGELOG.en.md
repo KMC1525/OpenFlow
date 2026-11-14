@@ -2,6 +2,13 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.6.0] — 2026-11-14
+
+### New
+- **More resolutions to generate and edit images:** 25+ options grouped as Square, Landscape and Portrait — from 512×512 to 2048×2048, 1920×1080, 1080×1920, 2560×1080, 832×1216, 1344×768 and more (big ones are tagged «heavy»). They work in both Generate and Edit mode.
+- Local (GGUF) models used to generate at most 1024 px on the long side; the limit is now **2048 px** (`OPENFLOW_MAX_SIDE`, 512 to 4096). Large resolutions need a lot of RAM/VRAM and time, especially on CPU. Cloud providers still adjust to the sizes their API accepts.
+- Not verified: real generation at the large resolutions (no model here).
+
 ## [0.5.0] — 2026-11-14
 
 ### Fixed
