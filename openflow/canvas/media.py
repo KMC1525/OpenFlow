@@ -2391,6 +2391,7 @@ class GGUFMedia(MediaProvider):
         except (TypeError, ValueError):
             params = set()
         vinfo = (fam or {}).get("video") or {}
+        image = self._start_image(vinfo, image)
         fps = int(vinfo.get("fps") or 16)
         kw: Dict[str, Any] = {}
         if vinfo:   # tamanho e número de quadros que o modelo aceita (Wan2.2 TI2V 5B: só 720p; quadros = 4k+1)
@@ -2414,12 +2415,23 @@ class GGUFMedia(MediaProvider):
         frames = fn(**kw)
         return _frames_to_mp4(frames, fps)
 
+    def _start_image(self, vinfo: Dict[str, Any], image: Optional[Ref]) -> Optional[Ref]:
+        """A imagem inicial do vídeo conforme o modelo: imagem → vídeo (Wan I2V) exige uma; texto → vídeo (Wan T2V A14B) a ignora, com aviso; os demais (TI2V…) aceitam as duas coisas."""
+        mode = vinfo.get("image")
+        if mode == "required" and image is None:
+            raise ProviderError("Este modelo faz imagem → vídeo: ligue uma imagem à entrada «Imagem inicial» do nó Vídeo (ou escolha um modelo texto → vídeo, como o Wan2.2 T2V A14B ou o TI2V 5B).")
+        if mode == "ignored" and image is not None:
+            self.ctl.note("Este modelo é texto → vídeo: a imagem inicial foi ignorada (use um modelo I2V ou TI2V para animar uma imagem).")
+            return None
+        return image
+
     def _video_cli(self, path: Path, load: Dict[str, Any], extra: Dict[str, Any], fam: Optional[Dict[str, Any]], prompt: str, duration: int, aspect: str, image: Optional[Ref], seed: int, long_side: int) -> Media:
         """O vídeo pelo `sd-cli` (`-M vid_gen`): os quadros saem numerados e o OpenFlow os monta em MP4 pelo ffmpeg."""
         cli = sdcli.find()
         assert cli is not None
         self._need_companions(path, load)
         vinfo = (fam or {}).get("video") or {}
+        image = self._start_image(vinfo, image)
         fps = int(vinfo.get("fps") or 16)
         run_p = {k: v for k, v in extra.items() if k != "load"}
         if vinfo:

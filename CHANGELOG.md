@@ -2,6 +2,18 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.9.0] — 2026-11-14
+
+### Novo
+- **Wan (Alibaba) local, em GGUF:** **Wan2.2 T2V A14B** (texto → vídeo), **Wan2.2 I2V A14B** (imagem → vídeo) e **Wan2.1 I2V 14B** (imagem → vídeo), além do Wan2.1 T2V e do Wan2.2 TI2V 5B que já existiam. Vídeo em 480p (832×480 ou 480×832), até 81 quadros (≈ 5 s a 16 quadros/s).
+- Os A14B usam **dois modelos** (ruído baixo + ruído alto): escolha o `…LowNoise…gguf` e o OpenFlow baixa sozinho o `…HighNoise…gguf` **da mesma quantização**, junto do VAE do Wan2.1 e do codificador UMT5-XXL. O Wan2.1 I2V baixa também o CLIP vision. Esses arquivos de apoio não aparecem na lista de modelos.
+- Modelos imagem → vídeo exigem a «Imagem inicial» do nó Vídeo (a mensagem diz o que fazer); o texto → vídeo A14B avisa que ignorou uma imagem ligada.
+- Parâmetros do ruído alto (`high_noise_cfg_scale`, `high_noise_sample_steps`, `high_noise_sample_method`) e `clip_vision_path` também valem pelo `sd-cli`.
+
+### Ainda não verificado
+- Nenhum modelo Wan foi gerado de verdade aqui (sem modelo nem placa); os repositórios e arquivos foram conferidos no Hugging Face e os testes cobrem o reconhecimento, os arquivos de apoio e a montagem do comando.
+- Passos e CFG iniciais (20 passos no ruído baixo, 10 no alto, CFG 3,5) vêm da documentação da stable-diffusion.cpp; ajuste em Parâmetros extras se o resultado não agradar. Os A14B pedem muita RAM/VRAM e tempo.
+
 ## [0.8.0] — 2026-11-14
 
 ### Novo

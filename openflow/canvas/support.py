@@ -32,6 +32,34 @@ FAMILIES: List[Dict[str, Any]] = [
      "need": "o VAE (ae.safetensors) e o codificador de texto Qwen3-4B-Instruct-2507 (um .gguf, ex.: unsloth/Qwen3-4B-Instruct-2507-GGUF)",
      "downloads": {"vae_path": {"repo": "Comfy-Org/z_image_turbo", "file": "split_files/vae/ae.safetensors", "label": "VAE (ae.safetensors)", "approx": 0.34},
                    "llm_path": {"repo": "unsloth/Qwen3-4B-Instruct-2507-GGUF", "file": "Qwen3-4B-Instruct-2507-Q4_K_M.gguf", "label": "Codificador de texto Qwen3-4B-Instruct-2507 (Q4_K_M)", "approx": 2.5}}},
+    # ---- v0.9 · Wan (Alibaba) local: Wan2.2 A14B (texto → vídeo e imagem → vídeo; dois modelos, ruído baixo + alto) e Wan2.1 imagem → vídeo. GGUF da QuantStack e da city96.
+    {"id": "wan22-t2v-a14b", "name": r"wan[-_. ]?2[._]?2.*t2v.*a14b(?!.*high[-_]?noise)", "label": "Wan2.2 T2V A14B", "cap": "video",
+     "load": {"vae_path": r"wan[-_]?2[._]?1[-_]?vae.*\.safetensors$", "t5xxl_path": r"umt5[-_]?xxl.*\.(safetensors|gguf)$", "high_noise_diffusion_model_path": r"^wan2[._]?2[-_]t2v[-_]a14b[-_]high[-_]?noise.*\.gguf$"},
+     "run": {"cfg_scale": 3.5, "sample_steps": 20, "sample_method": "euler", "flow_shift": 3.0, "high_noise_cfg_scale": 3.5, "high_noise_sample_method": "euler", "high_noise_sample_steps": 10},
+     "video": {"fps": 16, "sizes": {"landscape": [832, 480], "portrait": [480, 832]}, "max_frames": 81, "image": "ignored"},   # 480p; quadros = 4k+1; sem imagem inicial
+     "options": {"offload_params_to_cpu": True, "diffusion_flash_attn": True},
+     "need": "o VAE do Wan2.1 (wan_2.1_vae.safetensors), o codificador de texto UMT5-XXL (.gguf) e o modelo de ruído ALTO (HighNoise) que acompanha este modelo de ruído baixo (LowNoise)",
+     "downloads": {"vae_path": {"repo": "Comfy-Org/Wan_2.1_ComfyUI_repackaged", "file": "split_files/vae/wan_2.1_vae.safetensors", "label": "VAE do Wan2.1", "approx": 0.25},
+                   "t5xxl_path": {"repo": "city96/umt5-xxl-encoder-gguf", "file": "umt5-xxl-encoder-Q4_K_M.gguf", "label": "Codificador de texto UMT5-XXL (Q4_K_M)", "approx": 3.7},
+                   "high_noise_diffusion_model_path": {"derive": {"swap": ["LowNoise", "HighNoise"], "dir": "HighNoise", "repo": "QuantStack/Wan2.2-T2V-A14B-GGUF"}, "label": "Modelo Wan2.2 T2V A14B de ruído alto (HighNoise)", "approx": 9.7}}},
+    {"id": "wan22-i2v-a14b", "name": r"wan[-_. ]?2[._]?2.*i2v.*a14b(?!.*high[-_]?noise)", "label": "Wan2.2 I2V A14B", "cap": "video",
+     "load": {"vae_path": r"wan[-_]?2[._]?1[-_]?vae.*\.safetensors$", "t5xxl_path": r"umt5[-_]?xxl.*\.(safetensors|gguf)$", "high_noise_diffusion_model_path": r"^wan2[._]?2[-_]i2v[-_]a14b[-_]high[-_]?noise.*\.gguf$"},
+     "run": {"cfg_scale": 3.5, "sample_steps": 20, "sample_method": "euler", "flow_shift": 3.0, "high_noise_cfg_scale": 3.5, "high_noise_sample_method": "euler", "high_noise_sample_steps": 10},
+     "video": {"fps": 16, "sizes": {"landscape": [832, 480], "portrait": [480, 832]}, "max_frames": 81, "image": "required"},   # imagem → vídeo: a imagem inicial é obrigatória
+     "options": {"offload_params_to_cpu": True, "diffusion_flash_attn": True},
+     "need": "o VAE do Wan2.1 (wan_2.1_vae.safetensors), o codificador de texto UMT5-XXL (.gguf) e o modelo de ruído ALTO (HighNoise) que acompanha este modelo de ruído baixo (LowNoise)",
+     "downloads": {"vae_path": {"repo": "Comfy-Org/Wan_2.1_ComfyUI_repackaged", "file": "split_files/vae/wan_2.1_vae.safetensors", "label": "VAE do Wan2.1", "approx": 0.25},
+                   "t5xxl_path": {"repo": "city96/umt5-xxl-encoder-gguf", "file": "umt5-xxl-encoder-Q4_K_M.gguf", "label": "Codificador de texto UMT5-XXL (Q4_K_M)", "approx": 3.7},
+                   "high_noise_diffusion_model_path": {"derive": {"swap": ["LowNoise", "HighNoise"], "dir": "HighNoise", "repo": "QuantStack/Wan2.2-I2V-A14B-GGUF"}, "label": "Modelo Wan2.2 I2V A14B de ruído alto (HighNoise)", "approx": 9.7}}},
+    {"id": "wan21-i2v", "name": r"wan[-_. ]?2[._]?1.*i2v", "label": "Wan2.1 I2V 14B", "cap": "video",
+     "load": {"vae_path": r"wan[-_]?2[._]?1[-_]?vae.*\.safetensors$", "t5xxl_path": r"umt5[-_]?xxl.*\.(safetensors|gguf)$", "clip_vision_path": r"clip[-_]?vision.*\.safetensors$"},
+     "run": {"cfg_scale": 6.0, "sample_steps": 30, "flow_shift": 3.0, "sample_method": "euler"},
+     "video": {"fps": 16, "sizes": {"landscape": [832, 480], "portrait": [480, 832]}, "max_frames": 81, "image": "required"},
+     "options": {"offload_params_to_cpu": True, "diffusion_flash_attn": True},
+     "need": "o VAE do Wan2.1 (wan_2.1_vae.safetensors), o codificador de texto UMT5-XXL (.gguf) e o CLIP vision (clip_vision_h.safetensors)",
+     "downloads": {"vae_path": {"repo": "Comfy-Org/Wan_2.1_ComfyUI_repackaged", "file": "split_files/vae/wan_2.1_vae.safetensors", "label": "VAE do Wan2.1", "approx": 0.25},
+                   "t5xxl_path": {"repo": "city96/umt5-xxl-encoder-gguf", "file": "umt5-xxl-encoder-Q4_K_M.gguf", "label": "Codificador de texto UMT5-XXL (Q4_K_M)", "approx": 3.7},
+                   "clip_vision_path": {"repo": "Comfy-Org/Wan_2.1_ComfyUI_repackaged", "file": "split_files/clip_vision/clip_vision_h.safetensors", "label": "CLIP vision do Wan2.1", "approx": 1.3}}},
     {"id": "wan22-ti2v-5b", "name": r"wan[-_. ]?2[._]?2.*ti2v", "label": "Wan2.2 TI2V 5B", "cap": "video",
      "load": {"vae_path": r"wan[-_]?2[._]?2[-_]?vae.*\.safetensors$", "t5xxl_path": r"umt5[-_]?xxl.*\.(safetensors|gguf)$"},
      "run": {"cfg_scale": 5.0, "sample_steps": 30, "flow_shift": 5.0, "sample_method": "euler"},
@@ -117,6 +145,18 @@ FAMILIES: List[Dict[str, Any]] = [
 ]
 
 
+def download_spec(fam: Dict[str, Any], key: str, filename: str) -> Dict[str, Any]:
+    """De onde baixar o arquivo de apoio `key` do modelo `filename`. Normalmente é fixo (`downloads`); o que acompanha o próprio modelo (o «HighNoise» do Wan2.2 A14B, de mesma quantização) tem `derive`:
+    o nome é o do modelo com `swap[0]` trocado por `swap[1]`, na pasta `dir` do repositório."""
+    d = dict(fam["downloads"][key])
+    dv = d.pop("derive", None)
+    if dv:
+        name = Path(filename).name
+        a, b = dv["swap"]
+        d.update(repo=dv["repo"], file=f"{dv['dir']}/{re.sub(a, b, name, flags=re.I)}")
+    return d
+
+
 def run_for(fam: Dict[str, Any], filename: str) -> Dict[str, Any]:
     """Os parâmetros de geração da família; a variante «base» (sem destilação) usa os de `run_base`, se a família tem, e `variants` (ex.: «turbo») trocam os parâmetros pelo nome do arquivo."""
     name = Path(filename).name
@@ -137,8 +177,11 @@ def find_companions(folder: Path, model: Path, fam: Dict[str, Any]) -> Dict[str,
     files = sorted(f for f in folder.iterdir() if f.is_file() and f != model and not f.name.endswith(".part")) if folder.is_dir() else []
     out: Dict[str, Optional[str]] = {}
     for key, pat in fam["load"].items():
-        hit = next((f for f in files if re.search(pat, f.name, re.I)), None)
-        out[key] = hit.name if hit else None
+        hits = [f for f in files if re.search(pat, f.name, re.I)]
+        if (fam.get("downloads", {}).get(key) or {}).get("derive"):   # o que acompanha o modelo: prefere o de mesma quantização
+            want = Path(download_spec(fam, key, model.name)["file"]).name.lower()
+            hits.sort(key=lambda f: f.name.lower() != want)
+        out[key] = hits[0].name if hits else None
     return out
 
 
@@ -148,7 +191,7 @@ def missing(folder: Path, filename: str) -> Dict[str, Any]:
     if not fam:
         return {"family": "", "missing": [], "approx_gb": 0.0}
     found = find_companions(folder, folder / Path(filename).name, fam)
-    todo = [{"key": k, **fam["downloads"][k]} for k, v in found.items() if v is None]
+    todo = [{"key": k, **download_spec(fam, k, filename)} for k, v in found.items() if v is None]
     return {"family": fam["id"], "label": fam["label"], "missing": todo, "approx_gb": round(sum(t["approx"] for t in todo), 1)}
 
 
@@ -173,8 +216,8 @@ def download_missing(folder: Path, filename: str, token: str = "", progress: Opt
 
 
 # --------------------------------------------------------------------------- instalação automática junto do modelo (v0.1)
-ROLE_OF_KEY = {"vae_path": "vae", "llm_path": "text_encoder", "clip_l_path": "text_encoder", "clip_g_path": "text_encoder", "t5xxl_path": "text_encoder", "llm_vision_path": "mmproj"}
-ROLE_LABEL = {"vae": "VAE", "text_encoder": "Codificador de texto", "mmproj": "Projetor de visão (mmproj)"}
+ROLE_OF_KEY = {"vae_path": "vae", "llm_path": "text_encoder", "clip_l_path": "text_encoder", "clip_g_path": "text_encoder", "t5xxl_path": "text_encoder", "llm_vision_path": "mmproj", "clip_vision_path": "text_encoder", "high_noise_diffusion_model_path": "model"}
+ROLE_LABEL = {"vae": "VAE", "text_encoder": "Codificador de texto", "mmproj": "Projetor de visão (mmproj)", "model": "Modelo de ruído alto"}
 _SHARD_RE = re.compile(r"^(?P<base>.+)-(?P<n>\d{5})-of-(?P<total>\d{5})\.gguf$", re.I)
 _VAE_RE = re.compile(r"^ae\.|vae", re.I)   # aplicado ao nome do arquivo: «ae.safetensors» (FLUX) ou qualquer «…vae…»
 _ENC_RE = re.compile(r"(clip[_-]?[lg]\b|t5xxl|umt5)", re.I)
@@ -252,7 +295,7 @@ def plan(folder: Path, filename: str, kind: str = "image", repo: str = "", repo_
         found = find_companions(folder, folder / Path(filename).name, fam)
         for key, got in found.items():
             if got is None:
-                d = fam["downloads"][key]
+                d = download_spec(fam, key, filename)
                 items.append({"role": ROLE_OF_KEY.get(key, "text_encoder"), "key": key, "repo": d["repo"], "file": d["file"], "dest": Path(d["file"]).name, "label": d["label"], "size": int(d["approx"] * 1e9)})
     tree = repo_tree or []
     if kind in ("text", "other") and tree and not mmproj_for(folder, filename):
@@ -310,7 +353,7 @@ def status_of(folder: Path, filename: str, kind: str) -> Dict[str, Any]:
             if got:
                 have.append({"role": role, "name": got})
             else:
-                d = fam["downloads"][key]
+                d = download_spec(fam, key, filename)
                 miss.append({"role": role, "label": d["label"], "approx_gb": d["approx"]})
     mm = mmproj_for(folder, filename)
     if mm:

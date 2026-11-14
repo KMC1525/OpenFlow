@@ -5,5 +5,5 @@ export const TPL_LABEL = {
   scene: ['Cena completa (imagem, voz e Editor)', 'Roteiro → imagem → vídeo + narração + som, tudo montado no Editor.'],
 };
 export const SORTS = [['updated', 'Mais recentes'], ['name', 'Nome (A–Z)'], ['created', 'Mais antigos primeiro'], ['files', 'Mais arquivos']];
-export const ROLE_LABEL = { vae: 'VAE', text_encoder: 'Codificador de texto', mmproj: 'mmproj (visão)' };
+export const ROLE_LABEL = { vae: 'VAE', text_encoder: 'Codificador de texto', mmproj: 'mmproj (visão)', model: 'Modelo de ruído alto' };
 export const SETTINGS_TABS = [['providers', 'Texto (IA)'], ['media', 'Imagem, vídeo, som e voz'], ['voice', 'Voz'], ['project', 'Projetos'], ['appearance', 'Aparência'], ['performance', 'Desempenho']];
