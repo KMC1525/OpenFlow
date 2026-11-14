@@ -2,6 +2,15 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.15.0] — 2026-11-14
+
+### Fixed
+- **"The prebuilt stable-diffusion.cpp executables (master-1104-5dcfa79) need glibc 2.43 or newer and this Linux has 2.39":** the Release only ships Linux packages built on Ubuntu 26.04, which your Linux (glibc 2.39) cannot run — before, OpenFlow gave up and told you to build by hand. Now, when no prebuilt executable runs on this Linux, OpenFlow **builds `sd-cli` by itself**: downloads the source (`git clone` of stable-diffusion.cpp), configures and builds with cmake (if there is no cmake it installs the pip one, with ninja) and tests the result **before** replacing what is installed. It shows progress in the node ("Building: [ 42%] …") and honours cancel. It builds for the GPU (CUDA or Vulkan) only if its tools exist (`nvcc`, `glslc`); otherwise it builds for CPU and says so. It takes a few minutes, once; later generations use the built executable.
+- It needs **git** and a **C/C++ compiler**; if missing, the error names what is missing and the command to install it (e.g. `sudo apt install git build-essential`). Turn the automatic build off with `OPENFLOW_SD_CLI_BUILD=0` (back to the glibc message). It also applies when the tested packages fail to run for another reason.
+
+### Not verified yet
+- I did not actually build stable-diffusion.cpp here (the build takes minutes and needs network and a compiler): the tests simulate git and cmake and check the steps, the flags (CUDA only with `nvcc`), the copied libraries, the test before replacing and the removal of the source. If the build fails on your machine, the node error carries the compiler's last lines; send them to me.
+
 ## [0.14.0] — 2026-11-14
 
 ### Fixed

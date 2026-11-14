@@ -12,6 +12,7 @@ import re
 import shutil
 import stat
 import subprocess
+import sys
 import tempfile
 import time
 import urllib.request
@@ -179,6 +180,120 @@ def _download(url: str, dest: Path, progress: Optional[Callable[[int, int], None
         raise ProviderError(f"Não consegui baixar o sd-cli ({exc}). Confira a internet e tente de novo.") from None
 
 
+SD_REPO_URL = f"https://github.com/{REPO}"
+
+
+def build_enabled() -> bool:
+    """Compilar o sd-cli aqui quando nenhum executável pronto roda neste sistema? Desligue com OPENFLOW_SD_CLI_BUILD=0."""
+    return os.environ.get("OPENFLOW_SD_CLI_BUILD", "1").strip().lower() not in ("0", "no", "false", "never")
+
+
+def build_tools_missing() -> List[str]:
+    """O que falta para compilar: git e um compilador C/C++ (o cmake e o ninja o próprio OpenFlow instala com o pip)."""
+    if os.name == "nt":
+        return [] if shutil.which("git") else ["git"]
+    return ([] if shutil.which("git") else ["git"]) + ([] if any(shutil.which(c) for c in ("c++", "g++", "clang++")) else ["compilador C/C++"])
+
+
+def build_tools_hint() -> str:
+    if sys_platform() == "darwin":
+        return "xcode-select --install"
+    return "sudo apt install git build-essential" if shutil.which("apt") else "sudo dnf install git gcc-c++" if shutil.which("dnf") else "instale git e um compilador C/C++"
+
+
+def _cmake() -> List[str]:
+    """O comando do cmake: o do sistema ou, se não há, o pacote `cmake` do pip (instalado na hora, junto do `ninja`)."""
+    if shutil.which("cmake"):
+        return ["cmake"]
+    r = subprocess.run([sys.executable, "-m", "pip", "install", "--quiet", "--disable-pip-version-check", "cmake", "ninja"], capture_output=True, text=True)
+    if r.returncode != 0:
+        raise ProviderError("Não consegui instalar o cmake pelo pip (" + (r.stderr or r.stdout).strip()[-160:] + "). Instale o cmake pelo gerenciador de pacotes do sistema e tente de novo.")
+    return [sys.executable, "-m", "cmake"]
+
+
+def _run_build(cmd: Sequence[str], cwd: Optional[Path], cancelled: Callable[[], bool], note: Callable[[str], None], label: str, timeout: float = 3600) -> None:
+    """Roda um passo da compilação mostrando as linhas de progresso (`[ 42%] Building…`) e respeitando o cancelamento."""
+    p = subprocess.Popen(list(cmd), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace", cwd=str(cwd) if cwd else None, bufsize=1)
+    tail: List[str] = []
+    start, last = time.time(), 0.0
+    try:
+        assert p.stdout is not None
+        for line in p.stdout:
+            line = progress_text(line)
+            if line:
+                tail = (tail + [line])[-12:]
+                if time.time() - last > 2:   # sem inundar o nó com uma mensagem por arquivo
+                    note(f"{label}: {line[:90]}")
+                    last = time.time()
+            if cancelled():
+                p.terminate()
+                raise ProviderError("cancelado")
+            if time.time() - start > timeout:
+                p.terminate()
+                raise ProviderError(f"{label} demorou demais e foi interrompido.")
+    finally:
+        if p.poll() is None:
+            p.kill()
+        p.wait()
+        if p.stdout:
+            p.stdout.close()
+    if p.returncode != 0:
+        raise ProviderError(f"{label} falhou (código {p.returncode}): " + " | ".join(tail)[-400:])
+
+
+def build_from_source(cancelled: Callable[[], bool] = lambda: False, note: Callable[[str], None] = lambda m: None, tag: str = "") -> Path:
+    """Compila o `sd-cli` da stable-diffusion.cpp neste computador (quando a Release não traz executável que rode aqui, ex.: glibc mais antiga que a dos pacotes). Precisa de git e de um compilador C/C++;
+    leva alguns minutos. O resultado é testado e só então substitui o instalado. Devolve o caminho do `sd-cli`."""
+    miss = build_tools_missing()
+    if miss:
+        raise ProviderError(f"Para compilar o sd-cli aqui falta: {', '.join(miss)}. Instale com:  {build_tools_hint()}  — e tente de novo (ou aponte OPENFLOW_SD_CLI para um sd-cli seu).")
+    dest = bin_dir()
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    work = dest.parent / "sd-src"
+    shutil.rmtree(work, ignore_errors=True)
+    want = backend()
+    flags = ["-DCMAKE_BUILD_TYPE=Release", "-DSD_BUILD_EXAMPLES=ON"]
+    if want == "cuda12" and shutil.which("nvcc"):
+        flags.append("-DSD_CUDA=ON")
+        built = "cuda12"
+    elif want == "vulkan" and shutil.which("glslc"):
+        flags.append("-DSD_VULKAN=ON")
+        built = "vulkan"
+    else:
+        built = "cpu"
+        if want != "cpu":
+            note(f"Compilando para CPU: faltam as ferramentas da GPU ({'nvcc' if want == 'cuda12' else 'glslc'}).")
+    cmake = _cmake()
+    try:
+        note("Compilando o sd-cli aqui: baixando o código-fonte da stable-diffusion.cpp…")
+        _run_build(["git", "clone", "--depth", "1", "--recurse-submodules", "--shallow-submodules", SD_REPO_URL, str(work)], None, cancelled, note, "Baixando o código-fonte", 900)
+        note(f"Compilando o sd-cli ({built}): leva alguns minutos…")
+        _run_build([*cmake, "-S", str(work), "-B", str(work / "build"), *flags], None, cancelled, note, "Configurando", 900)
+        _run_build([*cmake, "--build", str(work / "build"), "--config", "Release", "-j", str(max(1, min(os.cpu_count() or 2, 8)))], None, cancelled, note, "Compilando", 3600)
+        exe = next(iter(sorted(work.rglob(EXE))), None)
+        if not exe:
+            raise ProviderError("A compilação terminou, mas não gerou o sd-cli.")
+        new = dest.parent / (dest.name + ".new")
+        shutil.rmtree(new, ignore_errors=True)
+        new.mkdir(parents=True)
+        shutil.copy2(exe, new / EXE)
+        for lib in work.rglob("*"):   # bibliotecas compartilhadas (libstable-diffusion, libggml*…) ficam ao lado do executável
+            if lib.is_file() and "CMakeFiles" not in lib.parts and (re.search(r"\.(so(\.\d+)*|dylib|dll)$", lib.name)) and not (new / lib.name).exists():
+                shutil.copy2(lib, new / lib.name, follow_symlinks=True)
+        ok, out = _probe(new / EXE)
+        if not ok:
+            shutil.rmtree(new, ignore_errors=True)
+            raise ProviderError("O sd-cli compilado não roda neste computador" + (f": {out[-200:]}" if out else "") + ".")
+        shutil.rmtree(dest, ignore_errors=True)
+        new.rename(dest)
+        (dest / "VERSION").write_text(tag or "source", encoding="utf-8")
+        (dest / "BACKEND").write_text(want, encoding="utf-8")   # o pedido (não o que saiu): senão a troca CPU/GPU recompilaria a cada geração
+        note(f"sd-cli compilado ({built}) e pronto.")
+        return dest / EXE
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
 def install(progress: Optional[Callable[[int, int], None]] = None, cancelled: Callable[[], bool] = lambda: False, note: Callable[[str], None] = lambda m: None) -> Path:
     """Baixa o executável da Release mais nova para `<dados>/bin/sd-cpp/` e confere que ele roda **antes** de trocar o que já existe. No Linux só tenta os pacotes que a glibc daqui roda
     (do mais novo para o mais antigo). Devolve o caminho do `sd-cli`."""
@@ -193,7 +308,15 @@ def install(progress: Optional[Callable[[int, int], None]] = None, cancelled: Ca
     assets = rel.get("assets") or []
     cands = pick_assets(assets, platform.system(), platform.machine(), backend(), glibc)
     if not cands:
-        if glibc and pick_assets(assets, platform.system(), platform.machine(), backend()):   # há pacotes, mas todos pedem uma glibc mais nova que a daqui
+        too_new = bool(glibc and pick_assets(assets, platform.system(), platform.machine(), backend()))   # há pacotes, mas todos pedem uma glibc mais nova que a daqui
+        if sys_platform() == "linux" and build_enabled():
+            if too_new:
+                need = min((asset_glibc(a["name"]) or (0, 0)) for a in pick_assets(assets, platform.system(), platform.machine(), backend()))
+                note(f"Os executáveis prontos exigem a glibc {need[0]}.{need[1]} e este Linux tem {glibc[0]}.{glibc[1]}: o OpenFlow vai compilar o sd-cli aqui.")
+            else:
+                note("Não há executável pronto para este Linux: o OpenFlow vai compilar o sd-cli aqui.")
+            return build_from_source(cancelled, note, str(rel.get("tag_name") or ""))
+        if too_new:
             need = min((asset_glibc(a["name"]) or (0, 0)) for a in pick_assets(assets, platform.system(), platform.machine(), backend()))
             raise ProviderError(f"Os executáveis prontos da stable-diffusion.cpp ({rel.get('tag_name', '?')}) exigem a glibc {need[0]}.{need[1]} ou mais nova e este Linux tem {glibc[0]}.{glibc[1]}. "
                                 "Compile a stable-diffusion.cpp (flow libs; git + compilador C/C++) ou aponte OPENFLOW_SD_CLI para um sd-cli seu.")
@@ -236,6 +359,9 @@ def install(progress: Optional[Callable[[int, int], None]] = None, cancelled: Ca
         shutil.rmtree(new, ignore_errors=True)
         last = glibc_error(out) or out[-200:]
         note(f"O pacote {asset['name']} não roda aqui" + ("; tentando outro…" if asset is not cands[:3][-1] and len(cands) > 1 else "."))
+    if sys_platform() == "linux" and build_enabled():   # nenhum pacote pronto rodou aqui: compila
+        note("Nenhum executável pronto rodou neste Linux: o OpenFlow vai compilar o sd-cli aqui.")
+        return build_from_source(cancelled, note, str(rel.get("tag_name") or ""))
     raise ProviderError("O sd-cli baixado não roda neste computador" + (f": {last}" if last else "") + ". Tente OPENFLOW_SD_BACKEND=cpu ou compile a biblioteca.")
 
 

@@ -45,8 +45,9 @@ class GlibcPickTests(unittest.TestCase):
 class InstallSafetyTests(TmpCase):
     def setUp(self):
         super().setUp()
-        os.environ["OPENFLOW_HOME"] = str(self.tmp)
-        self.addCleanup(os.environ.pop, "OPENFLOW_HOME", None)
+        env = mock.patch.dict(os.environ, {"OPENFLOW_HOME": str(self.tmp), "OPENFLOW_SD_CLI_BUILD": "0"})   # SEM compilar (a compilação tem os testes da v0.15); restaura o ambiente ao fim
+        env.start()
+        self.addCleanup(env.stop)
 
     def fake(self, names, probe):
         from openflow import archives
