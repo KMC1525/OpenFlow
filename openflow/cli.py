@@ -227,7 +227,7 @@ def _sd_cli_install() -> int:
     return 0
 
 
-def _sd_cli_install(note=print) -> bool:
+def _sd_cli_install(note=print, force_tools: bool = False) -> bool:
     """Baixa o `sd-cli` pronto ou, se nenhum roda neste Linux (glibc), o compila. Faltando git/compilador, no `flow update` os instala sozinho e tenta de novo. True se instalou."""
     from .canvas import sdcli
 
@@ -236,7 +236,7 @@ def _sd_cli_install(note=print) -> bool:
             sdcli.install(note=lambda m: note("  " + m))
             return True
         except sdcli.BuildToolsMissing as exc:
-            if attempt == 1 and _auto_tools() and _install_build_tools():
+            if attempt == 1 and (_auto_tools() or force_tools) and _install_build_tools():
                 continue
             print(_("⚠  Não consegui instalar o sd-cli agora ({e}).", e=str(exc)[:300]))
             return False
@@ -288,6 +288,9 @@ def _libs(args: argparse.Namespace) -> int:
         return 0
     if not _ensure_pip():
         return 1
+    if "local" in chosen and _auto_tools() and _build_tools_missing():   # as bibliotecas «local» compilam código nativo: as ferramentas vêm ANTES (senão o llama-cpp-python falha e não é refeito)
+        print("\n" + _("As bibliotecas «local» compilam código nativo: instalando antes o que falta para compilar…"))
+        _install_build_tools()
     failed, present = [], []
     changes: list = []   # (biblioteca, versão antes, versão depois) — o resumo mostra o que subiu de versão
     for extra in chosen:
@@ -411,9 +414,48 @@ def _tools_commands(missing) -> list:
     return []
 
 
-def _install_build_tools(missing=None) -> bool:
-    """Instala o que falta para compilar (git e compilador C/C++) pelo gerenciador de pacotes do sistema — pede a sua senha do `sudo` no terminal. True se agora está tudo instalado.
-    No macOS e no Windows não há instalação sem janelas: mostra o que fazer."""
+def _terminal_available() -> bool:
+    """Há um terminal onde o `sudo` possa pedir a senha? (Vale também para o servidor do OpenFlow aberto num terminal: o `sudo` lê a senha direto do terminal, não da entrada do programa.)"""
+    try:
+        if sys.stdin is not None and sys.stdin.isatty():
+            return True
+    except (OSError, ValueError):
+        pass
+    try:
+        os.close(os.open("/dev/tty", os.O_RDWR))
+        return True
+    except OSError:
+        return False
+
+
+def _admin_prefix():
+    """Como rodar um comando como administrador: [] se já é root; ["sudo"] se há um terminal para a senha; ["pkexec"] (janela de senha do sistema) numa sessão gráfica sem terminal; ["sudo", "-n"] (só se o sudo não
+    pedir senha) nos outros casos; None se não há como."""
+    if hasattr(os, "geteuid") and os.geteuid() == 0:
+        return []
+    if shutil.which("sudo") and _terminal_available():
+        return ["sudo"]
+    if shutil.which("pkexec") and (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+        return ["pkexec"]
+    return ["sudo", "-n"] if shutil.which("sudo") else None
+
+
+def _run_cancellable(cmd, cancelled) -> int:
+    """Roda um comando (com a entrada e a saída do programa, para o `sudo` poder pedir a senha) e o interrompe se `cancelled()` virar verdadeiro."""
+    p = subprocess.Popen(cmd)
+    while True:
+        try:
+            return p.wait(timeout=0.5)
+        except subprocess.TimeoutExpired:
+            if cancelled():
+                p.terminate()
+                p.wait()
+                return -15
+
+
+def _install_build_tools(missing=None, note=lambda m: None, cancelled=lambda: False) -> bool:
+    """Instala o que falta para compilar (git e compilador C/C++) pelo gerenciador de pacotes do sistema, como administrador: pede a senha no terminal (`sudo`) ou, sem terminal mas com ambiente gráfico,
+    numa janela do sistema (`pkexec`). True se agora está tudo instalado. No macOS e no Windows não há instalação sem janelas: mostra o que fazer. `note`: mensagens de andamento (o botão do nó)."""
     missing = list(missing if missing is not None else _build_tools_missing())
     if not missing:
         return True
@@ -424,19 +466,26 @@ def _install_build_tools(missing=None) -> bool:
     if not cmds:
         print("\n" + _("⚠  Faltam ferramentas para compilar ({m}), e não reconheci o gerenciador de pacotes deste sistema. Instale git e um compilador C/C++ e rode de novo.", m=", ".join(missing)))
         return False
-    root = hasattr(os, "geteuid") and os.geteuid() == 0
-    prefix: list = []
-    if not root:
-        if not shutil.which("sudo"):
-            print("\n" + _("⚠  Faltam ferramentas para compilar ({m}) e não há o sudo para instalá-las. Como administrador, rode:  {c}", m=", ".join(missing), c=" ".join(cmds[-1])))
-            return False
-        prefix = ["sudo"] if sys.stdin.isatty() else ["sudo", "-n"]   # sem terminal não dá para digitar a senha: só funciona se o sudo não pedir
-    shown = " ".join(prefix + cmds[-1])
-    print("\n" + _("Instalando o que falta para compilar ({m}): {c}", m=", ".join(missing), c=shown) + (_(" — pode pedir a sua senha.") if prefix == ["sudo"] else ""))
-    for i, cmd in enumerate(cmds):
-        res = subprocess.run(prefix + cmd)
-        if res.returncode != 0 and i == len(cmds) - 1:
-            print(_("⚠  Não consegui instalar ({c}). Instale por conta própria e rode de novo:  flow update", c=" ".join(cmd)))
+    prefix = _admin_prefix()
+    if prefix is None:
+        print("\n" + _("⚠  Faltam ferramentas para compilar ({m}) e não há o sudo para instalá-las. Como administrador, rode:  {c}", m=", ".join(missing), c=" ".join(cmds[-1])))
+        return False
+    import shlex
+
+    if prefix == ["pkexec"]:   # uma só janela de senha para os dois comandos
+        runs = [prefix + ["sh", "-c", " && ".join(shlex.join(cmd) for cmd in cmds)]]
+        shown = " && ".join(" ".join(cmd) for cmd in cmds)
+    else:
+        runs = [prefix + cmd for cmd in cmds]
+        shown = " ".join(prefix + cmds[-1])
+    ask = prefix in (["sudo"], ["pkexec"])
+    msg = _("Instalando o que falta para compilar ({m}): {c}", m=", ".join(missing), c=shown) + (_(" — pode pedir a sua senha.") if ask else "")
+    print("\n" + msg)
+    note(msg + (" " + (_("Digite a senha no terminal onde o OpenFlow está aberto.") if prefix == ["sudo"] else _("Digite a senha na janela que abriu.")) if ask else ""))
+    for i, cmd in enumerate(runs):
+        code = _run_cancellable(cmd, cancelled)
+        if code != 0 and (i == len(runs) - 1 or prefix == ["pkexec"]):
+            print(_("⚠  Não consegui instalar ({c}). Instale por conta própria e rode de novo:  flow update", c=shown))
             return False
     left = _build_tools_missing()
     if left:

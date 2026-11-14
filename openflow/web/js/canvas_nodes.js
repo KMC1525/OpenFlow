@@ -412,15 +412,15 @@ export function nodeResult(c, n) {
   if (error) {
     const sup = /\[\[flow-support:([^\]]+)\]\]/.exec(error);   // GGUF de difusão sem VAE/codificador de texto: oferece baixar o que falta
     const upd = /\[\[flow-sd-update\]\]/.test(error);   // a stable-diffusion.cpp instalada não reconhece o modelo: oferece compilar a versão mais nova
-    const cli = /\[\[flow-sd-cli\]\]/.test(error);   // sem compilar: baixa o executável pronto (sd-cli) da stable-diffusion.cpp
-    box.append(h('div', { class: 'err' }, error.replace(/\s*\[\[flow-support:[^\]]+\]\]/, '').replace(/\s*\[\[flow-sd-update\]\]/, '').replace(/\s*\[\[flow-sd-cli\]\]/, '')));
+    const tools = /\[\[flow-sd-tools\]\]/.test(error), cli = tools || /\[\[flow-sd-cli\]\]/.test(error);   // «tools»: faltam git/compilador: o botão instala o que falta e compila; «cli»:   // sem compilar: baixa o executável pronto (sd-cli) da stable-diffusion.cpp
+    box.append(h('div', { class: 'err' }, error.replace(/\s*\[\[flow-support:[^\]]+\]\]/, '').replace(/\s*\[\[flow-sd-update\]\]/, '').replace(/\s*\[\[flow-sd-cli\]\]/, '').replace(/\s*\[\[flow-sd-tools\]\]/, '')));
     if (cli) {
-      const cb = h('button', { class: 'btn sm primary nodrag', type: 'button', id: 'sdcli-' + n.id, style: { marginTop: '6px', marginRight: '6px' } }, icon('download', 13), t('Baixar o executável pronto (sem compilar)'));
+      const cb = h('button', { class: 'btn sm primary nodrag', type: 'button', id: 'sdcli-' + n.id, style: { marginTop: '6px', marginRight: '6px' } }, icon('download', 13), tools ? t('Instalar o que falta e compilar o sd-cli') : t('Baixar o executável pronto (sem compilar)'));
       cb.onclick = async () => {
         cb.disabled = true;
         try {
           const r = await api('/api/media/sd-cli', { method: 'POST', body: {} });
-          toast(t('Baixando o sd-cli da stable-diffusion.cpp…'));
+          toast(tools ? t('Instalando o que falta e preparando o sd-cli: se pedir a senha, digite-a no terminal (ou na janela que abrir).') : t('Baixando o sd-cli da stable-diffusion.cpp…'));
           events('/api/jobs/' + r.job_id + '/events', (ev) => {
             if (ev.type === 'note') cb.lastChild.textContent = ' ' + ev.message.slice(0, 40);
             else if (ev.type === 'progress' && ev.total) cb.lastChild.textContent = ' ' + Math.round(100 * ev.done / ev.total) + '%';

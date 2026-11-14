@@ -10,19 +10,24 @@ from openflow.canvas import sdcli
 from openflow.providers import ProviderError
 
 
-def run(cmds, which, root=False, tty=True, left=None, fail_last=False):
+def run(cmds, which, root=False, tty=True, left=None, fail_last=False, display=False, notes=None):
     """Roda `_install_build_tools` com um gerenciador de pacotes simulado. `left`: o que ainda falta depois dos comandos."""
     out, calls = io.StringIO(), []
 
-    def fake_run(cmd, *a, **k):
+    def fake_run(cmd, cancelled=lambda: False):
         calls.append(list(cmd))
-        return mock.Mock(returncode=1 if fail_last and cmd[-1] != "-qq" else 0)
+        return 1 if fail_last and "-qq" not in cmd else 0
 
     seq = iter(left if left is not None else [[]])
-    with mock.patch.object(cli.shutil, "which", side_effect=lambda t: ("/usr/bin/" + t) if t in which else None), mock.patch.object(cli.subprocess, "run", side_effect=fake_run), \
+    env = {"DISPLAY": ":0"} if display else {}
+    with mock.patch.object(cli.shutil, "which", side_effect=lambda t: ("/usr/bin/" + t) if t in which else None), mock.patch.object(cli, "_run_cancellable", side_effect=fake_run), \
             mock.patch.object(cli.sys, "platform", "linux"), mock.patch.object(cli.os, "name", "posix"), mock.patch.object(cli.os, "geteuid", return_value=0 if root else 1000, create=True), \
-            mock.patch.object(cli.sys.stdin, "isatty", return_value=tty), mock.patch.object(cli, "_build_tools_missing", side_effect=lambda: next(seq, [])), contextlib.redirect_stdout(out):
-        ok = cli._install_build_tools(cmds)
+            mock.patch.object(cli, "_terminal_available", return_value=tty), mock.patch.dict(os.environ, env, clear=False), mock.patch.object(cli, "_build_tools_missing", side_effect=lambda: next(seq, [])), \
+            contextlib.redirect_stdout(out):
+        if not display:
+            os.environ.pop("DISPLAY", None)
+            os.environ.pop("WAYLAND_DISPLAY", None)
+        ok = cli._install_build_tools(cmds, note=(notes.append if notes is not None else (lambda m: None)))
     return ok, calls, out.getvalue()
 
 
@@ -38,11 +43,21 @@ class InstallToolsTests(unittest.TestCase):
         _, calls, _ = run(["compilador C/C++"], {"apt-get", "sudo"})
         self.assertEqual(calls[-1], ["sudo", "apt-get", "install", "-y", "build-essential"])
 
-    def test_root_needs_no_sudo_and_a_script_without_a_terminal_never_waits_for_a_password(self):
+    def test_root_needs_no_sudo_and_without_a_terminal_the_system_password_window_or_sudo_n_is_used(self):
         _, calls, _ = run(["git"], {"apt-get", "sudo"}, root=True)
         self.assertEqual(calls[-1][0], "apt-get")
-        _, calls, _ = run(["git"], {"apt-get", "sudo"}, tty=False)
+        _, calls, _ = run(["git"], {"apt-get", "sudo"}, tty=False)                                    # sem terminal e sem ambiente gráfico: só funciona se o sudo não pedir senha
         self.assertEqual(calls[-1][:3], ["sudo", "-n", "apt-get"])
+        notes = []
+        ok, calls, out = run(["git", "compilador C/C++"], {"apt-get", "sudo", "pkexec"}, tty=False, display=True, notes=notes)   # o servidor do OpenFlow aberto pelo atalho: janela de senha do sistema
+        self.assertTrue(ok)
+        self.assertEqual(len(calls), 1)                                                              # uma só janela de senha
+        self.assertEqual(calls[0][:3], ["pkexec", "sh", "-c"])
+        self.assertIn("apt-get update -qq && apt-get install -y git build-essential", calls[0][3])
+        self.assertTrue(any("Digite a senha na janela que abriu" in n for n in notes))
+        notes = []
+        run(["git"], {"apt-get", "sudo"}, notes=notes)                                               # com terminal: o botão do nó avisa onde digitar a senha
+        self.assertTrue(any("Digite a senha no terminal onde o OpenFlow está aberto" in n for n in notes))
 
     def test_other_package_managers(self):
         both = ["git", "compilador C/C++"]

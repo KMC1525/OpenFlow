@@ -865,6 +865,8 @@ export default {
   'Codificador de texto': 'Text encoder',
   'mmproj (visão)': 'mmproj (vision)',
   'Modelo de ruído alto': 'High-noise model',
+  'Instalar o que falta e compilar o sd-cli': 'Install what is missing and build sd-cli',
+  'Instalando o que falta e preparando o sd-cli: se pedir a senha, digite-a no terminal (ou na janela que abrir).': 'Installing what is missing and preparing sd-cli: if it asks for a password, type it in the terminal (or in the window that opens).',
   'Buscando “{q}” no Hugging Face…': 'Searching Hugging Face for “{q}”…',
   'Lendo as quantizações de {r}…': 'Reading the quantizations of {r}…',
   'Texto (IA)': 'Text (AI)',

@@ -2,6 +2,16 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.17.0] — 2026-11-14
+
+### Fixed
+- **"… missing: git. Run flow update … or install with: sudo apt install git build-essential…" on the Image node (FLUX.3):** the error repeated itself (the same sentence twice, with ".." in the middle) and only sent you to the terminal. Now it is **one message** that names what is missing and has the button **"Install what is missing and build sd-cli"**: it installs git/compiler with the system package manager (asks for the **administrator password**: in the terminal where OpenFlow is open with `sudo` or, if OpenFlow was opened without a terminal in a graphical session, in a **system password window** with `pkexec`), builds `sd-cli` (a few minutes) and the node works again — with nothing to run in the terminal. The button is your consent; `OPENFLOW_AUTO_TOOLS=0` only turns off `flow update`'s automatic install.
+- **`flow update`/`flow libs`: the build tools now come BEFORE the «local» libraries.** Before, `llama-cpp-python` (which builds native code) was installed first, failed without a compiler and, once the compiler was in, was not redone.
+- The tool installer chooses how to ask for the password: `sudo` with a terminal, `pkexec` (window) in a graphical session without a terminal, `sudo -n` otherwise; the two `apt` commands (`update` and `install`) ask for the password once with `pkexec`, and the step can be cancelled.
+
+### Not verified yet
+- I did not open the `pkexec` password window nor run `sudo apt-get install` for real here (no terminal/sudo/graphical environment): the tests cover the method choice, the commands, the button and the retry after installing.
+
 ## [0.16.0] — 2026-11-14
 
 ### New

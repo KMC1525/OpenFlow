@@ -370,8 +370,18 @@ class ProjectRoutes:
             from .providers import ProviderError
 
             job.emit({"type": "start"})
+            note = lambda m: job.emit({"type": "note", "message": m})  # noqa: E731
+            progress = lambda done, total: job.emit({"type": "progress", "done": done, "total": total})  # noqa: E731
             try:
-                exe = sdcli.install(lambda done, total: job.emit({"type": "progress", "done": done, "total": total}), lambda: job.cancelled, lambda m: job.emit({"type": "note", "message": m}))
+                try:
+                    exe = sdcli.install(progress, lambda: job.cancelled, note)
+                except sdcli.BuildToolsMissing:   # faltam git/compilador: o botão é o consentimento para instalá-los (pede a senha de administrador) e compilar
+                    from . import cli
+
+                    if not cli._install_build_tools(note=lambda m: note(m[:200]), cancelled=lambda: job.cancelled):
+                        job.emit({"type": "cancelled"} if job.cancelled else {"type": "error", "message": "Não consegui instalar o que falta para compilar (git e compilador C/C++). Veja o terminal onde o OpenFlow está aberto e instale-os (ex.: sudo apt install git build-essential)."})
+                        return
+                    exe = sdcli.install(progress, lambda: job.cancelled, note)
             except ProviderError as exc:
                 job.emit({"type": "cancelled"} if str(exc) == "cancelado" else {"type": "error", "message": str(exc)[:400]})
                 return
