@@ -201,12 +201,13 @@ def sys_platform() -> str:
 
 #: parâmetro de carga da biblioteca Python → opção do sd-cli (caminhos de arquivo)
 LOAD_FLAGS = {"diffusion_model_path": "--diffusion-model", "model_path": "-m", "vae_path": "--vae", "llm_path": "--llm", "t5xxl_path": "--t5xxl", "clip_l_path": "--clip_l", "clip_g_path": "--clip_g",
-              "tokenizer_path": "--tokenizer", "llm_vision_path": "--llm_vision"}
+              "tokenizer_path": "--tokenizer", "llm_vision_path": "--llm_vision", "clip_vision_path": "--clip_vision", "high_noise_diffusion_model_path": "--high-noise-diffusion-model"}
 #: parâmetro de carga booleano → opção
 LOAD_SWITCHES = {"offload_params_to_cpu": ["--offload-to-cpu"], "diffusion_flash_attn": ["--flash-attn", "off,diffusion=on"], "keep_clip_on_cpu": ["--clip-on-cpu"], "vae_tiling": ["--vae-tiling"]}
 #: parâmetro de geração → opção
 RUN_FLAGS = {"cfg_scale": "--cfg-scale", "sample_steps": "--steps", "sample_method": "--sampling-method", "flow_shift": "--flow-shift", "strength": "--strength", "guidance": "--guidance",
-             "video_frames": "--video-frames", "fps": "--fps"}
+             "video_frames": "--video-frames", "fps": "--fps", "high_noise_cfg_scale": "--high-noise-cfg-scale", "high_noise_sample_method": "--high-noise-sampling-method",
+             "high_noise_sample_steps": "--high-noise-steps"}
 
 
 def build_args(exe: Path, load: Dict[str, Any], run: Dict[str, Any], *, prompt: str, width: int, height: int, seed: int, negative: str = "", refs: Sequence[Path] = (), init: Optional[Path] = None,

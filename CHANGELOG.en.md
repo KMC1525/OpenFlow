@@ -2,6 +2,18 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.9.0] — 2026-11-14
+
+### New
+- **Local Wan (Alibaba) in GGUF:** **Wan2.2 T2V A14B** (text → video), **Wan2.2 I2V A14B** (image → video) and **Wan2.1 I2V 14B** (image → video), besides the Wan2.1 T2V and Wan2.2 TI2V 5B that already existed. Video at 480p (832×480 or 480×832), up to 81 frames (≈ 5 s at 16 fps).
+- The A14B models use **two models** (low noise + high noise): pick the `…LowNoise…gguf` and OpenFlow downloads the `…HighNoise…gguf` **of the same quantization** by itself, together with the Wan2.1 VAE and the UMT5-XXL text encoder. Wan2.1 I2V also downloads the CLIP vision. These support files do not show up in the model list.
+- Image → video models require the Video node's «Start image» (the message says what to do); the A14B text → video warns that it ignored a connected image.
+- High-noise parameters (`high_noise_cfg_scale`, `high_noise_sample_steps`, `high_noise_sample_method`) and `clip_vision_path` also work through `sd-cli`.
+
+### Not verified yet
+- No Wan model was actually generated here (no model, no GPU); repositories and files were checked on Hugging Face and the tests cover recognition, support files and command building.
+- Starting steps and CFG (20 steps low noise, 10 high noise, CFG 3.5) come from the stable-diffusion.cpp docs; adjust them in Extra parameters if the result is off. The A14B models need a lot of RAM/VRAM and time.
+
 ## [0.8.0] — 2026-11-14
 
 ### New

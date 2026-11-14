@@ -40,7 +40,8 @@ class FamilyTests(unittest.TestCase):
     def test_every_family_download_points_to_a_repo_and_a_file_for_each_companion(self):
         for fam in support.FAMILIES:
             self.assertEqual(set(fam["downloads"]), set(fam["load"]), fam["id"])
-            for d in fam["downloads"].values():
+            for key, d in fam["downloads"].items():
+                d = support.download_spec(fam, key, "Wan2.2-T2V-A14B-LowNoise-Q4_K_M.gguf")   # o nome só importa para o arquivo «derivado» do modelo (HighNoise)
                 self.assertRegex(d["repo"], r"^[\w.-]+/[\w.-]+$")
                 self.assertTrue(d["file"] and d["approx"] > 0)
 

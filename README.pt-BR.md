@@ -8,7 +8,7 @@ Inspirado no ElevenLabs Flow e muito mais leve que o ComfyUI: ligue alguns nós,
 
 [Instalar](#instalar) · [O comando `flow`](#o-comando-flow) · [Projetos](#projetos--a-tela-inicial) · [Nós](#os-nós) · [Style Folder](#style-folder--pastas-e-subpastas) · [Modelos](#modelos--os-arquivos-de-apoio-se-instalam-sozinhos) · [Provedores](#provedores-de-ia) · [Núcleo Rust](#núcleo-rust) · [Desenvolvimento](#desenvolvimento) · [Changelog](CHANGELOG.md) · [English](README.md)
 
-`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Núcleo Rust` · `sem dependências obrigatórias` · `v0.8.0`
+`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Núcleo Rust` · `sem dependências obrigatórias` · `v0.9.0`
 
 </div>
 
@@ -123,7 +123,7 @@ Abra **Modelos** para instalar e gerenciar modelos locais (GGUF, pelo llama.cpp 
 
   | Arquivo | Quando |
   |---|---|
-  | **VAE** | Modelos de imagem/vídeo de família conhecida (FLUX.1 Krea/FLUX.2/3, Qwen-Image e Qwen-Image-Edit, Krea 2, Bria FIBO 2.0, Z-Image, Wan 2.1/2.2…) dos repositórios certos, ou um VAE que o repositório do próprio modelo traz ao lado. |
+  | **VAE** | Modelos de imagem/vídeo de família conhecida (FLUX.1 Krea/FLUX.2/3, Qwen-Image e Qwen-Image-Edit, Krea 2, Bria FIBO 2.0, Z-Image, Wan 2.1/2.2 inclusive A14B e I2V…) dos repositórios certos, ou um VAE que o repositório do próprio modelo traz ao lado. |
   | **Codificadores de texto** (`clip_l`, `t5xxl`, `umt5`, Qwen3/Mistral/Qwen-VL como codificadores LLM…) | Mesma regra do VAE. |
   | **`mmproj`** (projetor de visão) | Modelos de texto/visão cujo repositório tem `mmproj-*.gguf`; o melhor é escolhido (F16, BF16, Q8_0, F32) e salvo como `<modelo>.mmproj.gguf`, para dois modelos nunca dividirem o projetor errado. |
 
@@ -182,7 +182,7 @@ node tests/js/i18n_check.mjs                     # toda frase da interface tem t
 
 Os testes de navegador precisam de Node, Playwright e Chromium (`NODE_PATH` apontando para a sua instalação do `playwright`). Código compatível com Python 3.9 (sem `match`, sem `X | Y` em tempo de execução). Todo texto da interface e do terminal é em português primeiro, com tradução para o inglês (`openflow/web/js/en.js`, `openflow/term_en.py`); os testes conferem.
 
-## Limites honestos (v0.8.0)
+## Limites honestos (v0.9.0)
 
 Verificado aqui (Linux, Python 3.13): a suíte completa de testes em Python (442 testes), os testes de navegador no Chromium, os testes em Rust e o `install.sh` de ponta a ponta contra uma cópia local. **Não verificado:** o `install.ps1` num Windows de verdade e o `install.sh` no macOS (os jobs de CI estão escritos mas não rodaram); a compilação do núcleo Rust para macOS/Windows/ARM; downloads reais de VAEs, codificadores de texto e `mmproj` do Hugging Face (os testes simulam os downloads — os nomes de arquivo dos repositórios curados e de exemplo foram conferidos nas listagens do Hugging Face); inferência com modelos GGUF e GPUs reais; entrada de imagens por `mmproj` com um modelo real; provedores de nuvem com chaves reais (os testes usam servidores falsos). Não há medições de desempenho.
 
