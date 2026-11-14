@@ -2,6 +2,14 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.4.0] — 2026-11-14
+
+### New
+- **Settings → Performance → Run on:** *Automatic* (uses the graphics card if there is one), *CPU only* or *GPU*. It applies to text models (llama.cpp), PyTorch media models and `sd-cli`: OpenFlow downloads the right executable by itself (cuda12 on NVIDIA, vulkan on AMD/Intel, cpu) and swaps it when you change the option. `OPENFLOW_SD_BACKEND` still wins.
+
+### Limits
+- The `stable-diffusion-cpp-python` library uses whatever it was compiled with; the option controls `sd-cli`, llama.cpp and PyTorch. Not verified with a real GPU (none here): tested with simulated detection.
+
 ## [0.3.0] — 2026-11-14
 
 ### Fixed

@@ -251,3 +251,60 @@ class RememberedUnsupportedTests(TmpCase):
             self.assertEqual((self.tmp / "sd_unsupported.txt").read_text().splitlines(), ["flux-3-image-klein-Q4_K_M.gguf"])    # sem repetir
         finally:
             os.environ.pop("OPENFLOW_HOME", None)
+
+
+class DeviceChoiceTests(TmpCase):
+    """Configurações → Desempenho → Rodar em: automático, só CPU ou GPU."""
+
+    def setUp(self):
+        super().setUp()
+        from openflow import perf
+
+        self.perf = perf
+        self.addCleanup(perf.configure, {})
+        self.addCleanup(os.environ.pop, "OPENFLOW_SD_BACKEND", None)
+        os.environ.pop("OPENFLOW_SD_BACKEND", None)
+
+    def pick(self, device, nvidia, system="Linux"):
+        self.perf.configure({"device": device})
+        with mock.patch.object(sdcli, "_nvidia", lambda: nvidia), mock.patch.object(sdcli.platform, "system", lambda: system):
+            return sdcli.backend()
+
+    def test_backend_follows_the_setting(self):
+        self.assertEqual(self.pick("cpu", True), "cpu")                 # só CPU nunca usa a placa, mesmo com NVIDIA
+        self.assertEqual(self.pick("auto", True), "cuda12")
+        self.assertEqual(self.pick("auto", False), "cpu")
+        self.assertEqual(self.pick("gpu", True), "cuda12")
+        self.assertEqual(self.pick("gpu", False), "vulkan")             # AMD/Intel
+        self.assertEqual(self.pick("gpu", False, "Darwin"), "cpu")      # macOS: o executável padrão já usa a placa (Metal)
+        self.assertEqual(self.perf.device(), "gpu")
+
+    def test_invalid_value_is_automatic_and_the_environment_wins(self):
+        self.perf.configure({"device": "quantum"})
+        self.assertEqual(self.perf.device(), "auto")
+        os.environ["OPENFLOW_SD_BACKEND"] = "vulkan"
+        self.perf.configure({"device": "cpu"})
+        self.assertEqual(sdcli.backend(), "vulkan")
+
+    def test_a_cli_of_another_kind_is_downloaded_again(self):
+        os.environ["OPENFLOW_HOME"] = str(self.tmp)
+        self.addCleanup(os.environ.pop, "OPENFLOW_HOME", None)
+        sdcli.bin_dir().mkdir(parents=True)
+        (sdcli.bin_dir() / "BACKEND").write_text("cpu")
+        self.assertEqual(sdcli.installed_backend(), "cpu")
+        notes, calls = [], []
+        p = M.GGUFMedia.__new__(M.GGUFMedia)
+        p.ctl, p._cancelled = M.Ctl(note=notes.append), (lambda: False)
+        self.perf.configure({"device": "gpu"})
+        with mock.patch.object(sdcli, "_nvidia", lambda: True), mock.patch.object(sdcli, "find", lambda: Path("/tmp/sd-cli")), mock.patch.object(M, "_media_unload", lambda: None), \
+                mock.patch.object(sdcli, "install", lambda *a, **k: calls.append(sdcli.backend())):
+            self.assertTrue(p._cli_fallback(M._SDUnsupportedModel("x")))
+        self.assertEqual(calls, ["cuda12"])
+
+    def test_the_setting_is_saved_and_normalized(self):
+        from openflow.storage import Store
+
+        st = Store(self.tmp)
+        self.assertEqual(st.get_settings()["performance"]["device"], "auto")
+        st.save_settings({"performance": {"device": "cpu"}})
+        self.assertEqual(st.get_settings()["performance"]["device"], "cpu")

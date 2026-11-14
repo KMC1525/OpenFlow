@@ -2,6 +2,14 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.4.0] — 2026-11-14
+
+### Novo
+- **Configurações → Desempenho → Rodar em:** *Automático* (usa a placa de vídeo se houver), *Só CPU* ou *GPU*. Vale para os modelos de texto (llama.cpp), os de mídia em PyTorch e para o `sd-cli`: o OpenFlow baixa sozinho o executável do tipo certo (cuda12 em NVIDIA, vulkan em AMD/Intel, cpu) e troca quando você muda a opção. `OPENFLOW_SD_BACKEND` continua mandando.
+
+### Limites
+- A biblioteca `stable-diffusion-cpp-python` usa o que foi compilado nela; a opção controla o `sd-cli`, o llama.cpp e o PyTorch. Não verificado com GPU de verdade (aqui não há placa): testado com a detecção simulada.
+
 ## [0.3.0] — 2026-11-14
 
 ### Corrigido

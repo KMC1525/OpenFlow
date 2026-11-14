@@ -43,7 +43,7 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
         "urls": {},  # {"a1111": "http://127.0.0.1:7860"} — endereço de servidores (locais ou compatíveis)
     },
     "canvas": {"template": "text_image", "agents": 1, "effort": "high"},  # equipe dos nós de texto (IA) e do planejador de fluxos
-    "performance": {"mode": "auto", "idle_unload_min": 10},  # auto | light | balanced | max — veja perf.py
+    "performance": {"mode": "auto", "idle_unload_min": 10, "device": "auto"},  # auto | light | balanced | max — veja perf.py
     "server": {"max_upload_mb": 200},
     "hf": {"token": "", "auto_support": True},  # auto_support: baixa junto do modelo o VAE, os codificadores de texto e o mmproj (ver canvas/support.py)
 }

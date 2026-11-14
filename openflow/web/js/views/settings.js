@@ -289,6 +289,8 @@ async function performance() {
       h('div', { class: 'grid2' },
         field(t('Modo'), select([['auto', t('Automático (conforme o hardware)')], ['light', t('Leve — menos RAM/VRAM')], ['balanced', t('Equilibrado')], ['max', t('Máximo')]], pf.mode, async (v) => { pf.mode = v; await saveSettings({ performance: pf }); toast(t('Salvo'), 'ok'); }),
           t('Leve: limita a janela de contexto, comprime o cache de atenção, descarrega modelos ociosos e usa menos memória de vídeo nos modelos de imagem/vídeo.')),
+        field(t('Rodar em'), select([['auto', t('Automático (GPU se houver)')], ['cpu', t('Só CPU')], ['gpu', t('GPU (placa de vídeo)')]], pf.device || 'auto', async (v) => { pf.device = v; await saveSettings({ performance: pf }); toast(t('Salvo'), 'ok'); }),
+          t('Onde os modelos rodam. «GPU» usa a placa de vídeo (NVIDIA: CUDA; AMD/Intel: Vulkan); «Só CPU» nunca a usa. O executável sd-cli certo é baixado sozinho na próxima geração.') + ' ' + (hw.gpu ? t('GPU detectada: {g}', { g: hw.gpu }) : t('Nenhuma GPU NVIDIA detectada.'))),
         field(t('Descarregar modelos ociosos após (min)'), h('input', { type: 'number', min: 0, max: 1440, value: pf.idle_unload_min, onchange: async (e) => { pf.idle_unload_min = Math.max(0, parseInt(e.target.value || '0', 10)); await saveSettings({ performance: pf }); toast(t('Salvo'), 'ok'); } }), t('0 = nunca. No modo leve o limite é de até 3 min.'))),
       h('p', { class: 'muted small', style: { marginBottom: 0 } }, t('Seu hardware: {t}', { t: hw.tier }) + ' · ' + hw.cpus + ' CPU · ' + (hw.ram_gb ? hw.ram_gb + ' GB RAM' : '—') + ' · ' + (hw.gpu || t('não detectada (NVIDIA)')))),
     cfgCard(t('Núcleo Rust'),
