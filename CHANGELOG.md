@@ -2,6 +2,11 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.7.0] — 2026-11-14
+
+### Corrigido
+- **Miniaturas (e qualquer imagem) saíam em retrato** quando uma única foto em retrato era ligada como referência (ou vinha da pasta de estilos) no modo **Gerar**: o modelo local herdava a proporção da foto e ignorava a resolução escolhida (16:9 virava vertical). Agora, ao Gerar, vale sempre a resolução do nó; só no modo **Editar** com uma imagem o resultado mantém a proporção dela (o lado maior segue a resolução escolhida). Vale para a biblioteca Python e para o `sd-cli`.
+
 ## [0.6.0] — 2026-11-14
 
 ### Novo

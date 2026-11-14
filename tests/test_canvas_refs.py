@@ -61,9 +61,13 @@ class RefsInGenerateModeTests(TmpCase):
         refs = [(png(512, 768), "image/png"), (png(768, 512), "image/png"), (png(640, 640), "image/png"), (png(1000, 500), "image/png")]
         with mock.patch.dict(sys.modules, {"stable_diffusion_cpp": mod}):
             p.image("thumb de gameplay", size="1280x720", refs=refs)
+            p.edit_mode = True
             p.image("editar a foto", size="1280x720", refs=refs[:1])
+            p.edit_mode = False
+            p.image("thumb com uma foto de rosto", size="1280x720", refs=refs[:1])   # modo Gerar com UMA referência em retrato: a thumb continua 16:9
         self.assertEqual(runs[0], {"w": 1280, "h": 720, "refs": 4})   # uma montagem: o tamanho pedido (16:9), não o retrato da 1ª foto
         self.assertEqual((runs[1]["w"], runs[1]["h"], runs[1]["refs"]), (848, 1280, 1))   # edição de uma imagem: mantém a proporção dela
+        self.assertEqual(runs[2], {"w": 1280, "h": 720, "refs": 1})   # gerar com uma só referência: vale o tamanho pedido (bug da v0.6: saía em retrato)
 
     def test_the_engine_sends_references_in_generate_mode_to_a_multi_reference_model(self):
         from openflow.canvas import engine as E

@@ -2,6 +2,11 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.7.0] — 2026-11-14
+
+### Fixed
+- **Thumbnails (and any image) came out vertical** when a single portrait photo was wired as a reference (or came from the style folder) in **Generate** mode: the local model inherited the photo's aspect ratio and ignored the chosen resolution (16:9 became vertical). Now Generate always uses the node's resolution; only **Edit** mode with one image keeps its proportions (the long side follows the chosen resolution). Applies to the Python library and to `sd-cli`.
+
 ## [0.6.0] — 2026-11-14
 
 ### New
