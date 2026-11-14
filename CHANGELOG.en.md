@@ -2,6 +2,16 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.11.0] — 2026-11-14
+
+### Fixed
+- **Searching for models was slow:** OpenFlow asked Hugging Face **one query at a time** (a search for "unsloth" in "Other" meant 12 queued queries, each waiting up to 20 s if the Hub was slow). Now the queries all run **at the same time**, each waits at most 12 s, and the same search (or a repository's file list) is served from memory for 90 s. Network errors are never cached: the next attempt asks again, and if only some queries fail the others' results still show.
+- **An old result overwriting the new one:** with back-to-back searches, the slow answer of an old search could arrive later and replace the new list (in Models and in the Canvas model panel); the same applied to opening several repositories in a row. Now only the latest answer counts.
+- **Feedback while loading:** the list shows "Searching Hugging Face for “term”…" and "Reading the quantizations of …", and the Models search also runs by itself ~0.5 s after you stop typing (3+ letters); Enter searches immediately.
+
+### Not verified yet
+- I did not measure the gain against the real Hugging Face (no access here); the tests prove the queries are parallel, the cache works and failures are not kept.
+
 ## [0.10.0] — 2026-11-14
 
 ### Fixed

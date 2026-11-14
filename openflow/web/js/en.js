@@ -865,6 +865,8 @@ export default {
   'Codificador de texto': 'Text encoder',
   'mmproj (visão)': 'mmproj (vision)',
   'Modelo de ruído alto': 'High-noise model',
+  'Buscando “{q}” no Hugging Face…': 'Searching Hugging Face for “{q}”…',
+  'Lendo as quantizações de {r}…': 'Reading the quantizations of {r}…',
   'Texto (IA)': 'Text (AI)',
   'Imagem, vídeo, som e voz': 'Image, video, sound and voice',
   'Modelo de texto pequeno e rápido (2B, destilado para raciocínio): roda o nó Texto IA, o planejador de fluxos e a descrição de estilo no seu computador.': 'Small, fast text model (2B, distilled for reasoning): runs the AI Text node, the flow planner and the style description on your computer.',

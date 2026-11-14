@@ -9,7 +9,10 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import threading
+import time
 import urllib.parse
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -74,6 +77,48 @@ def _headers(token: str) -> Dict[str, str]:
     return {"Authorization": f"Bearer {token}"} if token else {}
 
 
+# --------------------------------------------------------------------------- consultas à API do Hub: em paralelo e com cache curto
+SEARCH_TIMEOUT = 12.0     # segundos por consulta (antes 20 s, uma depois da outra: uma busca de «Outros» podia levar minutos se o Hub estivesse lento)
+CACHE_SECONDS = 90.0      # a mesma busca/lista de arquivos dentro desse prazo vem da memória
+_CACHE: Dict[Any, Any] = {}
+_CACHE_LOCK = threading.Lock()
+
+
+def clear_cache() -> None:
+    with _CACHE_LOCK:
+        _CACHE.clear()
+
+
+def _get_json_cached(url: str, token: str, timeout: float) -> Any:
+    """`GET` JSON do Hub com cache de `CACHE_SECONDS`. Só respostas bem-sucedidas entram no cache (um erro de rede nunca fica «gravado»). A chave inclui a função de rede em uso (os testes a trocam)."""
+    key = (id(http.get_json), url, bool(token))
+    now = time.time()
+    with _CACHE_LOCK:
+        hit = _CACHE.get(key)
+        if hit and now - hit[0] < CACHE_SECONDS:
+            return hit[1]
+    data = http.get_json(url, _headers(token), timeout=timeout)
+    with _CACHE_LOCK:
+        if len(_CACHE) >= 128:   # pequeno e simples: descarta o mais antigo
+            _CACHE.pop(min(_CACHE, key=lambda k: _CACHE[k][0]), None)
+        _CACHE[key] = (time.time(), data)
+    return data
+
+
+def _fetch_all(urls: List[str], token: str, timeout: float = SEARCH_TIMEOUT) -> List[Any]:
+    """Consulta todas as `urls` ao mesmo tempo: devolve, na mesma ordem, a resposta (JSON) de cada uma ou a exceção `ProviderError` que ela deu."""
+    def one(u: str) -> Any:
+        try:
+            return _get_json_cached(u, token, timeout)
+        except ProviderError as exc:
+            return exc
+
+    if len(urls) <= 1:
+        return [one(u) for u in urls]
+    with ThreadPoolExecutor(max_workers=min(8, len(urls))) as ex:
+        return list(ex.map(one, urls))
+
+
 def _author_queries(query: str) -> List[Dict[str, str]]:
     """Consultas extras por autor/perfil (ex.: "unsloth", "empero-ai") para achar todos os modelos de um perfil do Hugging Face."""
     q = (query or "").strip()
@@ -89,21 +134,22 @@ def search(query: str, token: str = "", limit: int = 20, kind: str = "text") -> 
     queries = [{"search": query}]
     queries += _author_queries(query)
     answered, failure = False, None
+    urls = []
     for tag in GGUF_KINDS[check_kind(kind)]["tags"]:
         for extra in queries:
             params = {**extra, "filter": "gguf", "pipeline_tag": tag, "sort": "downloads", "direction": "-1", "limit": str(max(limit, 30))}
-            try:
-                data = http.get_json(f"{HF}/api/models?{urllib.parse.urlencode(params)}", _headers(token), timeout=20)
-                answered = True
-            except ProviderError as exc:
-                failure = exc
-                continue
-            for m in data if isinstance(data, list) else []:
-                if isinstance(m, dict) and (m.get("id") or m.get("modelId")):
-                    mid = m.get("id") or m.get("modelId")
-                    row = found.setdefault(mid, {"id": mid, "downloads": m.get("downloads", 0) or 0, "likes": m.get("likes", 0) or 0, "kind": kind})
-                    row["downloads"] = max(int(row.get("downloads") or 0), int(m.get("downloads") or 0))
-                    row["likes"] = max(int(row.get("likes") or 0), int(m.get("likes") or 0))
+            urls.append(f"{HF}/api/models?{urllib.parse.urlencode(params)}")
+    for data in _fetch_all(urls, token):
+        if isinstance(data, ProviderError):
+            failure = data
+            continue
+        answered = True
+        for m in data if isinstance(data, list) else []:
+            if isinstance(m, dict) and (m.get("id") or m.get("modelId")):
+                mid = m.get("id") or m.get("modelId")
+                row = found.setdefault(mid, {"id": mid, "downloads": m.get("downloads", 0) or 0, "likes": m.get("likes", 0) or 0, "kind": kind})
+                row["downloads"] = max(int(row.get("downloads") or 0), int(m.get("downloads") or 0))
+                row["likes"] = max(int(row.get("likes") or 0), int(m.get("likes") or 0))
     if not answered and failure is not None:   # nenhuma consulta chegou ao Hugging Face (sem rede, fora do ar): dizer isso em vez de «nada encontrado»
         raise failure
     return sorted(found.values(), key=lambda m: -m["downloads"])[:limit]
@@ -124,22 +170,23 @@ def search_original(query: str, token: str = "", cap: str = "image", limit: int 
     queries = [{"search": query}]
     queries += _author_queries(query)
     answered, failure = False, None
+    urls = []
     for tag in ORIGINAL_TAGS[cap]:
         for extra in queries:
             params = {**extra, "pipeline_tag": tag, "sort": "downloads", "direction": "-1", "limit": str(max(limit, 30))}
-            try:
-                data = http.get_json(f"{HF}/api/models?{urllib.parse.urlencode(params)}", _headers(token), timeout=20)
-                answered = True
-            except ProviderError as exc:
-                failure = exc
-                continue
-            for m in data if isinstance(data, list) else []:
-                mid = m.get("id") or m.get("modelId") if isinstance(m, dict) else None
-                if isinstance(mid, str) and REPO_RE.match(mid):
-                    row = found.setdefault(mid, {"id": mid, "downloads": int(m.get("downloads") or 0), "likes": int(m.get("likes") or 0), "cap": cap, "format": "original", "gguf": "gguf" in [str(t).lower() for t in (m.get("tags") or [])]})
-                    row["downloads"] = max(int(row.get("downloads") or 0), int(m.get("downloads") or 0))
-                    row["likes"] = max(int(row.get("likes") or 0), int(m.get("likes") or 0))
-                    row["gguf"] = row["gguf"] or ("gguf" in [str(t).lower() for t in (m.get("tags") or [])])
+            urls.append(f"{HF}/api/models?{urllib.parse.urlencode(params)}")
+    for data in _fetch_all(urls, token):
+        if isinstance(data, ProviderError):
+            failure = data
+            continue
+        answered = True
+        for m in data if isinstance(data, list) else []:
+            mid = m.get("id") or m.get("modelId") if isinstance(m, dict) else None
+            if isinstance(mid, str) and REPO_RE.match(mid):
+                row = found.setdefault(mid, {"id": mid, "downloads": int(m.get("downloads") or 0), "likes": int(m.get("likes") or 0), "cap": cap, "format": "original", "gguf": "gguf" in [str(t).lower() for t in (m.get("tags") or [])]})
+                row["downloads"] = max(int(row.get("downloads") or 0), int(m.get("downloads") or 0))
+                row["likes"] = max(int(row.get("likes") or 0), int(m.get("likes") or 0))
+                row["gguf"] = row["gguf"] or ("gguf" in [str(t).lower() for t in (m.get("tags") or [])])
     if not answered and failure is not None:
         raise failure
     return sorted(found.values(), key=lambda m: -m["downloads"])[:limit]
@@ -186,7 +233,7 @@ def repo_files(repo: str, token: str = "") -> List[Dict[str, Any]]:
     """Todos os arquivos de um repositório do Hugging Face: [{name (caminho), size}]. Serve para achar o que o modelo precisa ao lado (VAE, codificadores de texto, mmproj)."""
     if not REPO_RE.match(repo or ""):
         raise ProviderError("Repositório inválido (use o formato dono/nome).")
-    data = http.get_json(f"{HF}/api/models/{repo}/tree/main?recursive=1", _headers(token), timeout=20)
+    data = _get_json_cached(f"{HF}/api/models/{repo}/tree/main?recursive=1", token, 20)
     out = []
     for it in data if isinstance(data, list) else []:
         path = it.get("path", "") if isinstance(it, dict) else ""
