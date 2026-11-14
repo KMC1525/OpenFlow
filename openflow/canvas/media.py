@@ -2197,6 +2197,17 @@ class GGUFMedia(MediaProvider):
                 self.ctl.note(f"Não consegui baixar o sd-cli sozinho ({str(err)[:160]}).")
         return sdcli.find() is not None
 
+    @staticmethod
+    def _layout_error(path: Path) -> ProviderError:
+        """O sd-cli (atual) recusou o arquivo («get sd version from file failed»): o formato dos tensores não é o que a stable-diffusion.cpp conhece (GGUF feito para ComfyUI/diffusers). Diz qual repositório serve."""
+        nat = support.sd_native_for(path.name)
+        if nat:
+            return ProviderError(
+                f"A stable-diffusion.cpp não reconhece o formato deste arquivo ({path.name}): ele é uma versão para o ComfyUI/diffusers (tensores com os nomes do checkpoint original), não a convertida para a "
+                f"stable-diffusion.cpp. Baixe a do repositório {nat['repo']} (ex.: {nat['example']}): o VAE e o codificador de texto são os mesmos que você já tem. [[flow-sd-repo:{nat['repo']}]]")
+        return ProviderError(f"A stable-diffusion.cpp não reconhece o formato do arquivo {path.name} (o nome dos tensores não é o que ela conhece). Provavelmente é um GGUF feito para o ComfyUI/diffusers: "
+                             "procure a versão convertida para a stable-diffusion.cpp (os GGUF do autor dela, leejet, são os de referência) ou use outro arquivo/quantização.")
+
     def _no_cli_error(self, path: Path) -> ProviderError:
         """O modelo é mais novo que a biblioteca Python e não há `sd-cli` para gerá-lo: diz por quê e o que fazer, em vez de tentar a biblioteca (que fecharia com «código -11»). Faltando git/compilador, o erro
         oferece o botão que instala o que falta e compila; senão mostra o motivo do download que falhou."""
@@ -2313,6 +2324,8 @@ class GGUFMedia(MediaProvider):
             except ProviderError as exc:
                 if str(exc) == "cancelado":
                     self.ctl.check()   # o trabalho foi cancelado: levanta o cancelamento de verdade
+                if "get sd version from file failed" in str(exc):   # o sd-cli atual não conhece o formato do arquivo: diz qual versão do modelo serve (em vez do log cru do sd-cli)
+                    raise self._layout_error(path) from None
                 raise
             if warns and i == 0:
                 self.ctl.note("Opções sem equivalente no sd-cli (ignoradas): " + ", ".join(sorted(set(warns))))
@@ -2531,6 +2544,8 @@ class GGUFMedia(MediaProvider):
         except ProviderError as exc:
             if str(exc) == "cancelado":
                 self.ctl.check()
+            if "get sd version from file failed" in str(exc):
+                raise self._layout_error(path) from None
             raise
         if warns:
             self.ctl.note("Opções sem equivalente no sd-cli (ignoradas): " + ", ".join(sorted(set(warns))))

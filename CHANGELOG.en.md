@@ -2,6 +2,17 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.18.0] — 2026-11-14
+
+### Fixed
+- **"sd-cli failed (code 1): … get sd version from file failed: '' … new_sd_ctx_t failed" with FLUX.3 Klein** (now with the `sd-cli` built and running): the file `flux-3-image-klein-Q4_K_M.gguf` from `unsloth/flux-3-image-klein-GGUF` is the **diffusers/ComfyUI** version — its tensors have the names of the original Black Forest Labs checkpoint, which stable-diffusion.cpp does not recognise (the VAE and text encoder loaded fine; the model is what failed). The repository stable-diffusion.cpp uses is **`leejet/flux-3-image-klein-GGUF`** (converted by it, e.g. `flux3-image-klein-Q4_K.gguf`).
+  - The node error no longer dumps the raw `sd-cli` log: it now explains what happened, says which repository to download and has the button **"Open leejet/flux-3-image-klein-GGUF in Models"**, which opens the Models tab already on that repository. The VAE and text encoder you already have work; only the model file changes.
+  - In the model search, opening a FLUX.3 repository that is not `leejet/…` shows a warning (with a button to open the right one) before you download several GB of a file that will not load.
+- Other models that `sd-cli` rejects with "get sd version from file failed" also get a clear message (no log) saying the file is probably for ComfyUI/diffusers and that `leejet`'s GGUFs are the reference.
+
+### Not verified yet
+- I did not generate with the real FLUX.3 (no model and no `sd-cli` here). The `leejet/flux-3-image-klein-GGUF` repository is confirmed on Hugging Face as "converted with stable-diffusion.cpp", but I did not test whether its file loads with the `sd-cli` and the VAE/encoder OpenFlow downloads. The reference-repository list only has FLUX.3; other families get in when one is confirmed.
+
 ## [0.17.0] — 2026-11-14
 
 ### Fixed

@@ -339,7 +339,7 @@ class App:
             files = hf.group_files([f for f in tree if f["name"].lower().endswith(".gguf") and hf.FILE_RE.match(Path(f["name"]).name)], hardware_info().get("ram_gb") or 0)
         except ProviderError as exc:
             raise HttpError(502, str(exc))
-        out: Dict[str, Any] = {"files": files, "support": []}
+        out: Dict[str, Any] = {"files": files, "support": [], "compat": support.sd_compat_warning(repo)}   # aviso: repositório que não é o convertido para a stable-diffusion.cpp
         if files and self._auto_support():
             main = next((f for f in files if f.get("recommended")), files[0])
             k = kind if kind in hf.GGUF_KINDS else ("text" if not support.family_of(main["name"]) else "image")

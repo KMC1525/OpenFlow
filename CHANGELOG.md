@@ -2,6 +2,17 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.18.0] — 2026-11-14
+
+### Corrigido
+- **«O sd-cli falhou (código 1): … get sd version from file failed: '' … new_sd_ctx_t failed» com o FLUX.3 Klein** (agora com o `sd-cli` compilado e funcionando): o arquivo `flux-3-image-klein-Q4_K_M.gguf` do `unsloth/flux-3-image-klein-GGUF` é a versão para **diffusers/ComfyUI** — os tensores têm os nomes do checkpoint original da Black Forest Labs, que a stable-diffusion.cpp não reconhece (o VAE e o codificador de texto carregavam normalmente; o que falhava era o modelo). O repositório que a stable-diffusion.cpp usa é o **`leejet/flux-3-image-klein-GGUF`** (convertido por ela, ex.: `flux3-image-klein-Q4_K.gguf`).
+  - O erro do nó deixou de despejar o log cru do `sd-cli`: agora explica o que aconteceu, diz qual repositório baixar e traz o botão **«Abrir leejet/flux-3-image-klein-GGUF em Modelos»**, que abre a aba Modelos já nesse repositório. O VAE e o codificador de texto que você já tem servem; só o arquivo do modelo muda.
+  - Na busca de modelos, abrir um repositório do FLUX.3 que não é o `leejet/…` mostra um aviso (com botão para abrir o correto) antes de você baixar vários GB de um arquivo que não vai carregar.
+- Outros modelos que o `sd-cli` recusa com «get sd version from file failed» também ganham uma mensagem clara (sem o log) dizendo que o arquivo provavelmente é para ComfyUI/diffusers e que os GGUF do `leejet` são a referência.
+
+### Ainda não verificado
+- Não gerei com o FLUX.3 real (sem o modelo e sem o `sd-cli` aqui). O repositório `leejet/flux-3-image-klein-GGUF` está confirmado no Hugging Face como «convertido com a stable-diffusion.cpp», mas não testei se o arquivo dele carrega com o `sd-cli` e com o VAE/codificador que o OpenFlow baixa. A lista de repositórios de referência tem só o FLUX.3; outras famílias entram quando houver um confirmado.
+
 ## [0.17.0] — 2026-11-14
 
 ### Corrigido
