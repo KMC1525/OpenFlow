@@ -234,6 +234,7 @@ class UpdateTests(unittest.TestCase):
             run_cli(["update"], env={"OPENFLOW_PYTHON": "keep"})
             inst.assert_not_called()
 
+    @unittest.skipIf(os.name == "nt", "o instalador oficial por `sh` é para macOS/Linux; no Windows o caminho é o install.ps1")
     def test_official_install_runs_the_installer_that_updates_python_too(self):
         script = b"#!/bin/sh\necho instalador\n"
         seen = {}
