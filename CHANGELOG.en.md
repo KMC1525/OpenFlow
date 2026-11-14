@@ -2,6 +2,21 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.8.0] — 2026-11-14
+
+### New
+- **Qwen (Alibaba Cloud)** cloud provider: images (Qwen-Image, generation and **editing** with up to 3 references through Qwen-Image-Edit) and **Wan videos** (text → video and image → video). Model Studio key; international endpoint by default (switch to the China one in Settings → Media).
+- **Krea** cloud provider: give the model as `provider/model` (`krea/krea-3`, `bfl/flux-1-dev`…).
+- **Bria (FIBO)** cloud provider: generation with one reference image.
+- **Local (GGUF) models** with their support files downloaded alongside: **Qwen-Image-Edit** (2509/2511; VAE, Qwen2.5-VL encoder and the `mmproj` vision projector), **Krea 2** (Raw and Turbo), **FLUX.1 Krea [dev]** and **Bria FIBO 2.0** (Dev and Edit Turbo), with each variant's steps and CFG.
+- The new providers retry with only the essentials if the service rejects an optional parameter, and show the service's full message.
+
+### Not verified yet
+- The three cloud providers follow the public docs (submit + poll the task) but **were not tested with a real key**; tests use simulated responses.
+- Local Krea 2 and FIBO 2.0 depend on the installed stable-diffusion.cpp recognising the architecture; if it does not, the node says so. Qwen-Image-Edit uses the library's `llm_vision_path`.
+- Local Wan 2.2 A14B (two models, high/low noise) is not in this release; Wan 2.2 TI2V 5B and Wan 2.1 work as before, and cloud Wan comes through Qwen.
+- Licences: Krea 2 (Krea 2 Community License) and FIBO 2.0 (CC BY-NC 4.0 on the GGUFs) restrict commercial use.
+
 ## [0.7.0] — 2026-11-14
 
 ### Fixed

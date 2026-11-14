@@ -2,6 +2,21 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.8.0] — 2026-11-14
+
+### Novo
+- **Qwen (Alibaba Cloud)** como provedor de nuvem: imagens (Qwen-Image, geração e **edição** com até 3 referências pelo Qwen-Image-Edit) e **vídeos Wan** (texto → vídeo e imagem → vídeo). Chave do Model Studio; endereço internacional por padrão (troque para o da China em Configuração → Mídia).
+- **Krea** como provedor de nuvem: informe o modelo como `provedor/modelo` (`krea/krea-3`, `bfl/flux-1-dev`…).
+- **Bria (FIBO)** como provedor de nuvem: geração com uma imagem de referência.
+- **Modelos locais (GGUF)** com os arquivos de apoio baixados junto: **Qwen-Image-Edit** (2509/2511; VAE, codificador Qwen2.5-VL e o projetor de visão `mmproj`), **Krea 2** (Raw e Turbo), **FLUX.1 Krea [dev]** e **Bria FIBO 2.0** (Dev e Edit Turbo), com passos e CFG de cada variante.
+- Os provedores novos tentam de novo só com o essencial se o serviço recusar um parâmetro opcional, e mostram a mensagem do serviço inteira.
+
+### Ainda não verificado
+- Os três provedores de nuvem seguem a documentação pública (envio + consulta da tarefa), mas **não foram testados com chave real**; os testes usam respostas simuladas.
+- Krea 2 e FIBO 2.0 locais dependem de a stable-diffusion.cpp instalada reconhecer a arquitetura; se não reconhecer, o nó avisa. Qwen-Image-Edit usa o `llm_vision_path` da biblioteca.
+- Wan 2.2 A14B (dois modelos, alto e baixo ruído) local não entrou nesta versão; o Wan 2.2 TI2V 5B e o Wan 2.1 seguem como antes, e o Wan na nuvem vem pelo Qwen.
+- Licenças: Krea 2 (Krea 2 Community License) e FIBO 2.0 (CC BY-NC 4.0 nos GGUF) restringem o uso comercial.
+
 ## [0.7.0] — 2026-11-14
 
 ### Corrigido

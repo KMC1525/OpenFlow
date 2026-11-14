@@ -47,6 +47,14 @@ FAMILIES: List[Dict[str, Any]] = [
      "need": "o VAE do Wan2.1 (wan_2.1_vae.safetensors) e o codificador de texto UMT5-XXL (umt5_xxl_fp8_e4m3fn_scaled.safetensors), ambos em Comfy-Org/Wan_2.1_ComfyUI_repackaged",
      "downloads": {"vae_path": {"repo": "Comfy-Org/Wan_2.1_ComfyUI_repackaged", "file": "split_files/vae/wan_2.1_vae.safetensors", "label": "VAE do Wan2.1", "approx": 0.25},
                    "t5xxl_path": {"repo": "Comfy-Org/Wan_2.1_ComfyUI_repackaged", "file": "split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors", "label": "Codificador de texto UMT5-XXL (fp8)", "approx": 6.7}}},
+    # ---- v0.8 · Qwen: edição de imagens (Qwen-Image-Edit 2509 e 2511, GGUF da unsloth/QuantStack). Mesmo VAE e codificador Qwen2.5-VL do Qwen-Image, mais o projetor de visão (mmproj) que lê as imagens a editar.
+    {"id": "qwen-image-edit", "name": r"qwen[-_ ]?image[-_ ]?edit", "label": "Qwen-Image-Edit", "cap": "image",
+     "load": {"vae_path": r"qwen.*image.*vae", "llm_path": r"^qwen2[._]?5[-_]?vl[-_]?7b[-_]?instruct(?!.*mmproj)[^/]*\.gguf$", "llm_vision_path": r"^mmproj[-_]?(f16|bf16|f32)?\.gguf$"},
+     "run": {"cfg_scale": 2.5, "flow_shift": 3.0, "sample_method": "euler"}, "options": {"offload_params_to_cpu": True, "diffusion_flash_attn": True},
+     "need": "o VAE (qwen_image_vae.safetensors), o codificador de texto Qwen2.5-VL-7B (um .gguf) e o projetor de visão dele (mmproj-F16.gguf), ambos de unsloth/Qwen2.5-VL-7B-Instruct-GGUF",
+     "downloads": {"vae_path": {"repo": "Comfy-Org/Qwen-Image_ComfyUI", "file": "split_files/vae/qwen_image_vae.safetensors", "label": "VAE do Qwen-Image", "approx": 0.25},
+                   "llm_path": {"repo": "unsloth/Qwen2.5-VL-7B-Instruct-GGUF", "file": "Qwen2.5-VL-7B-Instruct-Q4_K_M.gguf", "label": "Codificador de texto Qwen2.5-VL (Q4_K_M)", "approx": 4.7},
+                   "llm_vision_path": {"repo": "unsloth/Qwen2.5-VL-7B-Instruct-GGUF", "file": "mmproj-F16.gguf", "label": "Projetor de visão do Qwen2.5-VL (mmproj)", "approx": 1.4}}},
     {"id": "qwen-image", "name": r"qwen[-_ ]?image", "label": "Qwen-Image",
      "load": {"vae_path": r"qwen.*image.*vae", "llm_path": r"qwen2[._]?5.*vl.*\.gguf$"}, "marker": "transformer_blocks.0.img_mod.1.weight", "run": {"cfg_scale": 2.5, "flow_shift": 3.0, "sample_method": "euler"}, "options": {"offload_params_to_cpu": True, "diffusion_flash_attn": True},
      "need": "o VAE (qwen_image_vae.safetensors, em Comfy-Org/Qwen-Image_ComfyUI) e o codificador de texto Qwen2.5-VL (um .gguf, ex.: unsloth/Qwen2.5-VL-7B-Instruct-GGUF)",
@@ -79,6 +87,27 @@ FAMILIES: List[Dict[str, Any]] = [
      "need": "o VAE do FLUX.2/3 (flux2-vae.safetensors, em Comfy-Org/flux2-dev) e o codificador de texto Qwen3-VL-4B-Instruct (um .gguf, ex.: unsloth/Qwen3-VL-4B-Instruct-GGUF)",
      "downloads": {"vae_path": {"repo": "Comfy-Org/flux2-dev", "file": "split_files/vae/flux2-vae.safetensors", "label": "VAE do FLUX.2/3", "approx": 0.34},
                    "llm_path": {"repo": "unsloth/Qwen3-VL-4B-Instruct-GGUF", "file": "Qwen3-VL-4B-Instruct-Q4_K_M.gguf", "label": "Codificador de texto Qwen3-VL-4B-Instruct (Q4_K_M)", "approx": 2.5}}},
+    # ---- v0.8 · Krea e Bria. Receitas (VAE, codificador Qwen3-VL-4B, passos e CFG) tiradas dos cartões dos repositórios; a stable-diffusion.cpp precisa reconhecer a arquitetura (se não reconhecer, o aviso do nó diz).
+    {"id": "krea2", "name": r"krea[-_ ]?2", "label": "Krea 2", "cap": "image",
+     "load": {"vae_path": r"qwen[-_]?image[-_]?vae.*\.safetensors$", "llm_path": r"^qwen[-_]?3[-_]?vl[-_]?4b[-_]?instruct(?!.*mmproj)[^/]*\.gguf$"},
+     "run": {"cfg_scale": 4.0, "sample_steps": 30, "sample_method": "euler"}, "variants": [{"match": r"turbo", "run": {"cfg_scale": 1.0, "sample_steps": 8, "sample_method": "euler"}}],   # Turbo: poucos passos, sem CFG
+     "options": {"offload_params_to_cpu": True, "diffusion_flash_attn": True},
+     "need": "o VAE do Qwen-Image (qwen_image_vae.safetensors, em Comfy-Org/Krea-2) e o codificador de texto Qwen3-VL-4B-Instruct (um .gguf, ex.: unsloth/Qwen3-VL-4B-Instruct-GGUF)",
+     "downloads": {"vae_path": {"repo": "Comfy-Org/Krea-2", "file": "vae/qwen_image_vae.safetensors", "label": "VAE do Krea 2 (Qwen-Image)", "approx": 0.25},
+                   "llm_path": {"repo": "unsloth/Qwen3-VL-4B-Instruct-GGUF", "file": "Qwen3-VL-4B-Instruct-Q4_K_M.gguf", "label": "Codificador de texto Qwen3-VL-4B-Instruct (Q4_K_M)", "approx": 2.5}}},
+    {"id": "fibo2", "name": r"fibo[-_ ]?2", "label": "Bria FIBO 2.0", "cap": "image",
+     "load": {"vae_path": r"flux2[-_]?(ae|vae)", "llm_path": r"^qwen[-_]?3[-_]?vl[-_]?4b[-_]?instruct(?!.*mmproj)[^/]*\.gguf$"},
+     "run": {"cfg_scale": 5.0, "sample_steps": 50, "sample_method": "euler"}, "variants": [{"match": r"turbo", "run": {"cfg_scale": 1.0, "sample_steps": 4, "sample_method": "euler"}}],   # Edit Turbo: 4 passos, CFG 1 (só edição)
+     "options": {"offload_params_to_cpu": True, "diffusion_flash_attn": True},
+     "need": "o VAE do FLUX.2 (flux2-vae.safetensors, em Comfy-Org/Fibo-2.0) e o codificador de texto Qwen3-VL-4B-Instruct (um .gguf, ex.: unsloth/Qwen3-VL-4B-Instruct-GGUF)",
+     "downloads": {"vae_path": {"repo": "Comfy-Org/Fibo-2.0", "file": "vae/flux2-vae.safetensors", "label": "VAE do FIBO 2.0 (FLUX.2)", "approx": 0.34},
+                   "llm_path": {"repo": "unsloth/Qwen3-VL-4B-Instruct-GGUF", "file": "Qwen3-VL-4B-Instruct-Q4_K_M.gguf", "label": "Codificador de texto Qwen3-VL-4B-Instruct (Q4_K_M)", "approx": 2.5}}},
+    {"id": "flux1-krea", "name": r"flux[-_. ]?1[-_. ]?krea", "label": "FLUX.1 Krea [dev]", "cap": "image",
+     "load": {"vae_path": r"^ae\.safetensors$", "clip_l_path": r"clip[_-]?l.*\.safetensors$", "t5xxl_path": r"t5xxl.*\.(safetensors|gguf)$"}, "marker": "double_blocks.", "run": {}, "options": {"offload_params_to_cpu": True, "diffusion_flash_attn": True},
+     "need": "o VAE (ae.safetensors), o clip_l.safetensors e o t5xxl (safetensors ou .gguf)",
+     "downloads": {"vae_path": {"repo": "Comfy-Org/z_image_turbo", "file": "split_files/vae/ae.safetensors", "label": "VAE (ae.safetensors)", "approx": 0.33},
+                   "clip_l_path": {"repo": "comfyanonymous/flux_text_encoders", "file": "clip_l.safetensors", "label": "clip_l", "approx": 0.25},
+                   "t5xxl_path": {"repo": "comfyanonymous/flux_text_encoders", "file": "t5xxl_fp8_e4m3fn.safetensors", "label": "t5xxl (fp8)", "approx": 4.9}}},
     {"id": "flux", "name": r"flux(?![-_. ]?[23])", "label": "FLUX",
      "load": {"vae_path": r"^ae\.safetensors$", "clip_l_path": r"clip[_-]?l.*\.safetensors$", "t5xxl_path": r"t5xxl.*\.(safetensors|gguf)$"}, "marker": "double_blocks.", "run": {}, "options": {"offload_params_to_cpu": True, "diffusion_flash_attn": True},
      "need": "o VAE (ae.safetensors), o clip_l.safetensors e o t5xxl (safetensors ou .gguf)",
@@ -144,7 +173,7 @@ def download_missing(folder: Path, filename: str, token: str = "", progress: Opt
 
 
 # --------------------------------------------------------------------------- instalação automática junto do modelo (v0.1)
-ROLE_OF_KEY = {"vae_path": "vae", "llm_path": "text_encoder", "clip_l_path": "text_encoder", "clip_g_path": "text_encoder", "t5xxl_path": "text_encoder"}
+ROLE_OF_KEY = {"vae_path": "vae", "llm_path": "text_encoder", "clip_l_path": "text_encoder", "clip_g_path": "text_encoder", "t5xxl_path": "text_encoder", "llm_vision_path": "mmproj"}
 ROLE_LABEL = {"vae": "VAE", "text_encoder": "Codificador de texto", "mmproj": "Projetor de visão (mmproj)"}
 _SHARD_RE = re.compile(r"^(?P<base>.+)-(?P<n>\d{5})-of-(?P<total>\d{5})\.gguf$", re.I)
 _VAE_RE = re.compile(r"^ae\.|vae", re.I)   # aplicado ao nome do arquivo: «ae.safetensors» (FLUX) ou qualquer «…vae…»
