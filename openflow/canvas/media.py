@@ -1899,9 +1899,28 @@ def _lib_unsupported(name: str) -> bool:
 _NEWER_THAN_LIB = re.compile(r"flux[-_. ]?3", re.I)
 
 
+def _lib_is_stale() -> bool:
+    """A biblioteca instalada é a do PyPI (0.4.7 ou mais velha)? Se o `flow update`/`flow libs` compilou a do GitHub (marcador `sd_built_sha`) ou a versão é mais nova, ela pode conhecer os modelos novos."""
+    try:
+        from ..util import flow_home
+
+        if (flow_home() / "sd_built_sha").is_file():
+            return False
+    except OSError:
+        pass
+    try:
+        from importlib import metadata
+
+        ver = tuple(int(x) for x in re.findall(r"\d+", metadata.version("stable-diffusion-cpp-python"))[:3])
+        return ver <= (0, 4, 7)
+    except Exception:  # noqa: BLE001 — sem metadados: trata como a do PyPI
+        return True
+
+
 def _lib_never_knows(name: str) -> bool:
-    """Famílias novas que a biblioteca do PyPI (a 0.4.7, parada) nunca reconheceu (FLUX.3): vão direto ao sd-cli, sem nem tentar carregar na biblioteca. `OPENFLOW_SD_INPROC=1` força a biblioteca."""
-    return bool(_NEWER_THAN_LIB.search(name)) and os.environ.get("OPENFLOW_SD_INPROC", "") in ("", "0")
+    """Famílias novas que a biblioteca do PyPI (a 0.4.7, parada) nunca reconheceu (FLUX.3): vão direto ao sd-cli, sem nem tentar carregar na biblioteca (que fecha com «código -11»). Com a biblioteca do GitHub
+    (compilada pelo `flow update`), vale tentar a própria biblioteca. `OPENFLOW_SD_INPROC=1` força a biblioteca."""
+    return bool(_NEWER_THAN_LIB.search(name)) and os.environ.get("OPENFLOW_SD_INPROC", "") in ("", "0") and _lib_is_stale()
 
 
 _QUIET = re.compile(r"get sd version from file failed", re.I)
@@ -2163,6 +2182,7 @@ class GGUFMedia(MediaProvider):
         Se ainda não há `sd-cli`, o OpenFlow baixa o executável pronto sozinho (uns 30 MB; desligue com OPENFLOW_SD_CLI_AUTO=0) em vez de pedir um clique no nó."""
         if not (isinstance(exc, _SDUnsupportedModel) or "bibliotecas opcionais" in str(exc)):
             return False
+        self._cli_error = ""
         if (sdcli.find() is None or sdcli.installed_backend() not in ("", sdcli.backend())) and os.environ.get("OPENFLOW_SD_CLI_AUTO", "1") not in ("0", "no", "false"):   # sem sd-cli, ou o instalado é de outro tipo (CPU/GPU) que o escolhido nas configurações
             self.ctl.note("A stable-diffusion.cpp da biblioteca não reconhece este modelo: baixando o sd-cli pronto (a versão mais nova, sem compilar)…")
             try:
@@ -2171,8 +2191,18 @@ class GGUFMedia(MediaProvider):
             except ProviderError as err:
                 if str(err) == "cancelado":
                     self.ctl.check()
-                self.ctl.note(f"Não consegui baixar o sd-cli sozinho ({str(err)[:160]}); use o botão do nó.")
+                self._cli_error = str(err)
+                self.ctl.note(f"Não consegui baixar o sd-cli sozinho ({str(err)[:160]}).")
         return sdcli.find() is not None
+
+    def _no_cli_error(self, path: Path) -> ProviderError:
+        """O modelo é mais novo que a biblioteca Python e não há `sd-cli` para gerá-lo: diz por quê (o motivo do download que falhou) e o que fazer, em vez de tentar a biblioteca, que fecharia com «código -11»."""
+        why = (getattr(self, "_cli_error", "") or "").strip()
+        retry = "" if re.search(r"glibc|executável pronto", why, re.I) else " [[flow-sd-cli]]"   # com glibc antiga o botão falharia de novo
+        return ProviderError(
+            f"O modelo {path.name} é mais novo que a stable-diffusion.cpp da biblioteca Python (a do PyPI, 0.4.7) e o OpenFlow não conseguiu o executável pronto (sd-cli) para gerá-lo"
+            + (f": {why[:300]}" if why else "") + ". "
+            "Soluções: rode  flow update  (ele compila a stable-diffusion.cpp mais nova do GitHub: precisa de git e de um compilador C/C++), aponte OPENFLOW_SD_CLI para um sd-cli seu, ou use outro modelo." + retry)
 
     def _cli_call(self, path: Path, fn: Callable[[Path], Any]) -> Any:
         """Roda `fn(sd-cli)`. Se o executável não roda neste Linux (glibc antiga), o OpenFlow o apaga, baixa o pacote compatível e tenta mais uma vez, sem pedir que a pessoa gere de novo."""
@@ -2302,8 +2332,10 @@ class GGUFMedia(MediaProvider):
         load = {**base.get("load", {}), **(extra.pop("load", None) or {})}
         if path.name in _SD_LITE:   # este modelo já falhou com flash attention/offload nesta máquina: começa sem eles (não recarrega duas vezes a cada imagem)
             load = {k: v for k, v in load.items() if k not in _SD_LITE_KEYS}
-        if (_lib_unsupported(path.name) or _lib_never_knows(path.name)) and self._cli_fallback(_SDUnsupportedModel(path.name)):   # já se sabe que a biblioteca não o reconhece
-            return self._image_cli(path, load, extra, prompt, size, count, seed, negative, refs)
+        if _lib_unsupported(path.name) or _lib_never_knows(path.name):   # já se sabe que a biblioteca não o reconhece
+            if self._cli_fallback(_SDUnsupportedModel(path.name)):
+                return self._image_cli(path, load, extra, prompt, size, count, seed, negative, refs)
+            raise self._no_cli_error(path)   # sem sd-cli: não adianta carregar na biblioteca (ela recusa ou fecha com «código -11»)
         try:
             sd = self._engine("image", path, load)
         except ProviderError as exc:
