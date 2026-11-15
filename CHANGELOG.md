@@ -12,7 +12,7 @@ Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e,
 - Lint: f-string sem campos.
 
 ### Testado
-- **Todos os 55 tipos de nó rodam de verdade** (motor + ffmpeg + Demo) com entradas válidas ligadas — `tests/test_all_nodes_v038.py`; só o «Transcrever» depende da biblioteca opcional do Whisper.
+- **Os 54 tipos de nó (49 executáveis; os outros 5 são Texto, Mídia, Style Prompt, Style Folder e Link) rodam de verdade** (motor + ffmpeg + Demo) com entradas válidas ligadas — `tests/test_all_nodes_v038.py`; só o «Transcrever» depende da biblioteca opcional do Whisper.
 - Matriz de entradas estranhas (imagem RGBA/cinza/paleta/WebP/GIF/CMYK/16 bits/minúscula/gigante; vídeo vertical/sem som/dimensão ímpar/fps quebrado/WebM/curtíssimo; áudio WAV mono/OGG/FLAC/M4A/curto) contra todos os nós de mídia.
 - Varredura de navegador (`sweep_ui.js`): todas as telas em 390, 1500 e 3440 px sem rolagem horizontal, todas as abas de Configurações, e todos os nós do canvas com cada opção de cada lista e valores estranhos nos campos, depois rodando tudo — sem erros de página.
 - Fuzz de 1.700 requisições nas rotas da API e de 8 mil parâmetros de nós: nenhum erro 500; leitura/escrita fora da pasta, zip-slip, segredos nas exportações e origem cruzada continuam bloqueados.

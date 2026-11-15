@@ -12,7 +12,7 @@ Format: `## [version] — date`. Each version lists what changed for users and, 
 - Lint: an f-string without fields.
 
 ### Tested
-- **All 55 node types really run** (engine + ffmpeg + Demo) with valid inputs wired — `tests/test_all_nodes_v038.py`; only "Transcribe" depends on the optional Whisper library.
+- **The 54 node types (49 runnable; the other 5 are Text, Media, Style Prompt, Style Folder and Link) really run** (engine + ffmpeg + Demo) with valid inputs wired — `tests/test_all_nodes_v038.py`; only "Transcribe" depends on the optional Whisper library.
 - A matrix of odd inputs (RGBA/gray/palette/WebP/GIF/CMYK/16-bit/tiny/huge images; vertical/silent/odd-size/broken-fps/WebM/very short videos; mono WAV/OGG/FLAC/M4A/short audio) against every media node.
 - Browser sweep (`sweep_ui.js`): every screen at 390, 1500 and 3440 px with no horizontal scroll, every Settings tab, and every canvas node with every option of every list and odd values in fields, then running everything — no page errors.
 - Fuzz of 1,700 API requests and 8 thousand node parameters: no 500 errors; reads/writes outside the folder, zip-slip, secrets in exports and cross-origin requests remain blocked.
