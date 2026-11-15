@@ -19,7 +19,6 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from ..providers import ProviderError, build_provider
 from ..util import num, text
-from . import procedural as proc
 from .render import GRADES, _esc_path, _run, _tempo, find_font, has_audio, render_timeline
 
 IMG, VID, AUD = ["image", "video"], ["video"], ["audio", "video"]

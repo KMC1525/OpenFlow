@@ -55,22 +55,8 @@ def support(provider_id: str, model: str) -> Dict[str, Any]:
     return {"supported": bool(kind), "kind": kind, "note": note}
 
 
-def body_extra(kind: str, level: str, max_tokens: int) -> Dict[str, Any]:
-    """Campos a mesclar no corpo da requisição para `level` (já normalizado, ≠ off). `max_tokens` = tamanho da resposta pedida."""
-    if kind == "effort":
-        return {"reasoning_effort": EFFORT[level]}
-    if kind == "reasoning":
-        return {"reasoning": {"effort": EFFORT[level]}}
-    return {}
 
 
-def total_tokens(kind: str, level: str, answer: int) -> int:
-    """`max_tokens` a enviar: a resposta + a folga de pensamento (o tamanho da resposta nas configurações vale só para o texto visível)."""
-    if kind == "budget":
-        return answer + budget_for(level, answer)
-    if kind in ("effort", "reasoning"):
-        return answer + HEADROOM[level]
-    return answer
 
 
 def budget_for(level: str, answer: int) -> int:

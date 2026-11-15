@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from ..util import new_id, now_iso, num, slugify, text
+from ..util import new_id, num, slugify, text
 from . import nodes_ext
 
 SCHEMA = "openflow.project.v1"
@@ -19,6 +19,7 @@ SIZES = (   # quadrado · paisagem · retrato (largura×altura); os modelos loca
     "512x768", "576x1024", "768x1024", "720x1280", "768x1344", "832x1216", "1024x1536", "864x1536", "1080x1920", "1152x2048", "1536x2048")
 ASPECTS = ("16:9", "9:16", "1:1", "4:3", "3:4")
 KINDS = ("image", "video", "audio", "text")
+LOCAL_PROVIDERS = ("demo", "local_hf", "gguf_local")   # os provedores que existem (v0.35)
 CAPS = ("image", "video", "sound", "voice", "stt")  # capacidades de provedores de mídia
 
 # tipos: out = tipo da saída; ins = portas de entrada [(id, rótulo, aceita, múltipla)]
@@ -210,6 +211,8 @@ def normalize_params(ntype: str, p: Any) -> Dict[str, Any]:
     p = p if isinstance(p, dict) else {}
     prov = text(p.get("provider"), "", 40)
     model = text(p.get("model"), "", 160)
+    if prov and prov not in LOCAL_PROVIDERS:   # v0.35: um nó salvo com um provedor de nuvem (OpenAI, Gemini…) volta ao padrão do projeto: só existem o Demo e os modelos locais
+        prov, model = "", ""
     if ntype == "text":
         return {"text": text(p.get("text"), "", 20000)}
     if ntype == "llm":

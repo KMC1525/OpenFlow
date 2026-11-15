@@ -7,7 +7,6 @@ import shutil
 import subprocess
 import sys
 import threading
-import time
 import webbrowser
 
 from . import __version__
@@ -832,16 +831,6 @@ def _doctor(_args: argparse.Namespace) -> int:
         print(_("Modelos locais embutidos (llama-cpp-python): disponível"))
     except ImportError:
         print(_('Modelos locais embutidos: não instalado (opcional: pip install "openflow[local]")'))
-    try:
-        from .providers import lmstudio
-
-        lm = lmstudio.probe(timeout=1.5)
-        if lm["running"]:
-            print(_("LM Studio: rodando em {u} · modelo carregado: {m}", u=lm["url"], m=", ".join(lm["loaded"]) or _("nenhum (carregue um no LM Studio)")))
-        else:
-            print(_("LM Studio: não detectado em {u} (opcional: abra o LM Studio e ligue o servidor em Developer → Start Server)", u=lm["url"]))
-    except Exception:  # noqa: BLE001
-        pass
     libs = []
     for mod in ("torch", "diffusers", "transformers"):
         try:

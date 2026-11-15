@@ -9,7 +9,7 @@ import platform
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List
 
 from . import diskuse
 from .providers.base import ProviderError

@@ -14,7 +14,7 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List
 
 _KIND_CACHE: Dict[str, str] = {}
 STALE_S = 3600   # parcial/temporário mais velho que isto (e sem download rodando) é considerado abandonado

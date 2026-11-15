@@ -6,7 +6,6 @@ Tudo é determinístico: o mesmo prompt/estilo/seed gera o mesmo resultado.
 """
 from __future__ import annotations
 
-import array
 import hashlib
 import io
 import math
@@ -14,7 +13,6 @@ import random
 import re
 import shutil
 import struct
-import subprocess
 import tempfile
 import wave
 import zlib
