@@ -62,6 +62,10 @@ def installed(settings: Dict[str, Any], models_dir: Path, cap: str) -> List[Dict
     if cap in preset.get("caps", []):
         cfg = media_config(settings, "local_hf")
         known = {cfg["models"].get(cap, "")} | set((preset.get("suggest") or {}).get(cap, []))
+        from . import mesh3d
+
         for d in downloaded_hf_models():
+            if bool(mesh3d.family(d["model"])) != (cap == "model3d"):   # modelos 3D só na lista 3D (e fora das listas de imagem, som…)
+                continue
             items.append({"provider": "local_hf", "model": d["model"], "label": d["model"], "size": 0, "detail": d["precision"] + " · Hugging Face local", "match": d["model"] in known})
     return items

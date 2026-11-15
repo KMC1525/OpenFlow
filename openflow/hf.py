@@ -157,7 +157,7 @@ def search(query: str, token: str = "", limit: int = 20, kind: str = "text") -> 
 
 # Capacidades dos nós → filtros "pipeline_tag" do Hugging Face para modelos no formato original (diffusers/transformers), sem exigir GGUF
 ORIGINAL_TAGS: Dict[str, List[str]] = {
-    "image": ["text-to-image", "image-to-image"], "video": ["text-to-video", "image-to-video"], "sound": ["text-to-audio"], "voice": ["text-to-speech"], "stt": ["automatic-speech-recognition"],
+    "image": ["text-to-image", "image-to-image"], "video": ["text-to-video", "image-to-video"], "sound": ["text-to-audio"], "voice": ["text-to-speech"], "stt": ["automatic-speech-recognition"], "model3d": ["text-to-3d", "image-to-3d"],
     "text": ["text-generation"],
 }
 

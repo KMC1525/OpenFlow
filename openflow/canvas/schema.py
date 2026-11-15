@@ -18,9 +18,9 @@ SIZES = (   # quadrado · paisagem · retrato (largura×altura); os modelos loca
     "768x512", "1024x576", "1024x768", "1280x720", "1344x768", "1216x832", "1536x1024", "1536x864", "1920x1080", "2048x1152", "2048x1536", "2560x1080",
     "512x768", "576x1024", "768x1024", "720x1280", "768x1344", "832x1216", "1024x1536", "864x1536", "1080x1920", "1152x2048", "1536x2048")
 ASPECTS = ("16:9", "9:16", "1:1", "4:3", "3:4")
-KINDS = ("image", "video", "audio", "text")
+KINDS = ("image", "video", "audio", "text", "model3d")
 LOCAL_PROVIDERS = ("demo", "local_hf", "gguf_local")   # os provedores que existem (v0.35)
-CAPS = ("image", "video", "sound", "voice", "stt")  # capacidades de provedores de mídia
+CAPS = ("image", "video", "sound", "voice", "stt", "model3d")  # capacidades de provedores de mídia
 
 # tipos: out = tipo da saída; ins = portas de entrada [(id, rótulo, aceita, múltipla)]
 NODE_TYPES: Dict[str, Dict[str, Any]] = {
@@ -31,6 +31,7 @@ NODE_TYPES: Dict[str, Dict[str, Any]] = {
     "video": {"label": "Vídeo", "icon": "video", "out": "video", "ins": [("prompt", "Prompt", ["text"], True), ("image", "Imagem inicial", ["image", "video"], False), ("style", "Estilo", ["style"], True)]},
     "sound": {"label": "Som", "icon": "audio", "out": "audio", "ins": [("prompt", "Prompt", ["text"], True), ("style", "Estilo", ["style"], True)]},
     "voice": {"label": "Voz", "icon": "mic", "out": "audio", "ins": [("text", "Fala", ["text"], True), ("style", "Estilo", ["style"], True)]},
+    "model3d": {"label": "Modelo 3D", "icon": "cube", "out": "model3d", "ins": [("prompt", "Prompt", ["text"], True), ("image", "Imagem", ["image", "video"], False), ("style", "Estilo", ["style"], True)]},
     "transcribe": {"label": "Transcrever", "icon": "doc", "out": "text", "ins": [("audio", "Áudio/vídeo", ["audio", "video"], False)]},
     "style_prompt": {"label": "Style Prompt", "icon": "palette", "out": "style", "ins": []},
     "style_folder": {"label": "Style Folder", "icon": "folder", "out": "style", "ins": []},
@@ -38,7 +39,7 @@ NODE_TYPES: Dict[str, Dict[str, Any]] = {
 }
 for _k, _v in nodes_ext.SPECS.items():  # v0.11: 5 nós novos por tipo (nodes_ext.py)
     NODE_TYPES[_k] = {"label": _v["label"], "icon": _v["icon"], "out": _v["out"], "ins": _v["ins"]}
-GENERATORS = ("llm", "image", "video", "sound", "voice", "transcribe")  # nós que chamam um modelo
+GENERATORS = ("llm", "image", "video", "sound", "voice", "transcribe", "model3d")  # nós que chamam um modelo
 EXT_TYPES = tuple(nodes_ext.SPECS)  # nós novos: rodam ffmpeg/Python (só «Refinar com IA» usa o modelo de texto)
 # ordem e grupos da paleta: Texto, Imagem, Vídeo, Som, Input, Output
 PALETTE = [("Texto", ["text", "llm", "transcribe", "text_template", "text_join", "text_edit", "text_pick", "text_refine", "text_extract", "text_count"]),
@@ -46,6 +47,7 @@ PALETTE = [("Texto", ["text", "llm", "transcribe", "text_template", "text_join",
            ("Vídeo", ["video", "vid_trim", "vid_join", "vid_speed", "vid_look", "vid_slideshow", "vid_reframe", "vid_loop", "vid_audio"]),
            ("Som", ["sound", "voice", "aud_trim", "aud_mix", "aud_fx", "aud_from_video", "aud_loop", "aud_silence_cut"]),
            ("Input", ["upload", "style_prompt", "style_folder", "in_color", "in_silence", "in_url", "in_random", "in_vars", "in_pattern"]),
+           ("3D", ["model3d"]),
            ("Output", ["editor", "out_export", "out_gif", "out_audio", "out_image", "out_thumbnail", "out_gallery"])]
 
 
@@ -231,6 +233,9 @@ def normalize_params(ntype: str, p: Any) -> Dict[str, Any]:
                 "extra": _json_dict(p.get("extra")), "ignore_global_styles": bool(p.get("ignore_global_styles"))}
     if ntype == "voice":
         return {"text": text(p.get("text"), "", 8000), "voice": text(p.get("voice"), "", 80), "speed": round(num(p.get("speed"), 1, 0.5, 2), 2), "provider": prov, "model": model,
+                "extra": _json_dict(p.get("extra")), "ignore_global_styles": bool(p.get("ignore_global_styles"))}
+    if ntype == "model3d":
+        return {"prompt": text(p.get("prompt"), "", 2000), "format": "obj" if p.get("format") == "obj" else "glb", "seed": int(num(p.get("seed"), 0, 0, 2 ** 31)), "provider": prov, "model": model,
                 "extra": _json_dict(p.get("extra")), "ignore_global_styles": bool(p.get("ignore_global_styles"))}
     if ntype == "transcribe":
         return {"provider": prov, "model": model, "language": text(p.get("language"), "", 12)}

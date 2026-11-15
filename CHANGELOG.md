@@ -2,6 +2,20 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.37.0] — 2026-11-15
+
+### Novo — modelos 3D locais (texto → 3D e imagem → 3D)
+- **Nó «Modelo 3D»** (grupo novo **3D** na paleta): prompt e/ou imagem → arquivo **GLB** ou **OBJ**, com visualizador no próprio nó (arraste para girar, roda para aproximar, giro automático) e na ampliação; botão Baixar; a Galeria aceita o modelo; a Biblioteca ganhou o tipo «Modelos 3D».
+- **Modelos locais do Hugging Face:** **Shap-E** (`openai/shap-e` texto → 3D; `openai/shap-e-img2img` imagem → 3D, escolhido sozinho quando há imagem ligada), **TripoSR** (`stabilityai/TripoSR`) e **Hunyuan3D-2** (`tencent/Hunyuan3D-2mini` / `-2`), só imagem. Com um texto, TripoSR e Hunyuan3D geram antes uma imagem do objeto com o modelo de imagem padrão (duas etapas, avisado no nó).
+- Baixar/usar: «3D» na barra de busca de modelos do Canvas (Hugging Face: text-to-3d / image-to-3d) e em Configurações → Mídia; os modelos 3D baixados aparecem só na lista do nó 3D. Nada é baixado em silêncio.
+- **Demo offline:** formas procedurais (esfera, rosca, cubo, cone, vaso) com cores — para testar fluxos 3D sem modelo.
+- Gravação de GLB e OBJ própria (sem dependências); a malha é centrada e encaixada num cubo de lado 2.
+
+### Ainda não verificado
+- **Nenhum modelo 3D real foi executado aqui** (sem pesos, GPU nem as bibliotecas TripoSR/Hunyuan3D): Shap-E, TripoSR e Hunyuan3D-2 foram testados só com substitutos nos testes. A orientação da malha do Shap-E (girada −90° em X) e os nomes de subpasta/argumentos do Hunyuan3D e do TripoSR seguem a documentação deles e podem precisar de ajuste.
+- O visualizador é um renderizador simples (sem texturas; usa cores por vértice) e desenha no máximo ~40 mil faces por vez.
+- Saídas com textura (UV) dos modelos grandes não são gravadas: só geometria e cor por vértice.
+
 ## [0.36.0] — 2026-11-15
 
 ### Novo — 2 nós no grupo Imagem para facilitar prompts difíceis

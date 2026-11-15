@@ -15,14 +15,14 @@ run('canvas_nodes', async ({ api, open, check }) => {
   const cv = await api('/api/projects', { method: 'POST', body: { name: 'Nós novos' } });
   await page.evaluate((id) => { location.hash = '#/project/' + id; }, cv.id); await page.waitForSelector('.cv-pal', { timeout: 15000 });
   const heads = await page.locator('.cv-pal h4').allInnerTexts();
-  check('paleta:seis-grupos-na-ordem', heads.join('|').toLowerCase() === 'text|image|video|sound|input|output');
-  check('paleta:53-nos', (await page.locator('.cv-pal .it').count()) === 53);
+  check('paleta:sete-grupos-na-ordem', heads.join('|').toLowerCase() === 'text|image|video|sound|input|3d|output');
+  check('paleta:54-nos', (await page.locator('.cv-pal .it').count()) === 54);
   // cada nó da paleta entra no canvas e desenha o corpo sem erro
   const n = await page.locator('.cv-pal .it').count();
   for (let i = 0; i < n; i++) { await page.locator('.cv-pal .it').nth(i).click(); await page.waitForTimeout(40); }
   await page.waitForTimeout(500);
-  check('paleta:todos-entram-no-canvas', (await page.locator('.cv-node').count()) === 53);
-  check('nos:todos-com-corpo-e-titulo', (await page.locator('.cv-node > .bd').count()) === 53 && (await page.locator('.cv-node .ti').count()) === 53);
+  check('paleta:todos-entram-no-canvas', (await page.locator('.cv-node').count()) === 54);
+  check('nos:todos-com-corpo-e-titulo', (await page.locator('.cv-node > .bd').count()) === 54 && (await page.locator('.cv-node .ti').count()) === 54);
   check('nos:novos-tem-controles', (await page.locator('.cv-node.t-img_resize select, .cv-node.t-out_export select').count()) >= 3 && (await page.locator('.cv-node.t-text_template textarea').count()) === 1);
   // cadeia real: cor → filtro → galeria, silêncio → efeito → áudio final, texto → sorteio/modelo
   const nodes = [
@@ -33,7 +33,7 @@ run('canvas_nodes', async ({ api, open, check }) => {
   ];
   const edges = [{ from: 'c', to: 'f', port: 'image' }, { from: 'f', to: 'g', port: 'items' }, { from: 's', to: 'fx', port: 'audio' }, { from: 'fx', to: 'oa', port: 'audio' }, { from: 'oa', to: 'g', port: 'items' },
     { from: 'r', to: 't', port: 'vars' }, { from: 't', to: 'g', port: 'items' }];
-  const ch = await api('/api/projects', { method: 'POST', body: { name: 'Cadeia' } });   // outro canvas: o do passo anterior se salva sozinho com os 53 nós
+  const ch = await api('/api/projects', { method: 'POST', body: { name: 'Cadeia' } });   // outro canvas: o do passo anterior se salva sozinho com os 54 nós
   await api('/api/projects/' + ch.id, { method: 'PUT', body: { nodes, edges } });
   await page.evaluate((id) => { location.hash = '#/projects'; setTimeout(() => { location.hash = '#/project/' + id; }, 150); }, ch.id);
   await page.waitForSelector('.cv-node.t-out_gallery', { timeout: 15000 }); await page.waitForTimeout(600);

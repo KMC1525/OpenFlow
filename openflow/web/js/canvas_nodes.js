@@ -2,6 +2,7 @@
 import { t } from './i18n.js';
 import { api, events } from './api.js';
 import { withMentions } from './canvas_mention.js';
+import { modelViewer } from './model_viewer.js';
 import { checkbox, confirmDialog, h, icon, popover, seg, select, toast } from './ui.js';
 
 export const compatible = (out, accepts) => accepts.includes(out)
@@ -14,11 +15,13 @@ export const GROUPS = [   // espelha schema.PALETTE
   ['Vídeo', ['video', 'vid_trim', 'vid_join', 'vid_speed', 'vid_look', 'vid_slideshow', 'vid_reframe', 'vid_loop', 'vid_audio']],
   ['Som', ['sound', 'voice', 'aud_trim', 'aud_mix', 'aud_fx', 'aud_from_video', 'aud_loop', 'aud_silence_cut']],
   ['Input', ['upload', 'style_prompt', 'style_folder', 'in_color', 'in_silence', 'in_url', 'in_random', 'in_vars', 'in_pattern']],
+  ['3D', ['model3d']],
   ['Output', ['editor', 'out_export', 'out_gif', 'out_audio', 'out_image', 'out_thumbnail', 'out_gallery']],
 ];
 export const TYPE_HELP = {
   text: 'Um texto que você escreve (prompt, roteiro, fala).', llm: 'Reescreve ou cria texto com o modelo de IA configurado.',
   upload: 'Seus arquivos de imagem, vídeo ou áudio.', image: 'Gera ou edita imagens.', video: 'Gera vídeos (de texto ou a partir de uma imagem).',
+  model3d: 'Cria um modelo 3D (GLB ou OBJ) a partir de um texto ou de uma imagem, com um modelo local do Hugging Face (Shap-E, TripoSR, Hunyuan3D…).',
   sound: 'Gera efeitos sonoros ou música.', voice: 'Transforma texto em fala.', transcribe: 'Transforma áudio ou vídeo em texto.',
   style_prompt: 'Um prompt de sistema de estilo que vale para o projeto todo.', style_folder: 'Imagens, vídeos e áudios de referência de estilo para o projeto todo, organizados em pastas e subpastas.',
   editor: 'Editor de vídeo: monta tudo numa linha do tempo e exporta um MP4.',
@@ -41,9 +44,9 @@ export const TYPE_HELP = {
   aud_silence_cut: 'Tira os silêncios longos de um áudio (pausas, começo e fim vazios).', in_pattern: 'Gera uma imagem de padrão: xadrez, listras, grade, bolinhas ou ruído.', out_thumbnail: 'Faz a miniatura (thumbnail) de um vídeo: imagem recortada em 16:9 com o título por cima.',
   out_image: 'Exporta a imagem final (PNG, JPG ou WebP) com qualidade e largura máxima.', out_gallery: 'Reúne imagens, vídeos, áudios e textos de vários nós num lugar só para ver e baixar.',
 };
-export const OUT_COLOR = { text: 'var(--c-text)', image: 'var(--c-image)', video: 'var(--c-video)', audio: 'var(--c-audio)', style: 'var(--c-style)', media: 'var(--c-media)' };
+export const OUT_COLOR = { text: 'var(--c-text)', image: 'var(--c-image)', video: 'var(--c-video)', audio: 'var(--c-audio)', style: 'var(--c-style)', media: 'var(--c-media)', model3d: 'var(--c-media)' };
 export const LABEL = {
-  text: 'Texto', llm: 'Texto IA', upload: 'Mídia', image: 'Imagem', video: 'Vídeo', sound: 'Som', voice: 'Voz', transcribe: 'Transcrever',
+  model3d: 'Modelo 3D', text: 'Texto', llm: 'Texto IA', upload: 'Mídia', image: 'Imagem', video: 'Vídeo', sound: 'Som', voice: 'Voz', transcribe: 'Transcrever',
   style_prompt: 'Style Prompt', style_folder: 'Style Folder', editor: 'Editor',
   text_template: 'Modelo de texto', text_join: 'Juntar textos', text_edit: 'Editar texto', text_pick: 'Escolher trecho', text_refine: 'Refinar com IA',
   img_resize: 'Redimensionar', img_filter: 'Filtros e cor', img_text: 'Texto na imagem', img_collage: 'Colagem', img_frame: 'Quadro do vídeo',
@@ -55,9 +58,9 @@ export const LABEL = {
   text_extract: 'Extrair do texto', text_count: 'Contar texto', img_crop: 'Recortar imagem', img_watermark: "Marca d'água", vid_reframe: 'Mudar a proporção', vid_loop: 'Repetir vídeo', vid_audio: 'Áudio no vídeo',
   aud_silence_cut: 'Tirar silêncios', in_pattern: 'Padrão e textura', out_thumbnail: 'Miniatura com título',
 };
-const CAP = { image: 'image', video: 'video', sound: 'sound', voice: 'voice', transcribe: 'stt' };
+const CAP = { model3d: 'model3d', image: 'image', video: 'video', sound: 'sound', voice: 'voice', transcribe: 'stt' };
 const PORT_LABEL = { prompt: 'Prompt', refs: 'Referências', style: 'Estilo', image: 'Imagem inicial', text: 'Fala', audio: 'Áudio/vídeo', clips: 'Clipes', vars: 'Variáveis', texts: 'Textos', images: 'Imagens', video: 'Vídeo', audios: 'Áudios', items: 'Itens', captions: 'Legendas' };
-const NEW_PORT = { char_sheet: { text: 'Descrição', style: 'Estilo' }, comic_page: { story: 'Roteiro', characters: 'Personagens', style: 'Estilo' }, img_watermark: { image: 'Imagem', logo: 'Marca' }, vid_audio: { video: 'Vídeo', audio: 'Áudio' }, out_thumbnail: { image: 'Imagem', text: 'Título' }, text_extract: { text: 'Texto' }, text_count: { text: 'Texto' }, img_crop: { image: 'Imagem' }, vid_reframe: { video: 'Vídeo' }, vid_loop: { video: 'Vídeo' }, aud_silence_cut: { audio: 'Áudio' }, img_resize: { image: 'Imagem' }, img_filter: { image: 'Imagem' }, img_text: { image: 'Imagem', text: 'Texto' }, text_edit: { text: 'Texto' }, text_pick: { text: 'Texto' }, text_refine: { text: 'Texto' }, vid_slideshow: { audio: 'Áudio' }, aud_trim: { audio: 'Áudio' }, aud_fx: { audio: 'Áudio' }, aud_loop: { audio: 'Áudio' }, out_export: { audio: 'Áudio', video: 'Vídeo' }, out_audio: { audio: 'Áudio' }, out_image: { image: 'Imagem' } };
+const NEW_PORT = { model3d: { prompt: 'Prompt', image: 'Imagem', style: 'Estilo' }, char_sheet: { text: 'Descrição', style: 'Estilo' }, comic_page: { story: 'Roteiro', characters: 'Personagens', style: 'Estilo' }, img_watermark: { image: 'Imagem', logo: 'Marca' }, vid_audio: { video: 'Vídeo', audio: 'Áudio' }, out_thumbnail: { image: 'Imagem', text: 'Título' }, text_extract: { text: 'Texto' }, text_count: { text: 'Texto' }, img_crop: { image: 'Imagem' }, vid_reframe: { video: 'Vídeo' }, vid_loop: { video: 'Vídeo' }, aud_silence_cut: { audio: 'Áudio' }, img_resize: { image: 'Imagem' }, img_filter: { image: 'Imagem' }, img_text: { image: 'Imagem', text: 'Texto' }, text_edit: { text: 'Texto' }, text_pick: { text: 'Texto' }, text_refine: { text: 'Texto' }, vid_slideshow: { audio: 'Áudio' }, aud_trim: { audio: 'Áudio' }, aud_fx: { audio: 'Áudio' }, aud_loop: { audio: 'Áudio' }, out_export: { audio: 'Áudio', video: 'Vídeo' }, out_audio: { audio: 'Áudio' }, out_image: { image: 'Imagem' } };
 export const portLabel = (nodeType, p) => (nodeType === 'llm' && p.id === 'prompt' ? t('Entrada') : t((NEW_PORT[nodeType] && NEW_PORT[nodeType][p.id]) || PORT_LABEL[p.id] || p.label));
 
 // ---------------------------------------------------------------------------------------------------- controles
@@ -346,6 +349,11 @@ const BODY = {
     linkedPrompt(c, n),
     h('div', { class: 'r2' }, lab(t('Duração (s)'), txt(c, n, 'duration', '5', 'number')), lab(t('Proporção'), select(c.meta.aspects.map((a) => [a, a]), n.params.aspect, (v) => c.change(n, 'aspect', v)))),
     ...providerBlock(c, n, 'video', lab(t('Resolução'), select((c.meta.resolutions || [0]).map((r) => [String(r), r ? r + 'p' : t('Automática')]), String(n.params.resolution || 0), (v) => c.change(n, 'resolution', Number(v)))))],
+  model3d: (c, n) => [
+    ta(c, n, 'prompt', t('Ex.: um vaso de cerâmica azul (ou ligue uma imagem)'), 2),
+    seg([['glb', 'GLB'], ['obj', 'OBJ']], n.params.format, (v) => c.change(n, 'format', v, true)),
+    ...providerBlock(c, n, 'model3d'),
+    h('div', { class: 'dim small' }, t('Modelos como TripoSR e Hunyuan3D só leem imagem: com um texto, o OpenFlow gera antes uma imagem do objeto.'))],
   sound: (c, n) => [
     seg([['sfx', t('Efeito')], ['music', t('Música')]], n.params.kind, (v) => c.change(n, 'kind', v, true)),
     ta(c, n, 'prompt', n.params.kind === 'music' ? t('Estilo da música: calma, piano, noturna…') : t('Ex.: chuva forte com trovões'), 2),
@@ -565,6 +573,7 @@ export function nodeResult(c, n) {
   const imgs = items.filter((a) => a.kind === 'image');
   if (imgs.length) box.append(h('div', { class: 'rimgs nodrag' + (imgs.length === 1 ? ' one' : '') }, imgs.map((a) => h('img', { src: c.url(a), loading: 'lazy', title: a.prompt || a.name, draggable: 'false', onclick: () => c.preview(a, imgs) }))));
   items.filter((a) => a.kind === 'video').forEach((a) => box.append(h('video', { src: c.url(a), controls: true, preload: 'metadata', class: 'nodrag' })));
+  items.filter((a) => a.kind === 'model3d').forEach((a) => { box.append(modelViewer(c.url(a), { vLabel: t('vértices'), fLabel: t('faces'), errLabel: t('Não foi possível abrir o modelo 3D') }), h('a', { class: 'btn sm nodrag', href: c.url(a) + '?download=1' }, icon('download', 13), t('Baixar'))); });
   items.filter((a) => a.kind === 'audio').forEach((a) => box.append(h('audio', { src: c.url(a), controls: true, preload: 'metadata', class: 'nodrag' })));
   if (r.text && !['text', 'style_prompt'].includes(n.type) && !(st.state === 'error')) box.append(h('div', { class: 'rtxt nodrag' }, r.text));
   (st.warnings || []).forEach((w) => box.append(h('div', { class: 'wr' }, w)));

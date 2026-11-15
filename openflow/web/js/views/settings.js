@@ -254,7 +254,7 @@ async function performance() {
       cmd(t('Ativar/atualizar o núcleo Rust (baixa a biblioteca pronta)'), 'flow native setup')));
 }
 
-const CAPS = [['image', 'Imagem'], ['video', 'Vídeo'], ['sound', 'Som e música'], ['voice', 'Voz (texto → fala)'], ['stt', 'Transcrição (fala → texto)']];
+const CAPS = [['image', 'Imagem'], ['video', 'Vídeo'], ['sound', 'Som e música'], ['voice', 'Voz (texto → fala)'], ['stt', 'Transcrição (fala → texto)'], ['model3d', 'Modelo 3D (texto/imagem → 3D)']];
 
 async function media() {
   let data = await api('/api/media/providers');

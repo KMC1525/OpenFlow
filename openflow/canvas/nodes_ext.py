@@ -71,7 +71,7 @@ SPECS: Dict[str, Dict[str, Any]] = {
     "out_audio": {"label": "Áudio final", "icon": "audio", "out": "audio", "group": "Output", "ins": [("audio", "Áudio", AUD, True)]},
     "out_image": {"label": "Imagem final", "icon": "image", "out": "image", "group": "Output", "ins": [("image", "Imagem", IMG, False)]},
     "out_thumbnail": {"label": "Miniatura com título", "icon": "image", "out": "image", "group": "Output", "ins": [("image", "Imagem", IMG, False), ("text", "Título", ["text"], True)]},
-    "out_gallery": {"label": "Galeria", "icon": "folder", "out": "media", "group": "Output", "ins": [("items", "Itens", ["image", "video", "audio", "text"], True)]},
+    "out_gallery": {"label": "Galeria", "icon": "folder", "out": "media", "group": "Output", "ins": [("items", "Itens", ["image", "video", "audio", "text", "model3d"], True)]},
 }
 TEXT_OUT = {k for k, v in SPECS.items() if v["out"] == "text"}  # entregam texto; os demais entregam arquivos
 
