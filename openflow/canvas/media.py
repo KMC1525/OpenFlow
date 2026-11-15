@@ -2687,7 +2687,7 @@ MEDIA_PRESETS: Dict[str, Dict[str, Any]] = {
         "label": "Hugging Face (Inference)", "kind": "huggingface", "caps": ["image", "sound", "voice", "stt"], "base_url": "https://router.huggingface.co/hf-inference/models", "needs_key": True,
         "docs": "https://huggingface.co/settings/tokens",
         "models": {"image": "black-forest-labs/FLUX.1-schnell", "sound": "facebook/musicgen-small", "voice": "facebook/mms-tts-eng", "stt": "openai/whisper-large-v3"},
-        "suggest": {"image": ["black-forest-labs/flux-3-image-klein", "black-forest-labs/FLUX.2-klein-4B", "black-forest-labs/FLUX.1-schnell", "stabilityai/stable-diffusion-xl-base-1.0"], "voice": ["facebook/mms-tts-eng", "facebook/mms-tts-por", "suno/bark-small"],
+        "suggest": {"image": ["black-forest-labs/flux-3-image-klein", "black-forest-labs/flux-3-image-klein-base", "black-forest-labs/FLUX.2-klein-4B", "black-forest-labs/FLUX.1-schnell", "stabilityai/stable-diffusion-xl-base-1.0"], "voice": ["facebook/mms-tts-eng", "facebook/mms-tts-por", "suno/bark-small"],
                     "sound": ["facebook/musicgen-small"], "stt": ["openai/whisper-large-v3", "openai/whisper-small"]},
         "hint": "Usa a mesma chave do Hugging Face (Configuração → Provedores). A disponibilidade de cada modelo depende do serviço.",
     },

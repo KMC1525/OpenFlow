@@ -249,7 +249,7 @@ def pick_equivalent(name: str, groups: List[Dict[str, Any]]) -> Optional[Dict[st
     cur = parse_quant(name)
 
     def fam(q: str) -> str:
-        return re.sub(r"_[SML]$", "", (q or "").upper())
+        return re.sub(r"_X?[SML]$", "", (q or "").upper())   # Q4_K_M, Q4_K_S e Q4_K_XL (Unsloth) ≈ Q4_K
 
     same = [g for g in groups if cur["quant"] and fam(g.get("quant", "")) == fam(cur["quant"])]
     if same:

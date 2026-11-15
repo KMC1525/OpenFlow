@@ -2,6 +2,19 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.24.0] — 2026-11-15
+
+### Melhorado — FLUX.3 Image Klein
+- **Versão «base» com repositório próprio:** o aviso «Baixar a versão compatível» (e o aviso ao abrir um repositório na busca) agora aponta o `leejet/flux-3-image-klein-base-GGUF` para quem usa o FLUX.3 **base**, em vez de empurrá-lo para o repositório do destilado. O botão escolhe sozinho o arquivo equivalente (ex.: `flux3-image-klein-base-Q4_K.gguf`).
+- **Receita conferida com o `docs/models/flux3.md` da stable-diffusion.cpp:** destilado = 16 passos, CFG 1,0, `euler`; **base = 20 passos, CFG 3,5, `euler`** (antes o OpenFlow usava 50 passos no base pelo sd-cli, mais do que o necessário — a receita da stable-diffusion.cpp é 20) e o método `euler` agora é passado explicitamente nos dois. Até 10 imagens de referência (`-r`) continuam valendo.
+- **Quantizações da Unsloth (`UD-Q4_K_XL`, `Q5_K_XL`…) agora casam com a família K do `leejet`** (Q4_K, Q5_K…) na escolha do arquivo equivalente; antes caíam na «mais próxima por bits», que podia ser a Q4_0.
+- A lista de sugestões do provedor Hugging Face local inclui `black-forest-labs/flux-3-image-klein-base`; a dica do catálogo da Unsloth cita o repositório base.
+
+### Ainda não verificado
+- Não gerei imagens com o FLUX.3 aqui (sem GPU/rede/sd-cli): a receita vem da documentação da stable-diffusion.cpp e dos nomes de arquivos listados no Hugging Face; os testes cobrem família, repositório compatível, escolha da quantização e argumentos do `sd-cli`.
+- O caminho do diffusers (`LocalHF`) continua com 50 passos/guidance 3,5 no base (valor do cartão da Black Forest Labs); não comparei com 20 passos.
+- O FLUX.3 Action (robótica) e o expansor de prompt `pup` não são modelos de imagem e não foram incluídos.
+
 ## [0.23.0] — 2026-11-15
 
 ### Novo — Biblioteca
