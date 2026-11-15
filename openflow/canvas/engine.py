@@ -28,6 +28,7 @@ from . import media as media_mod
 from .media import Ctl, Media, build_media, media_config, pick_provider
 from .render import render_timeline
 from . import mentions as mentions_mod
+from . import styles as styles_mod
 from . import upsample
 from . import nodes_ext
 from .schema import EXT_TYPES, GENERATORS, NODE_TYPES, normalize_result, style_files
@@ -64,16 +65,56 @@ def palette_of(path: Path, n: int = 4) -> List[str]:
 
 
 class Style:
-    """Estilos que valem para um nó: texto (Style Prompt + descrição das pastas) e imagens de referência."""
+    """Estilos que valem para um nó: texto (Style Prompt + descrição das pastas), personagens/cenários/objetos e imagens de referência.
+    `render(prompt)` devolve o estilo certo para um prompt (só as entidades que ele cita) e `images_for(prompt)` as imagens de referência dessas entidades (v0.34)."""
 
     def __init__(self) -> None:
         self.texts: List[str] = []
-        self.images: List[Tuple[bytes, str]] = []
         self.parts: List[str] = []  # o que identifica o estilo (texto dos Style Prompt e conteúdo das pastas) — vai no hash do nó
+        self.blocks: List[Dict[str, Any]] = []   # cada fonte (Style Prompt ou pasta) no formato de styles.parse
+        self.entities: List[Dict[str, Any]] = []   # entidades das pastas com os arquivos de imagem: {role, name, ids}
+        self.general_ids: List[str] = []   # imagens de estilo geral (pastas sem papel de personagem/cenário/objeto)
+        self._load: Callable[[str], Optional[Tuple[bytes, str]]] = lambda i: None
 
     @property
     def text(self) -> str:
         return " ".join(t.strip() for t in self.texts if t.strip())
+
+    def merged(self) -> Dict[str, Any]:
+        m: Dict[str, Any] = {"general": [], "common": [], "notes": [], "consistency": [], "entities": []}
+        index: Dict[str, Dict[str, Any]] = {}
+        for b in self.blocks:
+            for k in ("general", "common", "notes", "consistency"):
+                if b.get(k) and b[k] not in m[k]:
+                    m[k].append(b[k])
+            for e in b.get("entities", []):
+                key = styles_mod.fold(e["name"])
+                if key in index:
+                    if e.get("desc") and e["desc"] not in index[key]["desc"]:
+                        index[key]["desc"] = (index[key]["desc"] + " " + e["desc"]).strip()
+                else:
+                    index[key] = dict(e)
+                    m["entities"].append(index[key])
+        return {k: (" ".join(v) if k != "entities" else v) for k, v in m.items()}
+
+    def render(self, prompt: str = "") -> str:
+        """O texto de estilo para este prompt (sem blocos estruturados, o texto simples de antes)."""
+        if not self.blocks:
+            return self.text
+        return styles_mod.render(self.merged(), prompt)
+
+    def images_for(self, prompt: str = "", limit: int = STYLE_IMAGES_MAX) -> List[Tuple[bytes, str]]:
+        ids = styles_mod.pick_images(self.entities, prompt, self.general_ids, limit)
+        out = []
+        for i in ids:
+            r = self._load(i)
+            if r:
+                out.append(r)
+        return out
+
+    @property
+    def images(self) -> List[Tuple[bytes, str]]:
+        return self.images_for("", STYLE_IMAGES_MAX)
 
     def signature(self) -> str:
         return _sig(self.parts)
@@ -231,81 +272,144 @@ class CanvasEngine:
     def styles_for(self, canvas: Dict[str, Any], node: Dict[str, Any], need_digest: bool = True) -> Style:
         st = Style()
         assets = self._assets(canvas)
+
+        def load(aid: str) -> Optional[Tuple[bytes, str]]:
+            a = assets.get(aid)
+            b = self._asset_bytes(a) if a and a["kind"] == "image" else None
+            return (b, a["mime"]) if b else None
+        st._load = load
         for sid in self.style_ids(canvas, node):
             sn = self._node(canvas, sid)
             if not sn:
                 continue
             if sn["type"] == "style_prompt":
-                if sn["params"]["text"].strip():
-                    st.texts.append(sn["params"]["text"].strip())
-                    st.parts.append(sn["params"]["text"].strip())
-            elif sn["type"] == "style_folder" and style_files(sn["params"]):
+                raw = sn["params"]["text"].strip()
+                if raw:
+                    parsed = styles_mod.from_prompt_text(raw)
+                    st.texts.append(raw)
+                    st.parts.append(raw)
+                    st.blocks.append(parsed)
+            elif sn["type"] == "style_folder" and (style_files(sn["params"]) or sn["params"].get("notes", "").strip()):
                 key = self.folder_key(canvas, sn)
                 st.parts.append(f"{sid}:{key}")
                 if need_digest:
                     digest = self.folder_digest(canvas, sn)
-                    if digest:
-                        st.texts.append(digest)
                 else:
-                    st.texts.append(sn["result"]["digest"] if sn["result"]["digest_key"] == key else "")
-                for _path, aid in style_files(sn["params"]):
-                    a = assets.get(aid)
-                    if a and a["kind"] == "image" and len(st.images) < STYLE_IMAGES_MAX and need_digest:
-                        b = self._asset_bytes(a)
-                        if b:
-                            st.images.append((b, a["mime"]))
+                    digest = sn["result"]["digest"] if sn["result"]["digest_key"] == key else ""
+                if digest:
+                    st.texts.append(digest)
+                    st.blocks.append(styles_mod.parse(digest))
+                if need_digest:
+                    ents, general = self.folder_entities(canvas, sn)
+                    st.entities += ents
+                    st.general_ids += general
         return st
+
+    def folder_files(self, canvas: Dict[str, Any], node: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Os arquivos do Style Folder como [{path, name, id, kind}] (só os que existem)."""
+        assets = self._assets(canvas)
+        out = []
+        for folder, aid in style_files(node["params"]):
+            a = assets.get(aid)
+            if a:
+                out.append({"path": list(folder), "name": a["name"], "id": aid, "kind": a["kind"]})
+        return out
+
+    def folder_entities(self, canvas: Dict[str, Any], node: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[str]]:
+        """(entidades com imagens, ids das imagens de estilo geral) de um Style Folder."""
+        files = self.folder_files(canvas, node)
+        ents = styles_mod.group_entities(files)
+        used = {i for e in ents for i in e["ids"]}
+        general = [f["id"] for f in files if f["kind"] == "image" and f["id"] not in used]
+        return [{"role": e["role"], "kind": e["role"], "name": e["name"], "ids": e["ids"]} for e in ents if e["ids"]], general
 
     def folder_key(self, canvas: Dict[str, Any], node: Dict[str, Any]) -> str:
         assets = self._assets(canvas)
         pid = self.settings["active"].get("generation", "demo")
-        return _sig([[("/".join(path), i, assets[i]["bytes"]) for path, i in style_files(node["params"]) if i in assets], pid])
+        return _sig([[("/".join(path), i, assets[i]["bytes"]) for path, i in style_files(node["params"]) if i in assets], pid, node["params"].get("notes", ""), "v2"])
 
     def folder_digest(self, canvas: Dict[str, Any], node: Dict[str, Any], force: bool = False) -> str:
-        """Descreve as mídias do Style Folder (com o provedor de IA configurado, se tiver visão) e guarda a descrição no nó."""
+        """Descreve as mídias do Style Folder — estilo geral, **personagens, cenários e objetos** (um por entidade, com as características gerais deles) — com o provedor de IA configurado, se tiver visão,
+        ou só com o que dá para tirar dos nomes das pastas e arquivos, dos textos de descrição e das cores. O resultado fica no nó, no formato de styles.py."""
         key = self.folder_key(canvas, node)
         if not force and node["result"]["digest_key"] == key and node["result"]["digest"]:
             return node["result"]["digest"]
         assets = self._assets(canvas)
-        items, pal = [], []
+        notes_user = node["params"].get("notes", "").strip()
+        files = self.folder_files(canvas, node)
+        ents = styles_mod.group_entities(files)
+        by_id: Dict[str, Dict[str, Any]] = {}
+        items, pal_all = [], []
         groups: Dict[str, int] = {}
-        for folder, aid in style_files(node["params"]):
-            a = assets.get(aid)
+        for f in files:
+            a = assets.get(f["id"])
             path = self.cs.asset_path(self.cid, a["file"]) if a else None
             if not a or not path:
                 continue
-            label = "/".join(folder + [a["name"]])   # o nome da pasta é uma dica de estilo («Personagens», «Cenários», «Luz»…)
-            groups["/".join(folder)] = groups.get("/".join(folder), 0) + 1
-            items.append(att.analyze(path, label, a["mime"], max_chars=1500))
-            if a["kind"] in ("image", "video"):
-                pal += palette_of(path, 3)
-        if not items:
+            groups["/".join(f["path"])] = groups.get("/".join(f["path"]), 0) + 1
+            it = att.analyze(path, "/".join(f["path"] + [a["name"]]), a["mime"], max_chars=1500)
+            it["_id"], it["_pal"] = f["id"], (palette_of(path, 3) if a["kind"] in ("image", "video") else [])
+            by_id[f["id"]] = it
+            items.append(it)
+            pal_all += it["_pal"]
+        if not items and not notes_user:
             return ""
+        # descrição de cada entidade só com o que se sabe (texto ao lado, cores, quantas imagens)
+        base_ents = []
+        for e in ents:
+            txt = " ".join((by_id[i]["text"] or "").strip() for i in e["text_ids"] if i in by_id).strip()[:styles_mod.MAX_ENTITY]
+            colors = ", ".join(dict.fromkeys(c for i in e["ids"][:2] if i in by_id for c in by_id[i]["_pal"]))[:60]
+            desc = txt or (f"{len(e['ids'])} imagem(ns) de referência" + (f"; cores dominantes {colors}" if colors else ""))
+            base_ents.append({"kind": e["role"], "name": e["name"], "desc": desc, "ids": e["ids"], "has_text": bool(txt)})
+        media_items = [i for i in items if i["kind"] != "file" or i.get("text")]
         notes = att.build_digest(items, 6000)
         named = [f"{k} ({v})" for k, v in groups.items() if k]
         if named:
             notes += "\n\nPastas de referência (o nome de cada pasta diz o que ela mostra): " + "; ".join(named)
-        palette = ", ".join(dict.fromkeys(pal))[:200]
-        text = ""
+        palette = ", ".join(dict.fromkeys(pal_all))[:200]
+        ai_text = ""
         try:
             pid = self.settings["active"].get("generation", "demo")
             provider = build_provider(self.settings, pid, self.store.models_dir)
             if pid != "demo":
-                content: List[Dict[str, Any]] = [{"type": "text", "text": "Arquivos de referência de estilo de um projeto criativo:\n\n" + notes + (f"\n\nCores dominantes: {palette}" if palette else "")}]
+                listing = "\n".join(f"- {styles_mod.ROLE_PT.get(e['kind'], 'objeto')} «{e['name']}» ({len(e['ids'])} imagem(ns))" + (f": {e['desc']}" if e["has_text"] else "") for e in base_ents) or "(nenhuma entidade nomeada)"
+                head = ("Arquivos de referência de um projeto criativo.\n\nENTIDADES ENCONTRADAS (pelas pastas e nomes dos arquivos):\n" + listing
+                        + (f"\n\nNOTAS DO USUÁRIO (valem para todos): {notes_user}" if notes_user else "") + "\n\nDETALHES DOS ARQUIVOS:\n" + notes + (f"\n\nCores dominantes: {palette}" if palette else ""))
+                content: List[Dict[str, Any]] = [{"type": "text", "text": head}]
                 if provider.vision:
-                    content += [{"type": "image", **img} for img in att.collect_images(items, 6)]
+                    sent = 0
+                    for e in base_ents:   # até 2 imagens por entidade, cada uma com o nome na frente: o modelo sabe de quem é cada imagem
+                        for i in e["ids"][:2]:
+                            for img in att.collect_images([by_id[i]], 1) if i in by_id else []:
+                                if sent < 10:
+                                    content += [{"type": "text", "text": f"Imagem de {styles_mod.ROLE_PT.get(e['kind'], 'objeto')} «{e['name']}»:"}, {"type": "image", **img}]
+                                    sent += 1
+                    ids_used = {i for e in base_ents for i in e["ids"][:2]}
+                    for it in items:
+                        if it["_id"] not in ids_used and sent < 12:
+                            for img in att.collect_images([it], 1):
+                                content += [{"type": "text", "text": "Imagem de estilo geral:"}, {"type": "image", **img}]
+                                sent += 1
                 self._check()
-                text = self.team_chat(provider, pid, [{"role": "user", "content": content}], STYLE_SYSTEM, 0.3, 500)
+                ai_text = self.team_chat(provider, pid, [{"role": "user", "content": content}], STYLE_SYSTEM, 0.3, 1200)
         except (ProviderError, ValueError) as exc:
             self.emit({"type": "note", "node": node["id"], "message": f"Não foi possível descrever o estilo com a IA ({exc}); usando as informações básicas dos arquivos."})
-        if not text:
-            kinds = ", ".join(sorted({i["kind"] for i in items}))
-            text = f"Seguir o estilo de {len(items)} arquivo(s) de referência ({kinds})" + (f"; cores dominantes {palette}" if palette else "") + "."
+        parsed = styles_mod.parse(ai_text) if ai_text else {"general": "", "common": "", "consistency": "", "notes": "", "entities": []}
+        have = {styles_mod.fold(e["name"]) for e in parsed["entities"]}
+        for e in base_ents:   # toda entidade aparece, mesmo que a IA tenha esquecido uma (ou não haja IA)
+            if styles_mod.fold(e["name"]) not in have:
+                parsed["entities"].append({"kind": e["kind"], "name": e["name"], "desc": e["desc"]})
+        if not parsed["general"]:
+            kinds = ", ".join(sorted({i["kind"] for i in media_items})) or "arquivo"
+            parsed["general"] = f"Seguir o estilo de {len(items)} arquivo(s) de referência ({kinds})" + (f"; cores dominantes {palette}" if palette else "") + "." if items else ""
+        if notes_user:
+            parsed["notes"] = notes_user
+        text = styles_mod.serialize(parsed["general"], parsed["common"], parsed["entities"], parsed["consistency"], parsed["notes"])
         res = dict(node["result"])
-        res.update({"digest": text[:4000], "digest_key": key})
+        res.update({"digest": text[:8000], "digest_key": key})
         self._set_result(node["id"], res)
         node["result"] = res
-        return text[:4000]
+        return text[:8000]
 
     # ------------------------------------------------------------------ hash (cache)
     def provider_for(self, node: Dict[str, Any]) -> Tuple[str, str]:
@@ -516,10 +620,11 @@ class CanvasEngine:
             if p["mode"] == "edit" and not refs:
                 raise ValueError("No modo Editar, ligue uma imagem na entrada \"Referências\".")
             body = base
-            prompt = body + (f"\n\nStyle: {style.text}" if style.text else "")
+            stx = style.render(base)   # só o que o prompt precisa: estilo geral + os personagens/cenários/objetos que ele cita
+            prompt = body + (f"\n\nStyle: {stx}" if stx else "")
             use_refs = list(refs)
-            if not use_refs and style.images and getattr(prov, "supports_refs", False) and _style_refs_ok(pid, model):
-                use_refs = list(style.images)  # modelos que aceitam várias imagens usam o Style Folder como referência
+            if not use_refs and (style.entities or style.general_ids) and getattr(prov, "supports_refs", False) and _style_refs_ok(pid, model):
+                use_refs = style.images_for(base, STYLE_IMAGES_MAX)  # modelos que aceitam várias imagens usam o Style Folder como referência
             needs_edit = getattr(prov, "refs_need_edit", lambda m="": getattr(prov, "refs_edit_only", False))(p["model"] or model)   # por modelo: o klein junta referências também no modo Gerar
             if use_refs and prov.supports_refs and needs_edit and p["mode"] != "edit":
                 warnings.append(f"{prov.label} só usa imagens de referência no modo Editar (imagem → imagem). No modo Gerar elas viram só texto — para editar uma imagem, escolha «Editar».")
@@ -536,7 +641,7 @@ class CanvasEngine:
                 use_refs = []
             if ment_ids and not use_refs:   # as imagens citadas não chegam ao modelo: sem a marcação «reference image N», que não apontaria para nada
                 body = mentions_mod.plain(canvas, raw_base)
-                prompt = body + (f"\n\nStyle: {style.text}" if style.text else "")
+                prompt = body + (f"\n\nStyle: {stx}" if stx else "")
             prov.edit_mode = p["mode"] == "edit"   # só ao editar uma imagem o resultado herda a proporção dela
             extra = dict(p["extra"])
             if extra.pop("upsample", True) and upsample.wants(p["model"] or model) and not upsample.is_caption(body):   # FLUX.3 Image Klein: pede legendas de cena completas
@@ -547,13 +652,13 @@ class CanvasEngine:
                     else:
                         self._check()
                         caption = upsample.expand(build_provider(self.settings, llm_pid, self.store.models_dir), body, edit=bool(use_refs), refs=len(use_refs))
-                        prompt = caption + (f"\n\nStyle: {style.text}" if style.text else "")
+                        prompt = caption + (f"\n\nStyle: {stx}" if stx else "")
                         warnings.append("Prompt expandido para o FLUX.3: " + caption[:300] + ("…" if len(caption) > 300 else ""))
                 except (ProviderError, ValueError) as exc:
                     warnings.append(f"Não consegui expandir o prompt ({exc}); usei o texto como está — o FLUX.3 rende melhor com legendas completas.")
             expanded = any(w.startswith("Prompt expandido") for w in warnings)
             if p["mode"] == "edit" and use_refs and not expanded and not upsample.is_caption(body) and getattr(prov, "frames_edit_for", lambda m="": False)(p["model"] or model):
-                prompt = edit_prompt(body) + (f"\n\nStyle: {style.text}" if style.text else "")   # sem o modelo de texto: o pedido vira uma instrução de edição clara
+                prompt = edit_prompt(body) + (f"\n\nStyle: {stx}" if stx else "")   # sem o modelo de texto: o pedido vira uma instrução de edição clara
             medias = prov.image(prompt, size=p["size"], count=p["count"], seed=seed, negative=p["negative"], refs=use_refs, model=p["model"], extra=extra)
             if p["mode"] == "edit" and use_refs and medias:
                 diff = M_difference(use_refs[0][0], medias[0].data)
@@ -575,21 +680,22 @@ class CanvasEngine:
             if not base and not first:
                 raise ValueError(self._no_prompt(canvas, node, "O nó Vídeo precisa de um prompt (ou de uma imagem inicial ligada)."))
             start = first
-            prompt = (base or "Animate this image with gentle, natural motion") + (f"\n\nStyle: {style.text}" if style.text else "")
+            stx = style.render(base)
+            prompt = (base or "Animate this image with gentle, natural motion") + (f"\n\nStyle: {stx}" if stx else "")
             m = prov.video(prompt, duration=p["duration"], aspect=p["aspect"], image=start, model=p["model"], extra=p["extra"], seed=seed, long_side=p["resolution"])
             return {"assets": [self._save(node, m, "video", self._title(node, "Vídeo"), prompt, pid, model)], "text": "", "warnings": warnings}
         if t == "sound":
             prompt = p["prompt"].strip() or self.inputs(canvas, node, "prompt")["text"]
             if not prompt:
                 raise ValueError("O nó Som precisa de uma descrição (ex.: \"chuva forte com trovões\").")
-            prompt = (prompt + (f"\n\nStyle: {style.text}" if style.text else "")) if p["kind"] == "music" else prompt
+            prompt = (prompt + (f"\n\nStyle: {style.render(prompt)}" if style.text else "")) if p["kind"] == "music" else prompt
             m = prov.sound(prompt, kind=p["kind"], duration=p["duration"], model=p["model"], extra=p["extra"], seed=seed)
             return {"assets": [self._save(node, m, "audio", self._title(node, "Música" if p["kind"] == "music" else "Som"), prompt, pid, model)], "text": "", "warnings": warnings}
         if t == "voice":
             speech = "\n\n".join(x for x in (self.inputs(canvas, node, "text")["text"], p["text"].strip()) if x)
             if not speech:
                 raise ValueError("O nó Voz precisa de um texto para falar.")
-            m = prov.voice(speech, voice=p["voice"], speed=p["speed"], model=p["model"], extra=p["extra"], instructions=style.text)
+            m = prov.voice(speech, voice=p["voice"], speed=p["speed"], model=p["model"], extra=p["extra"], instructions=style.render(speech))
             return {"assets": [self._save(node, m, "audio", self._title(node, "Voz"), speech, pid, model)], "text": "", "warnings": warnings}
         raise ValueError(f"Tipo de nó sem gerador: {t}")
 
@@ -659,8 +765,9 @@ class CanvasEngine:
         pid = p["provider"] or self.settings["active"].get("generation", "demo")
         provider = build_provider(self.settings, pid, self.store.models_dir)
         if pid == "demo":
-            return {"assets": [], "text": proc.demo_llm(p["instruction"], source, style.text)}
-        system = LLM_SYSTEM + (f"\n\nEstilo do projeto (siga-o): {style.text}" if style.text else "")
+            return {"assets": [], "text": proc.demo_llm(p["instruction"], source, style.render(p["instruction"] + " " + source))}
+        sty = style.render(p["instruction"] + " " + source)
+        system = LLM_SYSTEM + (f"\n\nEstilo do projeto (siga-o): {sty}" if sty else "")
         user = (p["instruction"].strip() + ("\n\n" if p["instruction"].strip() and source else "") + (f"Texto de entrada:\n{source}" if source else "")).strip()
         self._check()
         out = self.team_chat(provider, pid, [{"role": "user", "content": user}], system, p["temperature"], 1500)
@@ -738,9 +845,16 @@ class CanvasEngine:
 
 
 STYLE_SYSTEM = (
-    "Você escreve guias de estilo curtos para projetos criativos. Receberá a descrição de arquivos de referência (imagens, vídeos, áudios, textos). "
-    "Descreva em 3 a 6 frases o estilo COMUM a eles: para imagem/vídeo, paleta de cores, traço/textura, iluminação, composição e clima; para áudio, timbre, ritmo e atmosfera. "
-    "Seja concreto e útil como complemento de um prompt de geração. Não cite nomes de arquivos. Responda só com a descrição, no idioma predominante dos textos (padrão: português)."
+    "Você escreve guias de estilo e fichas de personagens, cenários e objetos para projetos criativos. Receberá as entidades encontradas (com o papel de cada uma), notas do usuário, a descrição dos arquivos e imagens "
+    "legendadas com o nome de quem aparece nelas. Responda SOMENTE neste formato, uma linha por item (sem markdown, sem listas, sem comentários):\n"
+    "ESTILO GERAL: 2 a 4 frases sobre o estilo COMUM de tudo: paleta de cores, traço/textura/técnica, iluminação, composição e clima.\n"
+    "TRAÇOS COMUNS DOS PERSONAGENS: o que TODOS os personagens têm em comum (proporções, figurino, traço do desenho, idade aparente…). Omita a linha se há menos de dois personagens.\n"
+    "PERSONAGEM — <Nome>: aparência fixa e reconhecível: idade aparente, corpo/altura, rosto, cabelo (cor, corte), olhos, pele, roupas (peças e cores), acessórios, marcas e detalhes únicos, postura e expressão típicas.\n"
+    "CENÁRIO — <Nome>: tipo de lugar, elementos principais, materiais, hora do dia, luz, clima e cores.\n"
+    "OBJETO — <Nome>: forma, tamanho, material, cor, acabamento e detalhes que o identificam.\n"
+    "CONSISTÊNCIA: 1 a 2 frases com o que NUNCA deve mudar entre uma imagem e outra (cores de roupa, cicatriz, estilo de traço…).\n"
+    "Use exatamente os nomes das entidades encontradas; descreva só o que VÊ nas imagens ou o que as notas dizem, sem inventar. Seja concreto e útil como complemento de um prompt de geração. "
+    "Não cite nomes de arquivos. Escreva no idioma predominante dos textos (padrão: português)."
 )
 LLM_SYSTEM = "Você é um assistente de escrita criativa dentro de um fluxo de produção de mídia. Cumpra a instrução usando o texto de entrada. Se houver menções como @nome (apelidos de imagens, vídeos ou sons do projeto), mantenha-as exatamente como estão no texto final. Responda APENAS com o texto final, sem explicações nem aspas."
 

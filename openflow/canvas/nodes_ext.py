@@ -31,35 +31,45 @@ SPECS: Dict[str, Dict[str, Any]] = {
     "text_edit": {"label": "Editar texto", "icon": "type", "out": "text", "group": "Texto", "ins": [("text", "Texto", ["text"], True)]},
     "text_pick": {"label": "Escolher trecho", "icon": "doc", "out": "text", "group": "Texto", "ins": [("text", "Texto", ["text"], True)]},
     "text_refine": {"label": "Refinar com IA", "icon": "wand", "out": "text", "group": "Texto", "ins": [("text", "Texto", ["text"], True), ("style", "Estilo", ["style"], True)]},
+    "text_extract": {"label": "Extrair do texto", "icon": "doc", "out": "text", "group": "Texto", "ins": [("text", "Texto", ["text"], True)]},
+    "text_count": {"label": "Contar texto", "icon": "type", "out": "text", "group": "Texto", "ins": [("text", "Texto", ["text"], True)]},
     # ---- Imagem
     "img_resize": {"label": "Redimensionar", "icon": "image", "out": "image", "group": "Imagem", "ins": [("image", "Imagem", IMG, False)]},
     "img_filter": {"label": "Filtros e cor", "icon": "palette", "out": "image", "group": "Imagem", "ins": [("image", "Imagem", IMG, False)]},
     "img_text": {"label": "Texto na imagem", "icon": "type", "out": "image", "group": "Imagem", "ins": [("image", "Imagem", IMG, False), ("text", "Texto", ["text"], True)]},
     "img_collage": {"label": "Colagem", "icon": "image", "out": "image", "group": "Imagem", "ins": [("images", "Imagens", IMG, True)]},
     "img_frame": {"label": "Quadro do vídeo", "icon": "video", "out": "image", "group": "Imagem", "ins": [("video", "Vídeo", VID, False)]},
+    "img_crop": {"label": "Recortar imagem", "icon": "scissors", "out": "image", "group": "Imagem", "ins": [("image", "Imagem", IMG, False)]},
+    "img_watermark": {"label": "Marca d'água", "icon": "image", "out": "image", "group": "Imagem", "ins": [("image", "Imagem", IMG, False), ("logo", "Marca", ["image"], False)]},
     # ---- Vídeo
     "vid_trim": {"label": "Cortar vídeo", "icon": "film", "out": "video", "group": "Vídeo", "ins": [("video", "Vídeo", VID, False)]},
     "vid_join": {"label": "Juntar clipes", "icon": "film", "out": "video", "group": "Vídeo", "ins": [("clips", "Clipes", ["video", "image"], True)]},
     "vid_speed": {"label": "Velocidade", "icon": "video", "out": "video", "group": "Vídeo", "ins": [("video", "Vídeo", VID, False)]},
     "vid_look": {"label": "Visual do vídeo", "icon": "palette", "out": "video", "group": "Vídeo", "ins": [("video", "Vídeo", VID, False)]},
     "vid_slideshow": {"label": "Imagens em vídeo", "icon": "film", "out": "video", "group": "Vídeo", "ins": [("images", "Imagens", IMG, True), ("audio", "Áudio", ["audio"], True)]},
+    "vid_reframe": {"label": "Mudar a proporção", "icon": "film", "out": "video", "group": "Vídeo", "ins": [("video", "Vídeo", VID, False)]},
+    "vid_loop": {"label": "Repetir vídeo", "icon": "refresh", "out": "video", "group": "Vídeo", "ins": [("video", "Vídeo", VID, False)]},
+    "vid_audio": {"label": "Áudio no vídeo", "icon": "audio", "out": "video", "group": "Vídeo", "ins": [("video", "Vídeo", VID, False), ("audio", "Áudio", ["audio"], True)]},
     # ---- Som
     "aud_trim": {"label": "Cortar áudio", "icon": "audio", "out": "audio", "group": "Som", "ins": [("audio", "Áudio", AUD, False)]},
     "aud_mix": {"label": "Misturar áudios", "icon": "audio", "out": "audio", "group": "Som", "ins": [("audios", "Áudios", AUD, True)]},
     "aud_fx": {"label": "Efeitos de áudio", "icon": "audio", "out": "audio", "group": "Som", "ins": [("audio", "Áudio", AUD, False)]},
     "aud_from_video": {"label": "Áudio do vídeo", "icon": "audio", "out": "audio", "group": "Som", "ins": [("video", "Vídeo", VID, False)]},
     "aud_loop": {"label": "Repetir áudio", "icon": "refresh", "out": "audio", "group": "Som", "ins": [("audio", "Áudio", AUD, False)]},
+    "aud_silence_cut": {"label": "Tirar silêncios", "icon": "audio", "out": "audio", "group": "Som", "ins": [("audio", "Áudio", AUD, False)]},
     # ---- Input
     "in_color": {"label": "Cor e degradê", "icon": "palette", "out": "image", "group": "Input", "ins": []},
     "in_silence": {"label": "Silêncio", "icon": "audio", "out": "audio", "group": "Input", "ins": []},
     "in_url": {"label": "Link (URL)", "icon": "upload", "out": "media", "group": "Input", "ins": []},
     "in_random": {"label": "Sorteio de texto", "icon": "wand", "out": "text", "group": "Input", "ins": []},
     "in_vars": {"label": "Data e projeto", "icon": "doc", "out": "text", "group": "Input", "ins": []},
+    "in_pattern": {"label": "Padrão e textura", "icon": "palette", "out": "image", "group": "Input", "ins": []},
     # ---- Output
     "out_export": {"label": "Vídeo final", "icon": "film", "out": "video", "group": "Output", "ins": [("video", "Vídeo", ["video", "image"], False), ("audio", "Áudio", ["audio"], True), ("captions", "Legendas", ["text"], True)]},
     "out_gif": {"label": "GIF animado", "icon": "film", "out": "image", "group": "Output", "ins": [("video", "Vídeo", VID, False)]},
     "out_audio": {"label": "Áudio final", "icon": "audio", "out": "audio", "group": "Output", "ins": [("audio", "Áudio", AUD, True)]},
     "out_image": {"label": "Imagem final", "icon": "image", "out": "image", "group": "Output", "ins": [("image", "Imagem", IMG, False)]},
+    "out_thumbnail": {"label": "Miniatura com título", "icon": "image", "out": "image", "group": "Output", "ins": [("image", "Imagem", IMG, False), ("text", "Título", ["text"], True)]},
     "out_gallery": {"label": "Galeria", "icon": "folder", "out": "media", "group": "Output", "ins": [("items", "Itens", ["image", "video", "audio", "text"], True)]},
 }
 TEXT_OUT = {k for k, v in SPECS.items() if v["out"] == "text"}  # entregam texto; os demais entregam arquivos
@@ -71,6 +81,7 @@ SEPARATORS = {"paragraph": "\n\n", "line": "\n", "space": " ", "comma": ", ", "d
 TEXT_OPS = ("upper", "lower", "title", "trim", "dedupe", "sort", "reverse", "number", "no_empty", "replace")
 PICK_MODES = ("lines", "sentences", "paragraphs", "words")
 REFINE_MODES = ("improve", "translate", "summarize", "expand", "fix", "scenes", "captions")
+EXTRACT_WHAT = ("links", "emails", "hashtags", "numbers", "quotes", "words_caps", "regex")
 AUD_FX = ("none", "louder", "quieter", "faster", "slower", "reverse", "echo", "telephone", "bass", "normalize")
 
 
@@ -97,6 +108,30 @@ def normalize(t: str, p: Dict[str, Any]) -> Dict[str, Any]:
     if t == "text_refine":
         return {"mode": _pick(p.get("mode"), REFINE_MODES, "improve"), "language": text(p.get("language"), "inglês", 30), "instruction": text(p.get("instruction"), "", 1000),
                 "provider": text(p.get("provider"), "", 40)}
+    if t == "text_extract":
+        return {"what": _pick(p.get("what"), EXTRACT_WHAT, "links"), "pattern": text(p.get("pattern"), "", 200), "joiner": _pick(p.get("joiner"), ("line", "comma", "space"), "line"), "limit": int(n("limit", 0, 0, 999))}
+    if t == "text_count":
+        return {"what": _pick(p.get("what"), ("summary", "words", "chars", "lines"), "summary")}
+    if t == "img_crop":
+        return {"mode": _pick(p.get("mode"), ("ratio", "manual"), "ratio"), "ratio": _pick(p.get("ratio"), ("1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "21:9"), "1:1"),
+                "x": round(n("x", 0, 0, 100), 1), "y": round(n("y", 0, 0, 100), 1), "w": round(n("w", 100, 1, 100), 1), "h": round(n("h", 100, 1, 100), 1),
+                "anchor": _pick(p.get("anchor"), ("center", "top", "bottom", "left", "right"), "center")}
+    if t == "img_watermark":
+        return {"pos": _pick(p.get("pos"), ("br", "bl", "tr", "tl", "center"), "br"), "scale": round(n("scale", 20, 2, 80), 1), "opacity": round(n("opacity", 0.85, 0.05, 1), 2), "margin": int(n("margin", 3, 0, 20))}
+    if t == "vid_reframe":
+        return {"ratio": _pick(p.get("ratio"), ("9:16", "1:1", "16:9", "4:5", "4:3"), "9:16"), "mode": _pick(p.get("mode"), ("cover", "blur", "pad"), "blur"), "height": int(n("height", 1280, 240, 2160)), "bg": _color(p.get("bg"), "#000000")}
+    if t == "vid_loop":
+        return {"times": int(n("times", 2, 1, 20)), "duration": round(n("duration", 0, 0, 3600), 1)}
+    if t == "vid_audio":
+        return {"mode": _pick(p.get("mode"), ("replace", "mix", "mute"), "replace"), "volume": round(n("volume", 1, 0, 2), 2), "fit": _pick(p.get("fit"), ("video", "audio"), "video")}
+    if t == "aud_silence_cut":
+        return {"threshold": int(n("threshold", -40, -70, -15)), "min_silence": round(n("min_silence", 0.4, 0.1, 5), 2), "keep": round(n("keep", 0.15, 0, 1), 2)}
+    if t == "in_pattern":
+        return {"kind": _pick(p.get("kind"), ("checker", "stripes", "noise", "grid", "dots"), "checker"), "color": _color(p.get("color"), "#202530"), "color2": _color(p.get("color2"), "#f2f2f2"),
+                "size": int(n("size", 64, 4, 512)), "width": int(n("width", 1024, 64, 4096)), "height": int(n("height", 1024, 64, 4096))}
+    if t == "out_thumbnail":
+        return {"layout": _pick(p.get("layout"), ("bottom", "center", "left"), "bottom"), "size": int(n("size", 9, 3, 25)), "color": _color(p.get("color"), "#ffffff"), "shade": round(n("shade", 0.55, 0, 0.9), 2),
+                "width": int(n("width", 1280, 320, 3840)), "height": int(n("height", 720, 180, 2160)), "format": _pick(p.get("format"), ("jpg", "png"), "jpg")}
     if t == "img_resize":
         return {"width": int(n("width", 1024, 0, 8000)), "height": int(n("height", 1024, 0, 8000)), "mode": _pick(p.get("mode"), ("fit", "cover", "stretch", "pad"), "fit"),
                 "rotate": int(n("rotate", 0, 0, 270)) // 90 * 90, "flip": _pick(p.get("flip"), ("none", "h", "v", "both"), "none"), "bg": _color(p.get("bg"), "#000000"), "format": _pick(p.get("format"), ("png", "jpg"), "png")}
@@ -370,7 +405,7 @@ def run_text_refine(eng, canvas, node):
         return {"assets": [], "text": _demo_refine(p["mode"], src, p["language"]), "warnings": warnings}
     provider = build_provider(eng.settings, pid, eng.store.models_dir)
     system = ("Você é um editor de texto dentro de um fluxo de produção de mídia. Cumpra a instrução usando o texto de entrada. Responda APENAS com o texto final, sem explicações nem aspas."
-              + (f"\n\nEstilo do projeto: {style.text}" if style.text else ""))
+              + (f"\n\nEstilo do projeto: {style.render(src + ' ' + instruction)}" if style.text else ""))
     eng._check()
     out = eng.team_chat(provider, pid, [{"role": "user", "content": f"{instruction}\n\nTexto de entrada:\n{src}"}], system, 0.5, 1500)
     return {"assets": [], "text": out, "warnings": warnings}
@@ -917,6 +952,211 @@ def run_out_gallery(eng, canvas, node):
     if not ids and not texts:
         raise ValueError("Ligue imagens, vídeos, áudios ou textos na entrada «Itens».")
     return {"assets": ids, "text": "\n\n".join(texts)}
+
+
+
+# --------------------------------------------------------------------------- v0.34: nós novos
+def run_text_extract(eng, canvas, node):
+    p, t = node["params"], _join_in(eng, canvas, node, "text")[:50000]
+    pats = {"links": r"https?://[^\s<>\"')\]]+", "emails": r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+", "hashtags": r"#[\wÀ-ÿ]+", "numbers": r"-?\d+(?:[.,]\d+)?",
+            "quotes": r"[\"“«]([^\"”»\n]{1,300})[\"”»]", "words_caps": r"\b[A-ZÀ-Ý][A-ZÀ-Ý0-9]{2,}\b"}
+    if p["what"] == "regex":
+        if not p["pattern"]:
+            raise ValueError("Escreva o padrão (expressão regular) no campo «Padrão».")
+        if re.search(r"\((?:[^()]*[+*][^()]*)\)[+*{]", p["pattern"]):
+            raise ValueError("Esse padrão repete um grupo que já se repete (pode travar): simplifique-o.")
+        try:
+            rx = re.compile(p["pattern"], re.I)
+        except re.error as exc:
+            raise ValueError(f"Padrão inválido: {exc}") from None
+    else:
+        rx = re.compile(pats[p["what"]], re.I if p["what"] != "words_caps" else 0)
+    found = []
+    for m in rx.finditer(t):
+        v = (m.group(1) if m.groups() else m.group(0)).strip()
+        if p["what"] in ("links", "emails"):
+            v = v.rstrip(".,;:!?)»”'\"")   # a pontuação da frase não faz parte do link
+        if v and v not in found:
+            found.append(v)
+        if len(found) >= 500:
+            break
+    if p["limit"]:
+        found = found[:p["limit"]]
+    if not found:
+        raise ValueError("Não achei nada no texto com esse critério.")
+    return {"assets": [], "text": {"line": "\n", "comma": ", ", "space": " "}[p["joiner"]].join(found)}
+
+
+def run_text_count(eng, canvas, node):
+    p, t = node["params"], _join_in(eng, canvas, node, "text")
+    words, chars, lines = len(t.split()), len(t), len([ln for ln in t.splitlines() if ln.strip()])
+    out = {"words": str(words), "chars": str(chars), "lines": str(lines), "summary": f"{words} palavras · {chars} caracteres · {lines} linhas"}[p["what"]]
+    return {"assets": [], "text": out}
+
+
+def run_img_crop(eng, canvas, node):
+    p = node["params"]
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        src = _image_file(eng, _first(eng, canvas, node, "image", ("image", "video"), "uma imagem"), tmp)
+        if p["mode"] == "manual":
+            vf = f"crop=iw*{p['w'] / 100:.4f}:ih*{p['h'] / 100:.4f}:iw*{p['x'] / 100:.4f}:ih*{p['y'] / 100:.4f}"
+        else:
+            a, b = (int(x) for x in p["ratio"].split(":"))
+            ox = {"left": "0", "right": "iw-ow"}.get(p["anchor"], "(iw-ow)/2")
+            oy = {"top": "0", "bottom": "ih-oh"}.get(p["anchor"], "(ih-oh)/2")
+            vf = f"crop='if(gte(iw/ih,{a}/{b}),ih*{a}/{b},iw)':'if(gte(iw/ih,{a}/{b}),ih,iw*{b}/{a})':{ox}:{oy}"
+        out = tmp / "o.png"
+        _ff(eng, ["-i", str(src), "-vf", vf, "-frames:v", "1", str(out)])
+        return _img_out(eng, node, tmp, out, _title(node, "Imagem recortada"))
+
+
+def run_img_watermark(eng, canvas, node):
+    p = node["params"]
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        base = _image_file(eng, _first(eng, canvas, node, "image", ("image", "video"), "uma imagem"), tmp, "base")
+        logo = _path(eng, _first(eng, canvas, node, "logo", ("image",), "a imagem da marca"))
+        m = p["margin"]
+        xy = {"br": f"W-w-W*{m}/100:H-h-H*{m}/100", "bl": f"W*{m}/100:H-h-H*{m}/100", "tr": f"W-w-W*{m}/100:H*{m}/100", "tl": f"W*{m}/100:H*{m}/100", "center": "(W-w)/2:(H-h)/2"}[p["pos"]]
+        flt = (f"[1:v]format=rgba,colorchannelmixer=aa={p['opacity']}[l0];[l0][0:v]scale2ref=w=oh*mdar:h=ih*{p['scale'] / 100:.4f}[lg][bg];"
+               f"[bg][lg]overlay={xy}[o]")
+        out = tmp / "o.png"
+        # a marca ocupa `scale`% da altura da imagem; scale2ref mantém a proporção dela
+        _ff(eng, ["-i", str(base), "-i", str(logo), "-filter_complex", flt, "-map", "[o]", "-frames:v", "1", str(out)])
+        return _img_out(eng, node, tmp, out, _title(node, "Imagem com marca"))
+
+
+def run_vid_reframe(eng, canvas, node):
+    p = node["params"]
+    a = _first(eng, canvas, node, "video", ("video",), "um vídeo")
+    src = _path(eng, a)
+    ra, rb = (int(x) for x in p["ratio"].split(":"))
+    H = p["height"] // 2 * 2
+    W = int(round(H * ra / rb / 2)) * 2
+    if p["mode"] == "cover":
+        flt = f"[0:v]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1[v]"
+    elif p["mode"] == "pad":
+        flt = f"[0:v]scale={W}:{H}:force_original_aspect_ratio=decrease,pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color={p['bg']},setsar=1[v]"
+    else:   # fundo desfocado com o próprio vídeo (o formato de Reels/Shorts)
+        flt = (f"[0:v]split[a][b];[a]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},gblur=sigma=30[bg];"
+               f"[b]scale={W}:{H}:force_original_aspect_ratio=decrease[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1[v]")
+    fps = _src_fps(src)
+    with tempfile.TemporaryDirectory() as td:
+        out = Path(td) / "o.mp4"
+        has_a = has_audio(src)
+        _ff(eng, ["-i", str(src), "-filter_complex", flt, "-map", "[v]", *(["-map", "0:a"] if has_a else ["-an"]), *_mp4_args(fps), str(out)])
+        return _vid_out(eng, node, out, _title(node, f"Vídeo {p['ratio']}"), w=W, h=H)
+
+
+def run_vid_loop(eng, canvas, node):
+    p = node["params"]
+    a = _first(eng, canvas, node, "video", ("video",), "um vídeo")
+    src = _path(eng, a)
+    dur = a.get("duration") or 0
+    total = p["duration"] if p["duration"] > 0 else dur * p["times"]
+    if total <= 0:
+        raise ValueError("Não sei a duração do vídeo: informe a «Duração final».")
+    if total > 3600:
+        raise ValueError("O vídeo final passaria de 1 hora.")
+    with tempfile.TemporaryDirectory() as td:
+        out = Path(td) / "o.mp4"
+        _ff(eng, ["-stream_loop", "-1", "-i", str(src), "-t", f"{total:.2f}", "-vf", EVEN, *_mp4_args(_src_fps(src)), str(out)])
+        return _vid_out(eng, node, out, _title(node, "Vídeo repetido"))
+
+
+def run_vid_audio(eng, canvas, node):
+    p = node["params"]
+    a = _first(eng, canvas, node, "video", ("video",), "um vídeo")
+    src = _path(eng, a)
+    auds = _inputs(eng, canvas, node, "audio", ("audio",))
+    if p["mode"] != "mute" and not auds:
+        raise ValueError("Ligue um áudio na entrada «Áudio» (ou escolha «Tirar o som»).")
+    dur = a.get("duration") or 0
+    with tempfile.TemporaryDirectory() as td:
+        out = Path(td) / "o.mp4"
+        if p["mode"] == "mute":
+            _ff(eng, ["-i", str(src), "-c:v", "copy", "-an", "-movflags", "+faststart", str(out)])
+            return _vid_out(eng, node, out, _title(node, "Vídeo sem som"))
+        music = Path(td) / "m.m4a"
+        _mix_files(eng, auds, "sequence", p["volume"], music, "m4a")
+        has_a = has_audio(src)
+        if p["mode"] == "mix" and has_a:
+            flt = "[0:a]aresample=44100,aformat=channel_layouts=stereo[a0];[1:a]aresample=44100,aformat=channel_layouts=stereo[a1];[a0][a1]amix=inputs=2:duration=" + ("first" if p["fit"] == "video" else "longest") + ":normalize=0[aout]"
+        else:
+            flt = "[1:a]aresample=44100,aformat=channel_layouts=stereo[aout]"
+        end = ["-t", f"{dur:.2f}"] if p["fit"] == "video" and dur else ["-shortest"] if p["fit"] == "audio" else []
+        _ff(eng, ["-i", str(src), "-i", str(music), "-filter_complex", flt, "-map", "0:v", "-map", "[aout]", "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", *end, "-movflags", "+faststart", str(out)])
+        return _vid_out(eng, node, out, _title(node, "Vídeo com outro áudio"))
+
+
+def run_aud_silence_cut(eng, canvas, node):
+    p = node["params"]
+    a = _first(eng, canvas, node, "audio", ("audio", "video"), "um áudio")
+    src = _need_sound(eng, a)
+    keep = p["keep"]
+    rule = f"start_periods=1:start_silence={keep}:start_threshold={p['threshold']}dB:stop_periods=-1:stop_silence={max(keep, 0.05)}:stop_threshold={p['threshold']}dB:detection=peak"
+    # «min_silence»: só o silêncio mais longo que isso é cortado (o resto da pausa curta fica)
+    rule = rule.replace(f"stop_silence={max(keep, 0.05)}", f"stop_silence={p['min_silence']}")
+    with tempfile.TemporaryDirectory() as td:
+        out = Path(td) / "o.mp3"
+        _ff(eng, ["-i", str(src), "-vn", "-af", f"silenceremove={rule}", *_aud_args("mp3"), str(out)])
+        if out.stat().st_size < 400:
+            raise ValueError("O áudio ficou vazio: ele inteiro está abaixo do limite de silêncio. Aumente o limite (ex.: −50 dB).")
+        return _aud_out(eng, node, out, _title(node, "Áudio sem silêncios"))
+
+
+def run_in_pattern(eng, canvas, node):
+    p = node["params"]
+    w, h, s = p["width"], p["height"], p["size"]
+    c1, c2 = p["color"], p["color2"]
+    with tempfile.TemporaryDirectory() as td:
+        out = Path(td) / "o.png"
+        if p["kind"] == "noise":
+            _ff(eng, ["-f", "lavfi", "-i", f"color=c={c1}:s={w}x{h}", "-vf", "noise=alls=60:allf=t+u", "-frames:v", "1", str(out)])
+        else:
+            base = f"color=c={c1}:s={w}x{h}"
+            if p["kind"] == "checker":
+                vf = f"geq=r='if(mod(floor(X/{s})+floor(Y/{s}),2),{int(c2[1:3], 16)},{int(c1[1:3], 16)})':g='if(mod(floor(X/{s})+floor(Y/{s}),2),{int(c2[3:5], 16)},{int(c1[3:5], 16)})':b='if(mod(floor(X/{s})+floor(Y/{s}),2),{int(c2[5:7], 16)},{int(c1[5:7], 16)})'"
+            elif p["kind"] == "stripes":
+                vf = f"geq=r='if(mod(floor((X+Y)/{s}),2),{int(c2[1:3], 16)},{int(c1[1:3], 16)})':g='if(mod(floor((X+Y)/{s}),2),{int(c2[3:5], 16)},{int(c1[3:5], 16)})':b='if(mod(floor((X+Y)/{s}),2),{int(c2[5:7], 16)},{int(c1[5:7], 16)})'"
+            elif p["kind"] == "grid":
+                vf = f"geq=r='if(lt(mod(X,{s}),2)+lt(mod(Y,{s}),2),{int(c2[1:3], 16)},{int(c1[1:3], 16)})':g='if(lt(mod(X,{s}),2)+lt(mod(Y,{s}),2),{int(c2[3:5], 16)},{int(c1[3:5], 16)})':b='if(lt(mod(X,{s}),2)+lt(mod(Y,{s}),2),{int(c2[5:7], 16)},{int(c1[5:7], 16)})'"
+            else:   # dots
+                vf = (f"geq=r='if(lt(hypot(mod(X,{s})-{s}/2,mod(Y,{s})-{s}/2),{s}/4),{int(c2[1:3], 16)},{int(c1[1:3], 16)})':g='if(lt(hypot(mod(X,{s})-{s}/2,mod(Y,{s})-{s}/2),{s}/4),{int(c2[3:5], 16)},{int(c1[3:5], 16)})':"
+                      f"b='if(lt(hypot(mod(X,{s})-{s}/2,mod(Y,{s})-{s}/2),{s}/4),{int(c2[5:7], 16)},{int(c1[5:7], 16)})'")
+            _ff(eng, ["-f", "lavfi", "-i", base, "-vf", vf, "-frames:v", "1", str(out)])
+        return _img_out(eng, node, Path(td), out, _title(node, "Padrão"))
+
+
+def run_out_thumbnail(eng, canvas, node):
+    p = node["params"]
+    title = _join_text(eng, canvas, node, "text").strip()
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        src = _image_file(eng, _first(eng, canvas, node, "image", ("image", "video"), "uma imagem"), tmp)
+        W, H = p["width"] // 2 * 2, p["height"] // 2 * 2
+        vf = [f"scale={W}:{H}:force_original_aspect_ratio=increase", f"crop={W}:{H}"]
+        if title and p["shade"] > 0:
+            y0 = {"bottom": "ih*0.55", "center": "ih*0.3", "left": "0"}[p["layout"]]
+            hh = {"bottom": "ih*0.45", "center": "ih*0.4", "left": "ih"}[p["layout"]]
+            ww = "iw*0.55" if p["layout"] == "left" else "iw"
+            vf.append(f"drawbox=x=0:y={y0}:w={ww}:h={hh}:color=black@{p['shade']}:t=fill")
+        if title:
+            font = find_font()
+            tf = tmp / "t.txt"
+            tf.write_text("\n".join(textwrap.fill(line, 22 if p["layout"] == "left" else 30) for line in title.splitlines()), encoding="utf-8")
+            pos = {"bottom": ("(w-text_w)/2", "h*0.58"), "center": ("(w-text_w)/2", "(h-text_h)/2"), "left": ("w*0.04", "(h-text_h)/2")}[p["layout"]]
+            opts = [f"textfile='{_esc_path(str(tf))}'", f"fontsize=h*{p['size'] / 100}", f"fontcolor={p['color']}", f"x={pos[0]}", f"y={pos[1]}", "line_spacing=8", "borderw=3", "bordercolor=black@0.7"]
+            if font:
+                opts.insert(1, f"fontfile='{_esc_path(font)}'")
+            vf.append("drawtext=" + ":".join(opts))
+        out = tmp / f"o.{p['format']}"
+        try:
+            _ff(eng, ["-i", str(src), "-vf", ",".join(vf), "-frames:v", "1", *(["-q:v", "3"] if p["format"] == "jpg" else []), str(out)])
+        except ProviderError:
+            raise ProviderError("Este ffmpeg não conseguiu desenhar o título (falta o filtro drawtext ou uma fonte instalada).") from None
+        return _img_out(eng, node, tmp, out, _title(node, "Miniatura"))
 
 
 RUNNERS: Dict[str, Callable[..., Dict[str, Any]]] = {k: globals()["run_" + k] for k in SPECS}

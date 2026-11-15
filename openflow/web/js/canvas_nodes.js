@@ -9,12 +9,12 @@ export const compatible = (out, accepts) => accepts.includes(out)
   || (['image', 'video', 'audio'].includes(out) && accepts.includes('media'));
 
 export const GROUPS = [   // espelha schema.PALETTE
-  ['Texto', ['text', 'llm', 'transcribe', 'text_template', 'text_join', 'text_edit', 'text_pick', 'text_refine']],
-  ['Imagem', ['image', 'img_resize', 'img_filter', 'img_text', 'img_collage', 'img_frame']],
-  ['Vídeo', ['video', 'vid_trim', 'vid_join', 'vid_speed', 'vid_look', 'vid_slideshow']],
-  ['Som', ['sound', 'voice', 'aud_trim', 'aud_mix', 'aud_fx', 'aud_from_video', 'aud_loop']],
-  ['Input', ['upload', 'style_prompt', 'style_folder', 'in_color', 'in_silence', 'in_url', 'in_random', 'in_vars']],
-  ['Output', ['editor', 'out_export', 'out_gif', 'out_audio', 'out_image', 'out_gallery']],
+  ['Texto', ['text', 'llm', 'transcribe', 'text_template', 'text_join', 'text_edit', 'text_pick', 'text_refine', 'text_extract', 'text_count']],
+  ['Imagem', ['image', 'img_resize', 'img_filter', 'img_text', 'img_collage', 'img_frame', 'img_crop', 'img_watermark']],
+  ['Vídeo', ['video', 'vid_trim', 'vid_join', 'vid_speed', 'vid_look', 'vid_slideshow', 'vid_reframe', 'vid_loop', 'vid_audio']],
+  ['Som', ['sound', 'voice', 'aud_trim', 'aud_mix', 'aud_fx', 'aud_from_video', 'aud_loop', 'aud_silence_cut']],
+  ['Input', ['upload', 'style_prompt', 'style_folder', 'in_color', 'in_silence', 'in_url', 'in_random', 'in_vars', 'in_pattern']],
+  ['Output', ['editor', 'out_export', 'out_gif', 'out_audio', 'out_image', 'out_thumbnail', 'out_gallery']],
 ];
 export const TYPE_HELP = {
   text: 'Um texto que você escreve (prompt, roteiro, fala).', llm: 'Reescreve ou cria texto com o modelo de IA configurado.',
@@ -34,6 +34,10 @@ export const TYPE_HELP = {
   in_color: 'Gera uma imagem de cor lisa ou degradê, no tamanho que você quiser.', in_silence: 'Gera um trecho de silêncio (para espaçar áudios).', in_url: 'Baixa uma imagem, um vídeo ou um áudio de um link público.',
   in_random: 'Sorteia linhas de uma lista (variações de prompt, ideias).', in_vars: 'Texto com a data, a hora e o nome do projeto.',
   out_export: 'Monta o vídeo final: vídeo (ou imagem) + áudios + legendas, na qualidade escolhida.', out_gif: 'Transforma um vídeo em GIF animado.', out_audio: 'Junta e exporta o áudio final (MP3, WAV ou M4A), normalizado.',
+  text_extract: 'Tira do texto os links, e-mails, hashtags, números, frases entre aspas ou o que um padrão (regex) achar.', text_count: 'Conta as palavras, os caracteres e as linhas de um texto.',
+  img_crop: 'Recorta a imagem numa proporção (1:1, 16:9, 9:16…) ou numa área que você escolhe.', img_watermark: 'Põe uma marca (logo) sobre a imagem, no canto que você escolher, com tamanho e transparência.',
+  vid_reframe: 'Muda a proporção do vídeo (vertical 9:16, quadrado…) cortando, com fundo desfocado ou com bordas.', vid_loop: 'Repete o vídeo várias vezes ou até uma duração.', vid_audio: 'Troca, mistura ou tira o som de um vídeo.',
+  aud_silence_cut: 'Tira os silêncios longos de um áudio (pausas, começo e fim vazios).', in_pattern: 'Gera uma imagem de padrão: xadrez, listras, grade, bolinhas ou ruído.', out_thumbnail: 'Faz a miniatura (thumbnail) de um vídeo: imagem recortada em 16:9 com o título por cima.',
   out_image: 'Exporta a imagem final (PNG, JPG ou WebP) com qualidade e largura máxima.', out_gallery: 'Reúne imagens, vídeos, áudios e textos de vários nós num lugar só para ver e baixar.',
 };
 export const OUT_COLOR = { text: 'var(--c-text)', image: 'var(--c-image)', video: 'var(--c-video)', audio: 'var(--c-audio)', style: 'var(--c-style)', media: 'var(--c-media)' };
@@ -46,10 +50,12 @@ export const LABEL = {
   aud_trim: 'Cortar áudio', aud_mix: 'Misturar áudios', aud_fx: 'Efeitos de áudio', aud_from_video: 'Áudio do vídeo', aud_loop: 'Repetir áudio',
   in_color: 'Cor e degradê', in_silence: 'Silêncio', in_url: 'Link (URL)', in_random: 'Sorteio de texto', in_vars: 'Data e projeto',
   out_export: 'Vídeo final', out_gif: 'GIF animado', out_audio: 'Áudio final', out_image: 'Imagem final', out_gallery: 'Galeria',
+  text_extract: 'Extrair do texto', text_count: 'Contar texto', img_crop: 'Recortar imagem', img_watermark: "Marca d'água", vid_reframe: 'Mudar a proporção', vid_loop: 'Repetir vídeo', vid_audio: 'Áudio no vídeo',
+  aud_silence_cut: 'Tirar silêncios', in_pattern: 'Padrão e textura', out_thumbnail: 'Miniatura com título',
 };
 const CAP = { image: 'image', video: 'video', sound: 'sound', voice: 'voice', transcribe: 'stt' };
 const PORT_LABEL = { prompt: 'Prompt', refs: 'Referências', style: 'Estilo', image: 'Imagem inicial', text: 'Fala', audio: 'Áudio/vídeo', clips: 'Clipes', vars: 'Variáveis', texts: 'Textos', images: 'Imagens', video: 'Vídeo', audios: 'Áudios', items: 'Itens', captions: 'Legendas' };
-const NEW_PORT = { img_resize: { image: 'Imagem' }, img_filter: { image: 'Imagem' }, img_text: { image: 'Imagem', text: 'Texto' }, text_edit: { text: 'Texto' }, text_pick: { text: 'Texto' }, text_refine: { text: 'Texto' }, vid_slideshow: { audio: 'Áudio' }, aud_trim: { audio: 'Áudio' }, aud_fx: { audio: 'Áudio' }, aud_loop: { audio: 'Áudio' }, out_export: { audio: 'Áudio', video: 'Vídeo' }, out_audio: { audio: 'Áudio' }, out_image: { image: 'Imagem' } };
+const NEW_PORT = { img_watermark: { image: 'Imagem', logo: 'Marca' }, vid_audio: { video: 'Vídeo', audio: 'Áudio' }, out_thumbnail: { image: 'Imagem', text: 'Título' }, text_extract: { text: 'Texto' }, text_count: { text: 'Texto' }, img_crop: { image: 'Imagem' }, vid_reframe: { video: 'Vídeo' }, vid_loop: { video: 'Vídeo' }, aud_silence_cut: { audio: 'Áudio' }, img_resize: { image: 'Imagem' }, img_filter: { image: 'Imagem' }, img_text: { image: 'Imagem', text: 'Texto' }, text_edit: { text: 'Texto' }, text_pick: { text: 'Texto' }, text_refine: { text: 'Texto' }, vid_slideshow: { audio: 'Áudio' }, aud_trim: { audio: 'Áudio' }, aud_fx: { audio: 'Áudio' }, aud_loop: { audio: 'Áudio' }, out_export: { audio: 'Áudio', video: 'Vídeo' }, out_audio: { audio: 'Áudio' }, out_image: { image: 'Imagem' } };
 export const portLabel = (nodeType, p) => (nodeType === 'llm' && p.id === 'prompt' ? t('Entrada') : t((NEW_PORT[nodeType] && NEW_PORT[nodeType][p.id]) || PORT_LABEL[p.id] || p.label));
 
 // ---------------------------------------------------------------------------------------------------- controles
@@ -348,10 +354,14 @@ const BODY = {
     h('div', { class: 'r2' }, lab(t('Voz'), txt(c, n, 'voice', t('padrão'))), lab(t('Velocidade'), txt(c, n, 'speed', '1', 'number'))),
     ...providerBlock(c, n, 'voice')],
   transcribe: (c, n) => [h('div', { class: 'dim small' }, t('Ligue um áudio ou vídeo na entrada.')), lab(t('Idioma (opcional)'), txt(c, n, 'language', 'pt, en…')), ...providerBlock(c, n, 'stt')],
-  style_prompt: (c, n) => [ta(c, n, 'text', t('Ex.: ilustração em aquarela, cores suaves, traço delicado.'), 4), globalCheck(c, n)],
-  style_folder: (c, n) => [...styleFolderBody(c, n), globalCheck(c, n),
-    n.result.digest ? h('div', { class: 'digest nodrag' }, n.result.digest) : null,
-    ((n.params.files || []).length || countFolders(n.params.folders)) ? h('button', { class: 'btn sm nodrag', type: 'button', onclick: () => c.run([n.id], true) }, icon('refresh', 13), t('Analisar estilo')) : null],
+  style_prompt: (c, n) => [ta(c, n, 'text', t('Ex.: ilustração em aquarela, cores suaves, traço delicado.'), 4),
+    h('div', { class: 'dim small' }, t('Para personagens, cenários e objetos, escreva uma linha para cada: «Personagem: Maria — cabelo ruivo, capa azul». Só os que o prompt citar entram na geração.')), globalCheck(c, n)],
+  style_folder: (c, n) => [...styleFolderBody(c, n),
+    lab(t('Características gerais (opcional)'), ta(c, n, 'notes', t('Ex.: todos os personagens usam uniforme azul; desenho de traço fino; cenas sempre ao entardecer.'), 3)),
+    h('div', { class: 'dim small' }, t('Dica: nomeie as pastas «Personagens», «Cenários» e «Objetos»; uma subpasta por personagem (Personagens/Maria) agrupa as imagens dele. Um .txt com o nome dele vira a descrição.')),
+    globalCheck(c, n),
+    n.result.digest ? digestView(n.result.digest) : null,
+    ((n.params.files || []).length || countFolders(n.params.folders) || (n.params.notes || '').trim()) ? h('button', { class: 'btn sm nodrag', type: 'button', onclick: () => c.run([n.id], true) }, icon('refresh', 13), t('Analisar estilo')) : null],
   editor: (c, n) => {
     const tl = n.params.timeline;
     return [h('div', { class: 'small muted' }, t('{n} clipe(s) · {s}s', { n: tl.clips.length, s: (tl.duration || 0).toFixed(1) }) + ' · ' + n.params.width + '×' + n.params.height),
@@ -359,6 +369,13 @@ const BODY = {
       h('div', { class: 'dim small' }, t('Ligue nós em “Clipes” para usar as saídas deles na linha do tempo.'))];
   },
 };
+// A descrição do Style Folder, uma linha por item: «PERSONAGEM — Maria: …» vira uma linha com o papel em destaque (v0.34)
+function digestView(text) {
+  return h('div', { class: 'digest nodrag' }, String(text).split('\n').filter((l) => l.trim()).map((l) => {
+    const m = /^(ESTILO GERAL|TRAÇOS COMUNS DOS PERSONAGENS|CONSISTÊNCIA|NOTAS|PERSONAGEM|CENÁRIO|OBJETO)(?: — ([^:]+))?:\s*(.*)$/.exec(l);
+    return m ? h('div', { class: 'dg-line' }, h('b', null, m[1].charAt(0) + m[1].slice(1).toLowerCase() + (m[2] ? ' · ' + m[2] : '') + ': '), m[3]) : h('div', { class: 'dg-line' }, l);
+  }));
+}
 function globalCheck(c, n) {
   return h('div', null, checkbox(t('Vale para o projeto todo'), n.params.global, (v) => c.change(n, 'global', v, true)),
     h('div', { class: 'dim small' }, n.params.global ? t('Aplicado automaticamente a todos os nós de geração.') : t('Aplicado só aos nós ligados em “Estilo”.')));
@@ -401,6 +418,16 @@ const FORMS = {
   out_gif: [['num', 'width', 'Largura (px)'], ['num', 'fps', 'Quadros por segundo'], ['num', 'max_seconds', 'Duração máxima (s)']],
   out_audio: [['sel', 'format', 'Formato', [['mp3', 'MP3'], ['wav', 'WAV'], ['m4a', 'M4A']]], ['sel', 'mode', 'Como juntar', [['sequence', 'Um depois do outro'], ['mix', 'Ao mesmo tempo']]], ['chk', 'normalize', 'Normalizar o volume']],
   out_image: [['sel', 'format', 'Formato', [['png', 'PNG'], ['jpg', 'JPG'], ['webp', 'WebP']]], ['range', 'quality', 'Qualidade', 10, 100, 1], ['num', 'max_width', 'Largura máxima (px, 0 = original)']],
+  text_extract: [['sel', 'what', 'O que extrair', [['links', 'Links'], ['emails', 'E-mails'], ['hashtags', 'Hashtags'], ['numbers', 'Números'], ['quotes', 'Frases entre aspas'], ['words_caps', 'PALAVRAS EM MAIÚSCULAS'], ['regex', 'Padrão (regex)']]], ['txt', 'pattern', 'Padrão (só no modo regex)', '[a-z]+@\\w+'], ['sel', 'joiner', 'Juntar com', [['line', 'Linhas'], ['comma', 'Vírgulas'], ['space', 'Espaços']]], ['num', 'limit', 'Quantos (0 = todos)']],
+  text_count: [['sel', 'what', 'Contar', [['summary', 'Resumo'], ['words', 'Palavras'], ['chars', 'Caracteres'], ['lines', 'Linhas']]]],
+  img_crop: [['sel', 'mode', 'Modo', [['ratio', 'Por proporção'], ['manual', 'Área manual (%)']]], ['sel', 'ratio', 'Proporção', [['1:1', '1:1'], ['16:9', '16:9'], ['9:16', '9:16'], ['4:3', '4:3'], ['3:4', '3:4'], ['3:2', '3:2'], ['21:9', '21:9']]], ['sel', 'anchor', 'Manter', [['center', 'O centro'], ['top', 'O topo'], ['bottom', 'A base'], ['left', 'A esquerda'], ['right', 'A direita']]], ['num', 'x', 'Manual: esquerda (%)'], ['num', 'y', 'Manual: topo (%)'], ['num', 'w', 'Manual: largura (%)'], ['num', 'h', 'Manual: altura (%)']],
+  img_watermark: [['sel', 'pos', 'Canto', [['br', 'Embaixo à direita'], ['bl', 'Embaixo à esquerda'], ['tr', 'Em cima à direita'], ['tl', 'Em cima à esquerda'], ['center', 'No centro']]], ['range', 'scale', 'Tamanho (% da altura)', 2, 80, 1], ['range', 'opacity', 'Opacidade', 0.05, 1, 0.05], ['num', 'margin', 'Margem (%)']],
+  vid_reframe: [['sel', 'ratio', 'Proporção', [['9:16', '9:16 (vertical)'], ['1:1', '1:1 (quadrado)'], ['16:9', '16:9'], ['4:5', '4:5'], ['4:3', '4:3']]], ['sel', 'mode', 'Como encaixar', [['blur', 'Fundo desfocado'], ['cover', 'Preencher e cortar'], ['pad', 'Bordas']]], ['num', 'height', 'Altura (px)'], ['color', 'bg', 'Cor das bordas']],
+  vid_loop: [['num', 'times', 'Repetir (vezes)'], ['num', 'duration', 'Ou duração final (s, 0 = usar as vezes)']],
+  vid_audio: [['sel', 'mode', 'O que fazer', [['replace', 'Trocar o som'], ['mix', 'Misturar com o som'], ['mute', 'Tirar o som']]], ['range', 'volume', 'Volume do áudio', 0, 2, 0.05], ['sel', 'fit', 'Terminar quando acabar', [['video', 'O vídeo'], ['audio', 'O áudio']]]],
+  aud_silence_cut: [['range', 'threshold', 'Limite de silêncio (dB)', -70, -15, 1], ['range', 'min_silence', 'Silêncio mínimo a cortar (s)', 0.1, 5, 0.05], ['range', 'keep', 'Respiro mantido (s)', 0, 1, 0.05]],
+  in_pattern: [['sel', 'kind', 'Padrão', [['checker', 'Xadrez'], ['stripes', 'Listras'], ['grid', 'Grade'], ['dots', 'Bolinhas'], ['noise', 'Ruído']]], ['color', 'color', 'Cor'], ['color', 'color2', 'Segunda cor'], ['num', 'size', 'Tamanho do módulo (px)'], ['num', 'width', 'Largura'], ['num', 'height', 'Altura']],
+  out_thumbnail: [['sel', 'layout', 'Título', [['bottom', 'Embaixo'], ['center', 'No centro'], ['left', 'À esquerda']]], ['range', 'size', 'Tamanho do título (% da altura)', 3, 25, 1], ['color', 'color', 'Cor do título'], ['range', 'shade', 'Faixa escura atrás', 0, 0.9, 0.05], ['num', 'width', 'Largura'], ['num', 'height', 'Altura'], ['sel', 'format', 'Formato', [['jpg', 'JPG'], ['png', 'PNG']]]],
   out_gallery: [['hint', 'Ligue em «Itens» imagens, vídeos, áudios e textos de qualquer nó: eles aparecem aqui para ver e baixar.']],
 };
 function formBody(c, n) {
