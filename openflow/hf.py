@@ -322,7 +322,9 @@ def download(
     url = f"{HF}/{repo}/resolve/main/{urllib.parse.quote(filename)}"
     from . import dl
 
-    dl.fetch(url, part, _headers(token), connections or CONNECTIONS, progress, cancelled)   # várias conexões, retomada e novas tentativas (v0.25)
+    from . import diskuse
+
+    dl.fetch(url, part, _headers(token), diskuse.download_connections(dest.parent, connections or CONNECTIONS), progress, cancelled)   # várias conexões, retomada e novas tentativas (v0.25)
     os.replace(part, dest)
     return dest
 

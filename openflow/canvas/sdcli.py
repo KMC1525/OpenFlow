@@ -70,7 +70,7 @@ def backend() -> str:
             return "vulkan"
     except Exception:  # noqa: BLE001
         pass
-    return "vulkan" if dev == "gpu" else "cpu"
+    return "vulkan" if dev in ("gpu", "hybrid") else "cpu"
 
 
 def installed_backend() -> str:
@@ -407,7 +407,7 @@ def sys_platform() -> str:
 LOAD_FLAGS = {"diffusion_model_path": "--diffusion-model", "model_path": "-m", "vae_path": "--vae", "llm_path": "--llm", "t5xxl_path": "--t5xxl", "clip_l_path": "--clip_l", "clip_g_path": "--clip_g",
               "tokenizer_path": "--tokenizer", "llm_vision_path": "--llm_vision", "clip_vision_path": "--clip_vision", "audio_vae_path": "--audio-vae", "high_noise_diffusion_model_path": "--high-noise-diffusion-model"}
 #: parâmetro de carga booleano → opção
-LOAD_SWITCHES = {"offload_params_to_cpu": ["--offload-to-cpu"], "diffusion_flash_attn": ["--flash-attn", "off,diffusion=on"], "keep_clip_on_cpu": ["--clip-on-cpu"], "te_on_cpu": ["--backend", "te=cpu"], "vae_tiling": ["--vae-tiling"]}
+LOAD_SWITCHES = {"offload_params_to_cpu": ["--offload-to-cpu"], "diffusion_flash_attn": ["--flash-attn", "off,diffusion=on"], "keep_clip_on_cpu": ["--clip-on-cpu"], "te_on_cpu": ["--backend", "te=cpu"], "vae_tiling": ["--vae-tiling"], "vae_on_cpu": ["--vae-on-cpu"]}
 #: parâmetro de geração → opção
 RUN_FLAGS = {"cfg_scale": "--cfg-scale", "sample_steps": "--steps", "sample_method": "--sampling-method", "flow_shift": "--flow-shift", "strength": "--strength", "guidance": "--guidance",
              "video_frames": "--video-frames", "fps": "--fps", "high_noise_cfg_scale": "--high-noise-cfg-scale", "high_noise_sample_method": "--high-noise-sampling-method",
@@ -419,6 +419,10 @@ def build_args(exe: Path, load: Dict[str, Any], run: Dict[str, Any], *, prompt: 
     """(argumentos, avisos) do `sd-cli`: arquivos do modelo e de apoio, parâmetros da geração, imagens de referência (`-r`) ou inicial (`-i`)."""
     args = [str(exe), "-M", "vid_gen" if video else "img_gen"]
     warns: List[str] = []
+    from .. import perf
+
+    if perf.device() == "hybrid":   # CPU + GPU juntas (v0.31): o codificador de texto e o VAE vão para a CPU e a placa fica só com o modelo de difusão — cabem imagens e modelos maiores
+        load = {**load, "keep_clip_on_cpu": True, "vae_on_cpu": True}
     for k, v in load.items():
         if k in LOAD_FLAGS and isinstance(v, str) and v:
             args += [LOAD_FLAGS[k], v]

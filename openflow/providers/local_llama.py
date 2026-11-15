@@ -67,6 +67,9 @@ _CTX_FLOOR: Dict[str, int] = {}   # janela mínima já necessária por modelo: s
 _PLAIN: set = set()   # modelos que ficaram mudos com as opções de economia (flash attention / cache KV de 8 bits): recarregados só com o básico
 
 
+_OPTIONAL = ("numa", "offload_kqv", "draft_model")
+
+
 def _load_llama(Llama: Any, base: Dict[str, Any], prof: Dict[str, Any]) -> Any:
     """Carrega o modelo com as opções do plano (núcleo Rust: threads, lotes, cache de atenção, mlock…); versões antigas do llama-cpp-python que não conhecem alguma opção
     recebem menos opções, até o carregamento básico."""
@@ -89,6 +92,14 @@ def _load_llama(Llama: Any, base: Dict[str, Any], prof: Dict[str, Any]) -> Any:
             return Llama(**base, **kw)
         except Exception:  # noqa: BLE001  (versão/backend sem essas opções: tenta com menos)
             continue
+    core = {k: v for k, v in base.items() if k not in _OPTIONAL}   # numa, offload_kqv e o rascunho (v0.31): se foram eles que a versão instalada não aceitou, carrega sem
+    if core != base:
+        for kw in (extra, older, basic):
+            try:
+                return Llama(**core, **kw)
+            except Exception:  # noqa: BLE001
+                continue
+        return Llama(**core)
     return Llama(**base)
 
 
@@ -259,7 +270,7 @@ class LocalLlamaProvider(Provider):
                 _CACHE[key] = _CACHE.pop(key)   # mais recente por último
             if llm is None:
                 dev = perf.device()   # Configurações → Desempenho → Rodar em: automático, só CPU ou GPU
-                use_gpu = dev != "cpu" and (dev == "gpu" or bool(hw.get("gpu")) or (hw["os"] == "Darwin" and "arm" in hw["arch"].lower()))
+                use_gpu = dev != "cpu" and (dev in ("gpu", "hybrid") or bool(hw.get("gpu")) or (hw["os"] == "Darwin" and "arm" in hw["arch"].lower()))
                 if use_gpu and not _gpu_offload_ok():   # a instalação não manda camadas para a placa: roda (e é ajustado) como modelo de CPU
                     use_gpu = False
                     native.LAST["gpu_note"] = "llama-cpp-python sem suporte a GPU (compilação só CPU): rodando na CPU"
@@ -268,7 +279,7 @@ class LocalLlamaProvider(Provider):
                 if use_gpu and plan:   # placa dedicada NVIDIA/AMD/Intel (v0.29): camadas e cache de atenção pelo planejador da placa (núcleo Rust)
                     ginfo = plan.get("info") or {}
                     gtune = perf.gpu_tuning(int(ginfo.get("bytes") or 0), int(ginfo.get("layers") or 0), int(self._kv_per_token(path)), ctx, prof["mode"])
-                    if gtune and not gtune.get("use_gpu") and dev != "gpu":
+                    if gtune and not gtune.get("use_gpu") and dev not in ("gpu", "hybrid"):
                         use_gpu, ngl = False, 0   # integrada (ou sem memória para uma camada): a CPU rende igual ou mais
                     elif gtune and gtune.get("use_gpu"):
                         ngl = int(gtune["n_gpu_layers"])
@@ -286,7 +297,21 @@ class LocalLlamaProvider(Provider):
                             base["n_ctx"] = max(2048, int(tune["ctx_cap"]))   # CPU fraca: janela menor (a atenção custa tempo e memória)
                         if tune.get("pin"):
                             perf.pin_performance_cores(tune["info"])
+                        if int((tune.get("info") or {}).get("numa_nodes") or 1) > 1:
+                            base["numa"] = 1   # vários nós NUMA (servidor de 2 soquetes, Threadripper/EPYC): distribui as threads e a memória entre eles
                         native.LAST["cpu"] = {"model": os.path.basename(path), "threads": base["n_threads"], "est_tps": tune.get("est_tps"), "weak": tune.get("weak")}
+                if use_gpu and dev == "hybrid" and ngl != 0:   # CPU + GPU juntos (v0.31): a placa leva as camadas que couberem, a CPU o resto e ainda propõe os próximos tokens (a placa confirma)
+                    hy = perf.hybrid_tuning(int((plan.get("info") or {}).get("bytes") or 0), ngl, int((plan.get("info") or {}).get("layers") or 0), ctx, prof["mode"]) if plan else {}
+                    if hy.get("n_threads"):
+                        base["n_threads"] = int(hy["n_threads"])
+                        prof = dict(prof, n_threads_batch=int(hy["n_threads_batch"]))
+                    try:
+                        from llama_cpp.llama_speculative import LlamaPromptLookupDecoding  # type: ignore
+
+                        base["draft_model"] = LlamaPromptLookupDecoding(num_pred_tokens=10)
+                        native.LAST["hybrid"] = {"model": os.path.basename(path), "draft": "prompt-lookup", "gpu_layers": ngl, "threads": base["n_threads"]}
+                    except Exception:  # noqa: BLE001 — versão sem decodificação especulativa: só a divisão de camadas
+                        native.LAST["hybrid"] = {"model": os.path.basename(path), "gpu_layers": ngl, "threads": base["n_threads"]}
                 if use_gpu and ngl != 0:
                     base.update(perf.llama_split())
                     if gtune and gtune.get("use_gpu"):

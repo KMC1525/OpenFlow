@@ -21,7 +21,7 @@ from typing import Any, Callable, Dict, Optional
 os.environ.setdefault("CUDA_DEVICE_ORDER", "PCI_BUS_ID")   # o torch e o CUDA numeram as placas como o nvidia-smi (senão «placa 1» podia ser outra)
 
 MODES = ("auto", "light", "balanced", "max")
-DEVICES = ("auto", "cpu", "gpu")   # `settings.performance.device`: onde os modelos rodam
+DEVICES = ("auto", "cpu", "gpu", "hybrid")   # `settings.performance.device`: onde os modelos rodam (hybrid = CPU e GPU juntas, v0.31)
 DEFAULTS = {"mode": "auto", "idle_unload_min": 10, "device": "auto", "gpus": [], "cpu_pin": True}   # gpus: índices das placas NVIDIA a usar ([] = todas)
 
 
@@ -121,6 +121,17 @@ def cpu_tuning(weights: int, ctx: int, mode: str) -> Dict[str, Any]:
         return plan
     except Exception:  # noqa: BLE001 — melhor esforço
         return {}
+
+
+def hybrid_tuning(weights: int, ngl: int, layers: int, ctx: int, mode: str) -> Dict[str, Any]:
+    """CPU + GPU juntas: threads para as camadas que ficam na CPU (a fração de camadas fora da placa). Com o modelo inteiro na placa não há o que a CPU leve: {}."""
+    if ngl <= 0 or layers <= 0:
+        return {}
+    cpu_share = 1.0 if ngl < 0 else max(0.0, 1.0 - ngl / float(layers))
+    if cpu_share <= 0.0:
+        return {}
+    t = cpu_tuning(int(weights * cpu_share) or int(weights), ctx, mode)
+    return {"n_threads": t.get("n_threads"), "n_threads_batch": t.get("n_threads_batch")} if t else {}
 
 
 def pin_performance_cores(info: Dict[str, Any]) -> bool:

@@ -891,6 +891,13 @@ def prefetch(paths: Any, threads: int = 0) -> int:
     if not files:
         return 0
     n = threads or min(8, max(2, (os.cpu_count() or 2)))
+    try:   # HDD (v0.31): leitura sequencial, uma thread — várias leituras em paralelo viram buscas aleatórias e o disco fica mais lento
+        from .. import diskuse
+
+        if not threads and diskuse.kind_of(files[0]) == "hdd":
+            n = 1
+    except Exception:  # noqa: BLE001
+        pass
     lib = _lib2()
     total = 0
     if lib is not None:
@@ -1384,7 +1391,12 @@ def cpu_info() -> Dict[str, Any]:
             p_cpus, e_cpus, p_phys, e_phys = core, atom, _phys(core), _phys(atom)
     except OSError:
         pass
-    return {"vendor": vendor, "brand": brand, "hybrid": bool(e_cpus), "p_physical": p_phys, "e_physical": e_phys, "p_logical": len(p_cpus), "e_logical": len(e_cpus), "p_cpus": p_cpus,
+    numa = 1
+    try:
+        numa = max(1, len([d for d in Path("/sys/devices/system/node").iterdir() if re.fullmatch(r"node\d+", d.name)]))
+    except OSError:
+        pass
+    return {"numa_nodes": numa, "vendor": vendor, "brand": brand, "hybrid": bool(e_cpus), "p_physical": p_phys, "e_physical": e_phys, "p_logical": len(p_cpus), "e_logical": len(e_cpus), "p_cpus": p_cpus,
             "e_cpus": e_cpus, "l2_kb": 0, "l3_kb": 0, "simd": _simd_level([f.replace("sse4_2", "sse4.2") for f in feats]), "features": feats}
 
 
@@ -1603,3 +1615,80 @@ def llama_gpu_support() -> Dict[str, Any]:
         return {"installed": True, "offload": bool(llama_cpp.llama_supports_gpu_offload())}
     except Exception:  # noqa: BLE001 — versão antiga sem a função: assume que o que o usuário compilou funciona
         return {"installed": True, "offload": True}
+
+
+# --------------------------------------------------------------------------- v0.31: pentes de memória (dual/quad channel, DDR4/DDR5)
+_DDR = {20: "DDR", 21: "DDR2", 24: "DDR3", 26: "DDR4", 34: "DDR5", 35: "LPDDR5", 29: "LPDDR3", 30: "LPDDR4"}
+_MEM_CACHE: Dict[str, Any] = {}
+
+
+def parse_memory_modules(rows: list) -> Dict[str, Any]:
+    """De uma lista de pentes [{capacity, speed, configured, type (código SMBIOS ou texto), locator}] → {modules, type, speed, configured_speed, channels, gb, theoretical_gbs}. Os canais vêm do nome da
+    posição («ChannelA-DIMM0», «BANK 1»); sem isso, estima pelo número de pentes (até 2) — **é uma estimativa**."""
+    rows = [r for r in rows if isinstance(r, dict) and r.get("capacity")]
+    if not rows:
+        return {}
+    def num(x: Any) -> int:
+        try:
+            return int(float(x))
+        except (TypeError, ValueError):
+            return 0
+    typ = ""
+    for r in rows:
+        t = r.get("type")
+        typ = _DDR.get(num(t), "") or (str(t).upper() if isinstance(t, str) and "DDR" in str(t).upper() else typ) or typ
+    speed = max((num(r.get("speed")) for r in rows), default=0)
+    cfg = max((num(r.get("configured")) for r in rows), default=0)
+    chans = set()
+    for r in rows:
+        m = re.search(r"channel\s*([a-d0-9])", str(r.get("locator", "")), re.I) or re.search(r"bank\s*(\d+)", str(r.get("locator", "")), re.I)
+        if m:
+            chans.add(m.group(1).lower())
+    channels = len(chans) if chans else min(len(rows), 2)
+    eff = cfg or speed
+    return {"modules": len(rows), "type": typ, "speed": speed, "configured_speed": cfg, "channels": channels, "gb": round(sum(num(r["capacity"]) for r in rows) / 1073741824.0, 1),
+            "theoretical_gbs": round(channels * 8.0 * eff / 1000.0, 1) if eff else 0.0, "estimated_channels": not chans}
+
+
+def memory_layout() -> Dict[str, Any]:
+    """Os pentes de RAM do computador (quantidade, DDR4/DDR5, velocidade, canais) — Windows pelo PowerShell (SMBIOS), Linux pelo `dmidecode` (só com permissão; sem ela, vazio). {} se não dá para saber."""
+    if "v" in _MEM_CACHE:
+        return _MEM_CACHE["v"]
+    rows: list = []
+    try:
+        if sys.platform == "win32":
+            out = subprocess.run(["powershell", "-NoProfile", "-Command", "Get-CimInstance Win32_PhysicalMemory | Select-Object Capacity,Speed,ConfiguredClockSpeed,SMBIOSMemoryType,DeviceLocator,BankLabel | ConvertTo-Json -Compress"],
+                                 capture_output=True, text=True, timeout=10).stdout.strip()
+            data = json.loads(out) if out else []
+            for d in (data if isinstance(data, list) else [data]):
+                rows.append({"capacity": d.get("Capacity"), "speed": d.get("Speed"), "configured": d.get("ConfiguredClockSpeed"), "type": d.get("SMBIOSMemoryType"),
+                             "locator": f"{d.get('DeviceLocator', '')} {d.get('BankLabel', '')}"})
+        elif sys.platform.startswith("linux") and shutil.which("dmidecode"):
+            out = subprocess.run(["dmidecode", "-t", "memory"], capture_output=True, text=True, timeout=10).stdout
+            for blk in out.split("\n\n"):
+                if "Memory Device" not in blk or "Size: No Module" in blk:
+                    continue
+                g = lambda k: (re.search(rf"^\s*{k}:\s*(.+)$", blk, re.M) or [None, ""])[1].strip()  # noqa: E731
+                size = re.match(r"(\d+)\s*(MB|GB)", g("Size"))
+                cap = int(size.group(1)) * (1 << 30 if size.group(2) == "GB" else 1 << 20) if size else 0
+                sp = re.match(r"(\d+)", g("Speed"))
+                cs = re.match(r"(\d+)", g("Configured Memory Speed") or g("Configured Clock Speed"))
+                rows.append({"capacity": cap, "speed": int(sp.group(1)) if sp else 0, "configured": int(cs.group(1)) if cs else 0, "type": g("Type"), "locator": g("Locator") + " " + g("Bank Locator")})
+    except Exception:  # noqa: BLE001 — sem permissão, sem PowerShell, saída inesperada: só não mostra
+        rows = []
+    _MEM_CACHE["v"] = parse_memory_modules(rows)
+    return _MEM_CACHE["v"]
+
+
+def memory_advice(layout: Dict[str, Any], bench: Optional[Dict[str, Any]]) -> list:
+    """Dicas de memória em português: pente único (single-channel), XMP/EXPO desligado e velocidade medida bem abaixo da teórica."""
+    out: list = []
+    if layout:
+        if layout["modules"] == 1:
+            out.append("single_channel")
+        if layout["configured_speed"] and layout["speed"] and layout["configured_speed"] < layout["speed"] * 0.9:
+            out.append("xmp_off")
+        bw = float((bench or {}).get("bwn") or 0)
+        if bw and layout["theoretical_gbs"] and bw < layout["theoretical_gbs"] * 0.45:
+            out.append("below_expected")
+    return out

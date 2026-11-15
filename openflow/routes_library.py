@@ -33,6 +33,8 @@ class LibraryRoutes:
         a("PUT", rf"/api/library/folders/{_ID}", self.r_folder_update)
         a("DELETE", rf"/api/library/folders/{_ID}", self.r_folder_delete)
         a("POST", r"/api/library/move", self.r_move)
+        a("GET", r"/api/storage", self.r_storage)
+        a("POST", r"/api/storage/clean", self.r_storage_clean)
 
     def _wrap(self, fn, *a, **k):
         try:
@@ -71,6 +73,26 @@ class LibraryRoutes:
             raise HttpError(400, "Escolha ao menos um item.")
         n = self._wrap(self.folders.place, keys, text(b.get("folder"), "", 40))
         req.json({"moved": n})
+
+    # ------------------------------------------------------------------ armazenamento (v0.31)
+    def _downloading(self) -> bool:
+        return any(self.app.jobs.running(k) for k in self.app.DOWNLOAD_KINDS)
+
+    def r_storage(self, req) -> None:
+        """Uso do disco: livre, tipo (SSD/HDD), modelos por tipo, projetos, envios e o que a limpeza pode liberar."""
+        from . import diskuse
+
+        req.json(diskuse.report(self.store, self._downloading()))
+
+    def r_storage_clean(self, req) -> None:
+        """Apaga o que sobrou: `{"what": ["partials", "temp", "orphans"]}`. Downloads parciais só saem se nenhum download está rodando."""
+        from . import diskuse
+
+        b = req.body_json()
+        what = [w for w in (b.get("what") if isinstance(b, dict) and isinstance(b.get("what"), list) else []) if w in ("partials", "temp", "orphans")]
+        if not what:
+            raise HttpError(400, "Escolha o que limpar.")
+        req.json(diskuse.clean(self.store, what, self._downloading()))
 
     # ------------------------------------------------------------------ itens
     def _models(self) -> List[Dict[str, Any]]:

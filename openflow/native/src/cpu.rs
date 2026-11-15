@@ -32,6 +32,20 @@ pub fn parse_cpu_list(s: &str) -> Vec<usize> {
     out
 }
 
+/// Nós NUMA (Linux): >1 em servidores de vários soquetes e em Threadripper/EPYC com a memória dividida por nó; 1 nos PCs comuns.
+pub fn numa_nodes() -> usize {
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    {
+        if let Ok(d) = std::fs::read_dir("/sys/devices/system/node") {
+            let n = d.filter_map(|e| e.ok()).filter(|e| { let n = e.file_name().to_string_lossy().to_string(); n.starts_with("node") && n[4..].chars().all(|c| c.is_ascii_digit()) && n.len() > 4 }).count();
+            if n > 0 {
+                return n;
+            }
+        }
+    }
+    1
+}
+
 pub struct Topology {
     pub hybrid: bool,
     pub p_cpus: Vec<usize>, // CPUs lógicas dos núcleos de desempenho
@@ -224,6 +238,7 @@ pub extern "C" fn flow_cpu_info(out: *mut u8, cap: usize) -> i64 {
         .i("e_logical", topo.e_cpus.len() as i64)
         .raw("p_cpus", &ids(&topo.p_cpus))
         .raw("e_cpus", &ids(&topo.e_cpus))
+        .i("numa_nodes", numa_nodes() as i64)
         .i("l2_kb", l2 as i64)
         .i("l3_kb", l3 as i64)
         .i("simd", simd_level(&feats) as i64)

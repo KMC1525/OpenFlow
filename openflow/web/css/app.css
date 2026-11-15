@@ -304,3 +304,27 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline-offset:0
 @container (min-width:560px){.composer .tools.multi{flex-wrap:wrap}.composer .tools.multi .rt{flex:1 1 auto;min-width:max-content}}
 
 a.btn,a.opt{text-decoration:none;color:inherit}
+
+/* v0.31 · telas grandes e ultrawide: o conteúdo cresce junto com a janela em vez de ficar numa coluna estreita no meio */
+@media (min-width:1700px){
+  :root{--side:260px}
+  .page{max-width:1560px;padding-left:48px;padding-right:48px}
+  .page.narrow{max-width:960px}
+  .page.narrow.cfg{max-width:1160px}
+  .lib-layout{grid-template-columns:260px minmax(0,1fr)}
+}
+@media (min-width:2200px){
+  .page{max-width:2000px}
+  .page.narrow{max-width:1100px}
+  .page.narrow.cfg{max-width:1400px}
+  .lib-page{max-width:2000px}
+  .lib-grid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+}
+@media (min-width:3000px){
+  .page{max-width:2600px}
+  .page.narrow.cfg{max-width:1700px}
+}
+/* ultrawide (21:9 ou mais largo): telas com muita largura e pouca altura — o painel lateral e a paleta ficam mais folgados e a barra de topo do canvas cabe numa linha só */
+@media (min-aspect-ratio:21/10) and (min-width:1900px){
+  .page.narrow.cfg{max-width:1500px}
+}
