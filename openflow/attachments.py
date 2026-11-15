@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import html
 import re
+import json
 import shutil
 import struct
 import subprocess
@@ -270,6 +271,30 @@ def _duration(path: Path) -> Optional[float]:
         except (wave.Error, EOFError, RuntimeError, struct.error, OSError, ValueError):
             return None
     return None
+
+
+def video_info(path: Path) -> Dict[str, Any]:
+    """Largura, altura e quadros por segundo do primeiro fluxo de vídeo ({} se não dá para ler). Um arquivo enviado ou gerado por um modelo nem sempre vem com isso anotado."""
+    probe = shutil.which("ffprobe")
+    if not probe:
+        return {}
+    res = _run([probe, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height,avg_frame_rate,r_frame_rate", "-of", "json", str(path)], 20)
+    if not res or res.returncode != 0:
+        return {}
+    try:
+        st = (json.loads(res.stdout.decode()).get("streams") or [{}])[0]
+    except (ValueError, IndexError):
+        return {}
+    fps = 0.0
+    for key in ("avg_frame_rate", "r_frame_rate"):
+        a, _, b = str(st.get(key) or "0/1").partition("/")
+        try:
+            fps = float(a) / float(b or 1)
+        except (ValueError, ZeroDivisionError):
+            fps = 0.0
+        if fps > 0:
+            break
+    return {"w": int(st.get("width") or 0), "h": int(st.get("height") or 0), "fps": round(fps, 3)}
 
 
 def _small_audio(path: Path, tmp: Path) -> Path:

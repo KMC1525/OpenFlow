@@ -2,6 +2,21 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.32.0] — 2026-11-15
+
+### Fixed — bugs when editing generated videos (and images)
+I looked by running every editing node (trim, speed, look, frame, GIF, export, join, slideshow; resize, filter, text, collage) with videos and images of different sizes, frame rates and tracks (odd width/height, portrait, very short, no audio, 12/16/24 fps, a 1×1 and a 3000×200 px image). The bugs found:
+- **A video with odd width or height (e.g. 853×481) could not be trimmed, sped up or given a “Look”:** ffmpeg refused (“Nothing was written into output file”). The size is now rounded down to the nearest even number (852×480) before encoding.
+- **Trim, speed and look converted everything to 30 fps:** a 16 or 24 fps video (what models usually produce) got repeated frames and stuttered, and a 12 fps one became 30. The **source frame rate is now kept**.
+- **Speed: the duration came out wrong and the sound ended before the picture** (3 s at 2× gave 1.67 s of video for 1.51 s of sound instead of 1.5 s for both). The video now has the exact duration (1.50 s at 2×, 0.75 s at 4×), in sync with the audio.
+- **Uploaded or generated videos had no width and height recorded** (only images did): they are now read with `ffprobe` when saved.
+- Everything else passed without errors: 1×1 and 3000×200 images, text with `%`, quotes and backslash, a video without audio, a very short video, joining videos of different sizes and ratios, and image editing through the engine (one or several references, a video as reference, the model's reference limit).
+
+### Not verified
+- Tested with synthetic ffmpeg videos (`testsrc`), not with real video-model outputs nor phone videos (rotation metadata, real VFR).
+- I found no bugs in the image “Edit” mode beyond what was already fixed; the quality of an edit depends on the model (not verifiable here). An “almost identical” result still only warns.
+- `reverse` in speed loads the whole video into memory (an ffmpeg filter limit): long high-resolution videos may be heavy.
+
 ## [0.31.0] — 2026-11-15
 
 ### New — General improvements 2.0
