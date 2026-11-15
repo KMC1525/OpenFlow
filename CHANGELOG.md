@@ -2,6 +2,25 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.38.0] — 2026-11-15
+
+### Corrigido — varredura geral (todos os nós, telas e a API)
+- **GIF como imagem parada num vídeo** (Editor, «Juntar clipes», «Imagens em vídeo» e «Vídeo final») falhava com «Option not found» do ffmpeg; agora o GIF entra pelo primeiro quadro.
+- **Editor com só áudio** na linha do tempo falhava com «Error opening output files»; agora gera um vídeo de fundo liso com o som.
+- **«Extrair do texto» com padrão (regex) que nunca termina** (ex.: `(a|a)*b`) travava a execução sem poder cancelar; agora o padrão roda num processo à parte com limite de 4 s e avisa «demorou demais».
+- Entradas inválidas da API (tipo de busca, repositório, provedor que não existe) respondiam 502 («gateway»); agora respondem 400.
+- Lint: f-string sem campos.
+
+### Testado
+- **Os 54 tipos de nó (49 executáveis; os outros 5 são Texto, Mídia, Style Prompt, Style Folder e Link) rodam de verdade** (motor + ffmpeg + Demo) com entradas válidas ligadas — `tests/test_all_nodes_v038.py`; só o «Transcrever» depende da biblioteca opcional do Whisper.
+- Matriz de entradas estranhas (imagem RGBA/cinza/paleta/WebP/GIF/CMYK/16 bits/minúscula/gigante; vídeo vertical/sem som/dimensão ímpar/fps quebrado/WebM/curtíssimo; áudio WAV mono/OGG/FLAC/M4A/curto) contra todos os nós de mídia.
+- Varredura de navegador (`sweep_ui.js`): todas as telas em 390, 1500 e 3440 px sem rolagem horizontal, todas as abas de Configurações, e todos os nós do canvas com cada opção de cada lista e valores estranhos nos campos, depois rodando tudo — sem erros de página.
+- Fuzz de 1.700 requisições nas rotas da API e de 8 mil parâmetros de nós: nenhum erro 500; leitura/escrita fora da pasta, zip-slip, segredos nas exportações e origem cruzada continuam bloqueados.
+
+### Ainda não verificado
+- Modelos locais reais (llama.cpp, diffusers, Shap-E…) seguem sem execução aqui, por falta dos pesos.
+- O «Transcrever» não rodou (falta a biblioteca do Whisper neste ambiente).
+
 ## [0.37.0] — 2026-11-15
 
 ### Novo — modelos 3D locais (texto → 3D e imagem → 3D)

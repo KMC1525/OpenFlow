@@ -79,6 +79,20 @@ def _run(cmd: List[str], ctl: Ctl, timeout: int = 3600) -> Tuple[int, str]:
         return proc.returncode, err.read().decode("utf-8", "replace")[-1500:]
 
 
+def still_path(path: Any, tmpdir: Any, ctl: Ctl, tag: Any = 0) -> Path:
+    """Uma imagem pronta para virar clipe parado (`-loop 1 -framerate`): o demuxer de GIF não aceita essas opções (o ffmpeg falha com «Option not found»), então o GIF entra pelo primeiro quadro em PNG."""
+    p = Path(path)
+    if p.suffix.lower() != ".gif":
+        return p
+    ff = shutil.which("ffmpeg")
+    dst = Path(tmpdir) / f"still_{tag}.png"
+    if ff:
+        code, _ = _run([ff, "-y", "-loglevel", "error", "-i", str(p), "-frames:v", "1", str(dst)], ctl)
+        if code == 0 and dst.is_file():
+            return dst
+    return p
+
+
 GRADES = {  # filtros de cor dos clipes (Studio): trechos de filtro do ffmpeg aplicados antes da composição
     "bw": "hue=s=0", "warm": "colorbalance=rs=.12:gs=.02:bs=-.12:rm=.1:bm=-.1", "cool": "colorbalance=rs=-.1:bs=.15:bm=.06",
     "vivid": "eq=saturation=1.45:contrast=1.08", "vhs": "eq=saturation=1.3:contrast=0.95,noise=alls=12:allf=t,gblur=sigma=0.6",
@@ -195,7 +209,7 @@ def render_timeline(tl: Dict[str, Any], width: int, height: int, fps: int, bg: s
                     k = n_in
                     n_in += 1
                     if r["kind"] == "image":
-                        args += ["-loop", "1", "-framerate", str(fps), "-t", f"{dur:.3f}", "-i", str(r["path"])]
+                        args += ["-loop", "1", "-framerate", str(fps), "-t", f"{dur:.3f}", "-i", str(still_path(r["path"], tmpdir.name, ctl, k))]
                         chain = f"[{k}:v]setpts=PTS-STARTPTS"
                     else:
                         args += ["-ss", f"{c['in']:.3f}", "-t", f"{dur * speed:.3f}", "-i", str(r["path"])]
@@ -254,7 +268,7 @@ def render_timeline(tl: Dict[str, Any], width: int, height: int, fps: int, bg: s
                 nxt = f"[x{i}]"
                 filters.append(f"{label}drawtext={':'.join(opts)}{nxt}")
                 label = nxt
-            maps = ["-map", label] if video_on else []
+            maps = ["-map", label[1:-1] if label == "[0:v]" else label] if video_on else []   # sem clipe visual o rótulo é a própria entrada (fundo): «-map [0:v]» seria lido como um filtro que não existe
             codec = ["-c:v", "libx264", "-preset", _preset(W, H, fps), "-crf", "22", "-pix_fmt", "yuv420p", "-r", str(fps)] if video_on else ["-vn"]
             if audio_labels:
                 if len(audio_labels) == 1:

@@ -1329,7 +1329,7 @@ class CanvasApiTests(ServerCase):
         self.assertNotIn("SECRETO", json.dumps(r))
         self.assertEqual({p["id"] for p in r["providers"]}, {"demo", "local_hf", "gguf_local"})
         self.assertIn(r["active"]["image"], {"demo", "local_hf", "gguf_local"})  # a escolha antiga de nuvem foi trocada
-        self.assertEqual(self.c.json("POST", "/api/media/test", {"provider": "openai"})[0], 502)  # não existe mais
+        self.assertEqual(self.c.json("POST", "/api/media/test", {"provider": "openai"})[0], 400)  # não existe mais
         self.assertEqual(self.c.json("POST", "/api/media/test", {"provider": "demo"})[1]["ok"], True)
 
 
