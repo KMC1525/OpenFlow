@@ -2,6 +2,22 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.27.0] — 2026-11-15
+
+### Novo — Biblioteca 2.0 (no estilo do Google Drive)
+- **Tela redesenhada:** barra lateral com as seções (**Modelos de IA**, **Arquivos gerados**, **Downloads**) e a árvore de pastas; no topo, **barra de pesquisa**, trilha de navegação (breadcrumb), filtros de tipo e origem e alternância **grade/lista**. Tudo o que a Biblioteca já fazia continua (usar e apagar modelos, baixar mais modelos, baixar/apagar arquivos, abrir o projeto de origem, downloads com progresso e velocidade).
+- **Pastas e subpastas** para modelos de IA e para arquivos (escopos separados): **Nova pasta**, renomear, mover, excluir. São **virtuais** (`library.json`): nenhum arquivo muda de lugar ou de nome no disco; os modelos seguem em `models/` e os arquivos dentro dos seus projetos. Excluir uma pasta não apaga nada — o conteúdo sobe para a pasta de cima. Nomes repetidos na mesma pasta são recusados.
+- **Arrastar e soltar** para organizar: itens e pastas para uma pasta do corpo, da barra lateral ou do caminho no topo; ou o menu «⋮ → Mover para…».
+- **Busca** em todas as pastas: acha pastas e arquivos/modelos pelo nome (também pelo projeto e pelo modelo que gerou) e mostra **onde estão** («em Animais / Pets»).
+- **«Baixar mais modelos»** abre o catálogo de antes (recomendados, Unsloth, busca no Hugging Face, velocidade dos downloads, token).
+- **No canvas, aba «Biblioteca»** no painel da direita (ao lado de «Projeto»): navega pelas pastas, busca e mostra os arquivos de **todos os projetos** (só imagens, vídeos e sons); **arraste para o fluxo** (ou use o «+») e o OpenFlow copia o arquivo para o projeto e cria um nó **Mídia** com ele, mantendo modelo e prompt de origem. Novas rotas: `GET /api/library/items`, `GET/POST/PUT/DELETE /api/library/folders`, `POST /api/library/move`, `POST /api/projects/<id>/assets/import`.
+
+### Ainda não verificado
+- Testei no Chromium (criar/entrar/buscar/mover por menu e por arrastar, excluir pasta, arrastar da aba do canvas) e a API; **não** testei com milhares de arquivos (a lista carrega tudo de uma vez, até 5000 arquivos) nem no celular além do layout responsivo básico.
+- Arrastar e soltar depende do navegador: em telas sensíveis ao toque use «Mover para…».
+- Arquivos soltos de uma pasta só no seu projeto de origem: apagar o projeto apaga o arquivo, esteja ele em qual pasta estiver. Um modelo apagado fora do OpenFlow deixa só um registro de pasta sem efeito.
+- Pastas de modelos não mudam onde o OpenFlow procura o modelo; é só organização.
+
 ## [0.26.0] — 2026-11-15
 
 ### Novo — várias placas de vídeo (multi-GPU)

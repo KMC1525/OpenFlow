@@ -19,6 +19,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from . import __version__, hf, native, team, voice
 from .jobs import HttpError, Job, JobManager  # noqa: F401  (reexportados)
 from .providers import ProviderError, build_provider, describe_presets, provider_config
+from .routes_library import LibraryRoutes
 from .routes_preinstalled import PreinstalledRoutes
 from .routes_projects import ProjectRoutes
 from .storage import Store
@@ -156,6 +157,8 @@ class App:
         self.project_routes.register()
         self.preinstalled_routes = PreinstalledRoutes(self)
         self.preinstalled_routes.register()
+        self.library_routes = LibraryRoutes(self)
+        self.library_routes.register()
 
     # ----- estado / configurações
     def r_state(self, req: "Request") -> None:

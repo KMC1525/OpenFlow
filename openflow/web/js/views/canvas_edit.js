@@ -2,7 +2,7 @@ import { api, events } from '../api.js';
 import { t } from '../i18n.js';
 import { go, state } from '../main.js';
 import { teamPicker } from '../team_ui.js';
-import { confirmDialog, fill, h, icon, popover, toast } from '../ui.js';
+import { confirmDialog, debounce, fill, h, icon, popover, toast } from '../ui.js';
 import { modelSearchBar } from './canvas_hub.js';
 import { GROUPS, LABEL, OUT_COLOR, TYPE_HELP, compatible, findFolder, nodeBody, nodeResult, portLabel } from '../canvas_nodes.js';
 
@@ -15,7 +15,7 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 export default async function render(root, ctx, cid) {
   const [meta, cv, prov] = await Promise.all([api('/api/project-templates'), api('/api/projects/' + cid), api('/api/media/providers')]);
   const types = Object.fromEntries(meta.types.map((x) => [x.type, x]));
-  const S = { cv, sel: '', selEdge: '', states: {}, job: '', stopEv: null, saveState: 'saved', assetsOpen: localStorage.getItem('openflow.cv.assets') === '1' };
+  const S = { cv, sel: '', selEdge: '', states: {}, job: '', stopEv: null, saveState: 'saved', assetsOpen: localStorage.getItem('openflow.cv.assets') === '1', assetsTab: localStorage.getItem('openflow.cv.assetsTab') === 'library' ? 'library' : 'project', lib: { folder: '', q: '', kind: '' } };
   let view = Object.assign({ x: 0, y: 0, zoom: 1 }, cv.viewport);
   const nodeById = (id) => S.cv.nodes.find((n) => n.id === id);
   const el = {};  // nó id → elemento
@@ -363,20 +363,66 @@ export default async function render(root, ctx, cid) {
   surface.addEventListener('dragleave', (e) => { if (e.target === surface) surface.classList.remove('drop'); });
   surface.addEventListener('drop', (e) => {
     surface.classList.remove('drop');
-    const p = toWorld(e.clientX, e.clientY), type = e.dataTransfer.getData('text/flow-node'), aid = e.dataTransfer.getData('text/flow-asset');
-    if (!type && !aid && !e.dataTransfer.files.length) return;
+    const p = toWorld(e.clientX, e.clientY), type = e.dataTransfer.getData('text/flow-node'), aid = e.dataTransfer.getData('text/flow-asset'), libItem = e.dataTransfer.getData('text/flow-library');
+    if (!type && !aid && !libItem && !e.dataTransfer.files.length) return;
     e.preventDefault();
     if (type && types[type]) return void addNode(type, p.x - 140, p.y - 20);
     if (aid) { const n = addNode('upload', p.x - 140, p.y - 20, { files: [aid] }); return void refreshNode(n.id); }
+    if (libItem) return void addFromLibrary(libItem, { x: p.x - 140, y: p.y - 20 });
     const nd = e.target.closest('.cv-node'), tn = nd && nodeById(nd.dataset.id);
     const fe = e.target.closest && e.target.closest('.sf-folder');   // soltou em cima de uma pasta do Style Folder: entra nela
     uploadFiles([...e.dataTransfer.files], { x: p.x - 140, y: p.y - 20 }, tn && ['upload', 'style_folder'].includes(tn.type) ? tn : null, fe ? fe.dataset.folder : '');
   });
 
+  // ---------------------------------------------------------------------------------------------- aba «Biblioteca» (v0.27): arquivos de todos os projetos, em pastas, para arrastar ao fluxo
+  function assetTabs() {
+    const tab = (k, label) => h('button', { type: 'button', class: 'cv-atab' + (S.assetsTab === k ? ' on' : ''), id: 'cv-atab-' + k, role: 'tab', 'aria-selected': S.assetsTab === k ? 'true' : 'false',
+      onclick: () => { S.assetsTab = k; localStorage.setItem('openflow.cv.assetsTab', k); paintAssets(); } }, label);
+    return h('div', { class: 'cv-atabs', role: 'tablist' }, tab('project', t('Projeto')), tab('library', t('Biblioteca')));
+  }
+  async function addFromLibrary(raw, pos) {
+    let d; try { d = JSON.parse(raw); } catch (er) { return; }
+    try {
+      let a = (S.cv.assets || []).find((x) => x.id === d.asset);
+      if (!a) { a = await api(`/api/projects/${cid}/assets/import`, { method: 'POST', body: { project: d.project, asset: d.asset } }); S.cv.assets.push(a); }
+      const n = addNode('upload', pos.x, pos.y, { files: [a.id] });
+      refreshNode(n.id); paintAssets();
+    } catch (e) { toast(e.message, 'err'); }
+  }
+  let libSeq = 0;
+  async function paintLibrary() {
+    const my = ++libSeq, L = S.lib;
+    const body = h('div', { class: 'lst lib', id: 'cv-lib-list' });
+    const q = h('input', { type: 'search', id: 'cv-lib-q', value: L.q, 'aria-label': t('Buscar na Biblioteca'), placeholder: t('Buscar pastas e arquivos…'), oninput: debounce(() => { L.q = q.value.trim(); paintLibrary(); }, 250) });
+    const kind = h('select', { id: 'cv-lib-kind', 'aria-label': t('Tipo de arquivo'), onchange: (e) => { L.kind = e.target.value; paintLibrary(); } },
+      [['', 'Todos os tipos'], ['image', 'Imagens'], ['video', 'Vídeos'], ['audio', 'Sons']].map(([v, l]) => h('option', { value: v, selected: v === L.kind }, t(l))));
+    const crumbs = h('div', { class: 'cv-lib-crumbs' });
+    fill(assetsPanel, assetTabs(), h('div', { class: 'cv-lib-top' }, q, kind), crumbs, body);
+    if (L.q) q.focus({ preventScroll: true }), q.setSelectionRange(q.value.length, q.value.length);
+    let r;
+    try { r = await api('/api/library/items?scope=files&source=all&folder=' + encodeURIComponent(L.folder) + '&q=' + encodeURIComponent(L.q) + '&kind=' + L.kind); }
+    catch (e) { if (e.status === 404 && L.folder) { L.folder = ''; return paintLibrary(); } return fill(body, h('div', { class: 'dim small', style: { padding: '16px' } }, e.message)); }
+    if (my !== libSeq) return;
+    const nav = (id) => { L.folder = id; L.q = ''; paintLibrary(); };
+    if (!L.q) fill(crumbs, h('button', { type: 'button', onclick: () => nav('') }, t('Todos os arquivos')), (r.path || []).map((p) => [h('span', null, '›'), h('button', { type: 'button', onclick: () => nav(p.id) }, p.name)]));
+    else fill(crumbs, h('span', { class: 'dim small' }, t('Resultados para «{q}»', { q: L.q })));
+    const items = r.items.filter((i) => ['image', 'video', 'audio'].includes(i.kind));   // só arquivos de mídia vão para o canvas
+    const nodes = [
+      ...r.folders.map((f) => h('button', { type: 'button', class: 'cv-lib-folder', 'data-folder': f.id, onclick: () => nav(f.id), title: f.path || f.name }, icon('folder', 15), h('span', null, f.name))),
+      ...items.map((i) => h('div', { class: 'cv-asset', draggable: 'true', 'data-asset': i.id, title: i.prompt || i.name, ondragstart: (e) => { e.dataTransfer.setData('text/flow-library', JSON.stringify({ project: i.project, asset: i.id })); e.dataTransfer.effectAllowed = 'copy'; } },
+        h('div', { class: 'pv' }, i.kind === 'image' ? h('img', { src: i.url, loading: 'lazy', draggable: 'false' }) : i.kind === 'video' ? h('video', { src: i.url + '#t=0.1', preload: 'metadata', muted: true }) : icon('audio', 28)),
+        h('span', { class: 'kd' }, i.kind === 'image' ? t('imagem') : i.kind === 'video' ? t('vídeo') : t('áudio')),
+        h('div', { class: 'cap' }, i.name),
+        h('div', { class: 'acts' }, h('button', { title: t('Adicionar ao fluxo'), 'aria-label': t('Adicionar ao fluxo'), onclick: () => { const r2 = surface.getBoundingClientRect(); const p = toWorld(r2.left + r2.width / 2 - 140, r2.top + r2.height / 2 - 60); addFromLibrary(JSON.stringify({ project: i.project, asset: i.id }), p); } }, icon('plus', 12))))),
+    ];
+    fill(body, nodes.length ? nodes : h('div', { class: 'dim small', style: { padding: '16px', gridColumn: '1 / -1' } }, L.q ? t('Nada encontrado para «{q}».', { q: L.q }) : t('A Biblioteca está vazia. Os arquivos gerados nos projetos aparecem aqui; organize-os em pastas na tela Biblioteca.')));
+  }
+
   function paintAssets() {
     assetsPanel.classList.toggle('hidden', !S.assetsOpen);
     assetsBtn.querySelector('span').textContent = t('Arquivos') + ' (' + S.cv.assets.length + ')';
     if (!S.assetsOpen) return;
+    if (S.assetsTab === 'library') return paintLibrary();
     const input = h('input', { type: 'file', multiple: true, accept: 'image/*,video/*,audio/*,.zip,.rar,.7z,.tar,.tgz,.cbz,.cbr', class: 'hidden', onchange: (e) => { const r = surface.getBoundingClientRect(); const p = toWorld(r.left + 120, r.top + 80); uploadFiles([...e.target.files], p); e.target.value = ''; } });
     const items = [...S.cv.assets].reverse().map((a) => h('div', { class: 'cv-asset', draggable: 'true', title: a.prompt || a.name, ondragstart: (e) => { e.dataTransfer.setData('text/flow-asset', a.id); e.dataTransfer.effectAllowed = 'copy'; } },
       h('div', { class: 'pv', onclick: () => preview(a) }, a.kind === 'image' ? h('img', { src: c.url(a), loading: 'lazy', draggable: 'false' }) : a.kind === 'video' ? h('video', { src: c.url(a) + '#t=0.1', preload: 'metadata', muted: true }) : icon('audio', 28)),
@@ -388,7 +434,7 @@ export default async function render(root, ctx, cid) {
           if (!(await confirmDialog(t('Apagar “{n}”? Ela sai de todos os nós e do Editor.', { n: a.name })))) return;
           try { await save(); await api(`/api/projects/${cid}/assets/${a.id}`, { method: 'DELETE' }); await reload(); } catch (e) { toast(e.message, 'err'); }
         } }, icon('trash', 12)))));
-    fill(assetsPanel, h('div', { class: 'hd' }, h('span', { class: 'grow' }, t('Arquivos do projeto')), h('button', { class: 'btn sm', onclick: () => input.click() }, icon('plus', 13), t('Enviar')), input),
+    fill(assetsPanel, assetTabs(), h('div', { class: 'hd' }, h('span', { class: 'grow' }, t('Arquivos do projeto')), h('button', { class: 'btn sm', onclick: () => input.click() }, icon('plus', 13), t('Enviar')), input),
       S.cv.assets.length ? h('div', { class: 'lst' }, items) : h('div', { class: 'dim small', style: { padding: '16px' } }, t('Tudo que você envia ou gera aparece aqui. Arraste um arquivo para o projeto para usá-lo.')));
   }
 

@@ -233,3 +233,14 @@ a.btn{text-decoration:none}
 .cv-node .linked{font-size:12px;line-height:1.4;color:var(--muted);background:var(--bg2);border-radius:10px;padding:6px 9px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow-wrap:anywhere}
 .cv-node .linked b{color:var(--text);font-weight:600}
 .cv-node .linked.warn{color:var(--err)}
+
+/* v0.27 · aba Biblioteca no painel da direita do canvas */
+.cv-atabs{display:flex;border-bottom:1px solid var(--line)}
+.cv-atab{flex:1;border:0;background:none;color:var(--muted);padding:10px;cursor:pointer;font:inherit;font-size:13px;border-bottom:2px solid transparent}
+.cv-atab.on{color:var(--text);border-bottom-color:var(--accent);font-weight:600}
+.cv-lib-top{display:flex;gap:6px;padding:10px 10px 4px}
+.cv-lib-top input{flex:1;min-width:0}
+.cv-lib-crumbs{display:flex;flex-wrap:wrap;gap:4px;align-items:center;padding:4px 12px;font-size:12px}
+.cv-lib-crumbs button{border:0;background:none;color:var(--accent);cursor:pointer;padding:2px 4px;font:inherit}
+.cv-assets .lst.lib .cv-lib-folder{grid-column:1 / -1;display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:10px;background:var(--bg1);color:var(--text);padding:8px 10px;cursor:pointer;font:inherit;font-size:13px;text-align:left}
+.cv-assets .lst.lib .cv-lib-folder span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

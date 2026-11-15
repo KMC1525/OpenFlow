@@ -44,6 +44,7 @@ class ProjectRoutes:
         a("GET", r"/api/projects/(?P<cid>[\w-]+)/download", self.r_download)
         a("GET", r"/api/projects/(?P<cid>[\w-]+)/mentions", self.r_mentions)
         a("POST", r"/api/projects/(?P<cid>[\w-]+)/assets", self.r_asset_upload)
+        a("POST", r"/api/projects/(?P<cid>[\w-]+)/assets/import", self.r_asset_import)
         a("GET", r"/api/projects/(?P<cid>[\w-]+)/assets/(?P<fname>[\w][\w.-]*)", self.r_asset_get)
         a("DELETE", r"/api/projects/(?P<cid>[\w-]+)/assets/(?P<aid>[\w-]+)", self.r_asset_delete)
 
@@ -283,6 +284,28 @@ class ProjectRoutes:
             mime = "application/octet-stream"
         dl = "1" in (req.query.get("download") or [])
         req.file(path, mime, download_name=(rec or {}).get("name", fname) if dl else "", cache=True)
+
+    def r_asset_import(self, req, cid: str) -> None:
+        """Traz para este projeto um arquivo de outro (a aba Biblioteca do canvas): copia o arquivo, mantendo o modelo e o prompt de origem. Do mesmo projeto, devolve o próprio arquivo."""
+        self._canvas(cid)
+        b = req.body_json()
+        b = b if isinstance(b, dict) else {}
+        src, aid = text(b.get("project"), "", 40), text(b.get("asset"), "", 60)
+        sc = self.cs.get(src) if src else None
+        rec = next((a for a in (sc or {}).get("assets", []) if a["id"] == aid), None)
+        if not rec:
+            raise HttpError(404, "Arquivo não encontrado na Biblioteca.")
+        if src == cid:
+            req.json(rec)
+            return
+        path = self.cs.asset_path(src, rec["file"])
+        if not path:
+            raise HttpError(404, "O arquivo não está mais no disco.")
+        ext = rec["file"].rsplit(".", 1)[-1] if "." in rec["file"] else "bin"
+        a = self.cs.add_asset(cid, path.read_bytes(), ext, rec["kind"], name=rec["name"], mime=rec["mime"], prompt=rec.get("prompt", ""), provider=rec.get("provider") or "library", model=rec.get("model", ""))
+        if not a:
+            raise HttpError(400, "Não foi possível copiar o arquivo.")
+        req.json(a, 201)
 
     def r_asset_delete(self, req, cid: str, aid: str) -> None:
         self._canvas(cid)

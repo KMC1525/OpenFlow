@@ -1,69 +1,232 @@
 import { api, events } from '../api.js';
 import { t } from '../i18n.js';
-import { confirmDialog, debounce, fmtBytes, fmtEta, h, icon, toast } from '../ui.js';
+import { saveSettings } from '../main.js';
+import { confirmDialog, debounce, fmtBytes, fmtDate, fmtEta, h, icon, modal, toast } from '../ui.js';
 import { GGUF_KINDS } from '../model_labels.js';
-import { go } from '../main.js';
 
-// Tela «Biblioteca» (v0.23): o que existe neste computador — modelos baixados (e como baixar mais), arquivos gerados nos projetos e os downloads (em andamento e concluídos).
-const TABS = [['models', 'Modelos'], ['files', 'Arquivos gerados'], ['downloads', 'Downloads']];
+// Biblioteca (v0.27), no estilo do Google Drive: pastas e subpastas (virtuais: nada muda no disco) para modelos de IA e arquivos gerados, busca em todas as pastas, arrastar e soltar para organizar,
+// a lista de downloads e o catálogo para baixar mais modelos. No canvas, a aba «Biblioteca» do painel da direita arrasta os arquivos para o fluxo.
+const LS = (k, v) => { try { if (v === undefined) return localStorage.getItem('openflow.lib.' + k); localStorage.setItem('openflow.lib.' + k, v); } catch (e) { return null; } return null; };
+const DRAG = 'application/x-openflow-library';
 
 export default async function render(root, ctx) {
-  let tab = (ctx && ctx.tab) || 'models';
-  if (!TABS.some(([k]) => k === tab)) tab = 'models';
-  let stop = () => {};   // encerra o que a aba atual mantém ligado (atualização dos downloads)
-  const body = h('div', { id: 'lib-body' });
-  const seg = h('div', { class: 'seg', role: 'tablist', 'aria-label': t('Seções da Biblioteca'), style: { marginBottom: '16px', flexWrap: 'wrap' } });
-  const paintTabs = () => seg.replaceChildren(...TABS.map(([k, l]) => h('button', { type: 'button', role: 'tab', id: 'lib-tab-' + k, 'aria-selected': tab === k ? 'true' : 'false', class: tab === k ? 'on' : '',
-    onclick: () => { if (tab !== k) { tab = k; show(); } } }, t(l))));
+  const S = { scope: (ctx && ctx.tab === 'downloads') ? 'downloads' : (ctx && ctx.tab === 'files') ? 'files' : 'models', folder: '', q: '', view: LS('view') === 'list' ? 'list' : 'grid', kind: '', source: 'all', browse: false, tree: [] };
+  if (ctx && ctx.repo) S.browse = true;   // vindo do aviso de um nó: abre o catálogo de modelos já no repositório indicado
+  let stop = () => {};
+  const main = h('div', { class: 'lib-main', id: 'lib-body' });
+  const side = h('nav', { class: 'lib-side', 'aria-label': t('Seções da Biblioteca') });
+  const bar = h('div', { class: 'lib-bar' });
+  let seq = 0;
 
-  async function show() {
-    stop(); stop = () => {};
-    paintTabs();
-    const holder = h('div');
-    body.replaceChildren(holder);
-    if (tab === 'models') { const m = await import('./models.js'); await m.default(holder, { ...(ctx || {}), embedded: true }); }
-    else if (tab === 'files') await filesTab(holder);
-    else stop = await downloadsTab(holder);
+  const pass = (e) => e.stopPropagation();
+  async function call(path, opts) { try { return await api(path, opts); } catch (e) { toast(e.message, 'err'); throw e; } }
+
+  // ---------------------------------------------------------------------------------------------- navegação
+  async function go(next) { Object.assign(S, next); LS('scope', S.scope); await show(); }
+
+  const search = h('input', { type: 'search', id: 'lib-q', 'aria-label': t('Buscar pastas e arquivos'), placeholder: t('Buscar pastas e arquivos…'), autocomplete: 'off',
+    oninput: debounce(() => { S.q = search.value.trim(); if (S.scope === 'downloads' || S.browse) { S.scope = 'files'; S.browse = false; show(); } else loadItems(); }, 250) });
+
+  function paintSide() {
+    const sec = [['models', 'Modelos de IA', 'layers'], ['files', 'Arquivos gerados', 'image'], ['downloads', 'Downloads', 'download']];
+    const nodes = [];
+    for (const [k, label, ic] of sec) {
+      const on = S.scope === k && !S.browse;
+      nodes.push(h('button', { type: 'button', class: 'lib-sec' + (on && !S.folder ? ' on' : ''), id: 'lib-tab-' + k, 'data-scope': k, 'aria-current': on ? 'page' : null,
+        onclick: () => { S.q = ''; search.value = ''; go({ scope: k, folder: '', browse: false }); },
+        ondragover: (e) => { if (k !== 'downloads' && e.dataTransfer.types.includes(DRAG)) { e.preventDefault(); e.currentTarget.classList.add('drop'); } },
+        ondragleave: (e) => e.currentTarget.classList.remove('drop'),
+        ondrop: (e) => { e.currentTarget.classList.remove('drop'); if (k !== 'downloads') dropOn(e, ''); } }, icon(ic, 16), h('span', null, t(label))));
+      if (k === S.scope && k !== 'downloads') nodes.push(treeNode('', 0));
+    }
+    side.replaceChildren(...nodes);
+  }
+  function treeNode(parent, depth) {
+    const kids = S.tree.filter((f) => (f.parent || '') === parent).sort((a, b) => a.name.localeCompare(b.name));
+    return h('div', { class: 'lib-tree' }, kids.map((f) => h('div', null,
+      h('button', { type: 'button', class: 'lib-fold' + (S.folder === f.id && !S.browse ? ' on' : ''), style: { paddingLeft: (10 + depth * 14) + 'px' }, 'data-folder': f.id, onclick: () => { S.q = ''; search.value = ''; go({ folder: f.id, browse: false }); },
+        ondragover: (e) => { if (e.dataTransfer.types.includes(DRAG)) { e.preventDefault(); e.currentTarget.classList.add('drop'); } }, ondragleave: (e) => e.currentTarget.classList.remove('drop'),
+        ondrop: (e) => { e.currentTarget.classList.remove('drop'); dropOn(e, f.id); } }, icon('folder', 14), h('span', null, f.name)),
+      treeNode(f.id, depth + 1))));
   }
 
-  // ---------------------------------------------------------------------------------------------- arquivos gerados
-  async function filesTab(box) {
-    let kind = '', source = 'generated', seq = 0;
-    const grid = h('div', { class: 'libgrid', 'aria-live': 'polite' });
-    const q = h('input', { type: 'search', id: 'lib-q', 'aria-label': t('Buscar arquivos'), placeholder: t('Buscar por nome, projeto ou modelo…'), autocomplete: 'off', oninput: debounce(load, 250) });
-    const kindSel = h('select', { id: 'lib-kind', 'aria-label': t('Tipo de arquivo'), onchange: () => { kind = kindSel.value; load(); } },
-      [['', 'Todos os tipos'], ['image', 'Imagens'], ['video', 'Vídeos'], ['audio', 'Sons']].map(([v, l]) => h('option', { value: v }, t(l))));
-    const srcSel = h('select', { id: 'lib-source', 'aria-label': t('Origem'), onchange: () => { source = srcSel.value; load(); } },
-      [['generated', 'Gerados por modelos'], ['upload', 'Enviados por você'], ['all', 'Todos']].map(([v, l]) => h('option', { value: v }, t(l))));
-    const count = h('span', { class: 'dim small', id: 'lib-count' });
-    box.append(h('div', { class: 'card' }, h('div', { class: 'row nw', style: { marginBottom: '12px', flexWrap: 'wrap' } }, h('div', { class: 'search', style: { maxWidth: 'none', flex: 1, minWidth: '180px' } }, icon('search', 17), q), kindSel, srcSel, count), grid));
+  // ---------------------------------------------------------------------------------------------- arrastar e soltar
+  async function dropOn(e, folderId) {
+    const raw = e.dataTransfer.getData(DRAG);
+    if (!raw) return;
+    e.preventDefault(); e.stopPropagation();
+    let d; try { d = JSON.parse(raw); } catch (er) { return; }
+    try {
+      for (const fid of d.folders || []) if (fid !== folderId) await api('/api/library/folders/' + fid, { method: 'PUT', body: { parent: folderId } });
+      if ((d.keys || []).length) await api('/api/library/move', { method: 'POST', body: { items: d.keys, folder: folderId } });
+      await show();
+    } catch (er) { toast(er.message, 'err'); }
+  }
+  const dragStart = (payload) => (e) => { e.dataTransfer.setData(DRAG, JSON.stringify(payload)); e.dataTransfer.effectAllowed = 'move'; };
+  const dropTarget = (folderId) => ({ ondragover: (e) => { if (e.dataTransfer.types.includes(DRAG)) { e.preventDefault(); e.currentTarget.classList.add('drop'); } }, ondragleave: (e) => e.currentTarget.classList.remove('drop'),
+    ondrop: (e) => { e.currentTarget.classList.remove('drop'); dropOn(e, folderId); } });
 
-    const thumb = (f) => f.kind === 'image' ? h('img', { src: f.url, alt: f.name, loading: 'lazy' })
-      : f.kind === 'video' ? h('video', { src: f.url, preload: 'metadata', muted: true, 'aria-label': f.name })
-        : h('div', { class: 'ico' }, icon('audio', 30));
-    async function load() {
-      const my = ++seq;
-      try {
-        const r = await api('/api/library/files?kind=' + kind + '&source=' + source + '&q=' + encodeURIComponent(q.value.trim()));
-        if (my !== seq) return;
-        count.textContent = t('{n} arquivo(s)', { n: r.files.length });
-        grid.replaceChildren(...(r.files.length ? r.files.map((f) => {
-          const card = h('div', { class: 'libfile', 'data-asset': f.id },
-            h('a', { class: 'th', href: f.url, target: '_blank', rel: 'noopener', title: t('Abrir {n}', { n: f.name }) }, thumb(f)),
-            h('div', { class: 'meta' }, h('div', { class: 'nm', title: f.name }, f.name),
-              h('div', { class: 'dim small' }, [f.model || f.provider, fmtBytes(f.bytes), f.w ? f.w + '×' + f.h : '', f.duration ? Math.round(f.duration) + ' s' : ''].filter(Boolean).join(' · ')),
-              h('a', { class: 'small', href: '#/project/' + f.project, title: t('Abrir o projeto') }, f.project_name)),
-            h('div', { class: 'row', style: { gap: '4px' } },
-              h('a', { class: 'btn sm ghost', href: f.url, download: f.name, title: t('Baixar {n}', { n: f.name }), 'aria-label': t('Baixar {n}', { n: f.name }) }, icon('download', 13)),
-              h('button', { class: 'btn sm ghost danger', type: 'button', title: t('Apagar {n}', { n: f.name }), 'aria-label': t('Apagar {n}', { n: f.name }), onclick: async () => {
-                if (!(await confirmDialog(t('Apagar o arquivo {n}? Ele some do projeto «{p}» também.', { n: f.name, p: f.project_name })))) return;
-                try { await api('/api/projects/' + f.project + '/assets/' + f.id, { method: 'DELETE' }); load(); } catch (e) { toast(e.message, 'err'); }
-              } }, icon('trash', 13))));
-          return card;
-        }) : [h('div', { class: 'muted small' }, source === 'generated' ? t('Nenhum arquivo gerado ainda. Rode um nó de imagem, vídeo, som ou voz num projeto.') : t('Nenhum arquivo encontrado.'))]));
-      } catch (e) { if (my === seq) grid.replaceChildren(h('div', { class: 'res err', role: 'alert' }, e.message)); }
+  // ---------------------------------------------------------------------------------------------- ações de pasta e de item
+  async function askName(title, value) {
+    const inp = h('input', { type: 'text', id: 'lib-name', value: value || '', maxlength: 80, style: { width: '100%' }, onkeydown: (e) => { if (e.key === 'Enter') e.target.closest('.modal').querySelector('.btn.primary').click(); } });
+    const v = await modal(title, inp, [{ label: t('Cancelar'), value: null }, { label: t('Salvar'), value: 'ok', cls: 'primary' }]);
+    return v === 'ok' ? inp.value.trim() : '';
+  }
+  async function newFolder() {
+    const name = await askName(t('Nova pasta'), '');
+    if (!name) return;
+    try { await api('/api/library/folders', { method: 'POST', body: { name, parent: S.folder, scope: S.scope } }); await show(); } catch (e) { toast(e.message, 'err'); }
+  }
+  async function renameFolder(f) {
+    const name = await askName(t('Renomear'), f.name);
+    if (!name || name === f.name) return;
+    try { await api('/api/library/folders/' + f.id, { method: 'PUT', body: { name } }); await show(); } catch (e) { toast(e.message, 'err'); }
+  }
+  async function deleteFolder(f) {
+    if (!(await confirmDialog(t('Excluir a pasta «{n}»? Nada é apagado do disco: o que está dentro sobe para a pasta de cima.', { n: f.name })))) return;
+    try { await api('/api/library/folders/' + f.id, { method: 'DELETE' }); if (S.folder === f.id) S.folder = f.parent || ''; await show(); } catch (e) { toast(e.message, 'err'); }
+  }
+  async function moveDialog(keys, folders) {
+    let chosen = null;
+    const list = h('div', { class: 'lib-pick' });
+    const paint = () => {
+      const row = (id, name, depth) => h('button', { type: 'button', class: 'lib-fold' + (chosen === id ? ' on' : ''), style: { paddingLeft: (10 + depth * 14) + 'px', width: '100%' }, onclick: () => { chosen = id; paint(); } }, icon(id ? 'folder' : 'library', 14), h('span', null, name));
+      const walk = (parent, depth) => S.tree.filter((f) => (f.parent || '') === parent && !(folders || []).includes(f.id)).sort((a, b) => a.name.localeCompare(b.name)).flatMap((f) => [row(f.id, f.name, depth), ...walk(f.id, depth + 1)]);
+      list.replaceChildren(row('', t(S.scope === 'models' ? 'Todos os modelos' : 'Todos os arquivos'), 0), ...walk('', 1));
+    };
+    paint();
+    const v = await modal(t('Mover para…'), list, [{ label: t('Cancelar'), value: null }, { label: t('Mover'), value: 'ok', cls: 'primary' }]);
+    if (v !== 'ok' || chosen === null) return;
+    try {
+      for (const fid of folders || []) await api('/api/library/folders/' + fid, { method: 'PUT', body: { parent: chosen } });
+      if ((keys || []).length) await api('/api/library/move', { method: 'POST', body: { items: keys, folder: chosen } });
+      await show();
+    } catch (e) { toast(e.message, 'err'); }
+  }
+
+  // ---------------------------------------------------------------------------------------------- conteúdo
+  const content = h('div', { class: 'lib-content', 'aria-live': 'polite' });
+  const crumbs = h('div', { class: 'lib-crumbs' });
+  const filters = h('div', { class: 'lib-filters' });
+
+  function paintBar() {
+    const rootName = S.scope === 'models' ? t('Todos os modelos') : t('Todos os arquivos');
+    crumbs.replaceChildren();
+    if (S.scope === 'downloads') { crumbs.append(h('b', null, t('Downloads'))); }
+    else if (S.browse) { crumbs.append(h('button', { type: 'button', class: 'lib-crumb', onclick: () => go({ browse: false }) }, '← ' + rootName), h('b', null, t('Baixar mais modelos'))); }
+    else if (S.q) { crumbs.append(h('b', null, t('Resultados para «{q}»', { q: S.q }))); }
+    else {
+      crumbs.append(h('button', { type: 'button', class: 'lib-crumb', ...dropTarget(''), onclick: () => go({ folder: '' }) }, rootName));
+      (S.path || []).forEach((p) => crumbs.append(h('span', { class: 'sep' }, '›'), h('button', { type: 'button', class: 'lib-crumb', ...dropTarget(p.id), onclick: () => go({ folder: p.id }) }, p.name)));
     }
-    await load();
+    const kinds = S.scope === 'models' ? [['', 'Todos os tipos'], ...GGUF_KINDS.map(([k, l]) => [k, l])] : [['', 'Todos os tipos'], ['image', 'Imagens'], ['video', 'Vídeos'], ['audio', 'Sons']];
+    filters.replaceChildren();
+    if ((S.scope === 'models' || S.scope === 'files') && !S.browse) {
+      filters.append(h('select', { id: 'lib-kind', 'aria-label': t('Tipo de arquivo'), onchange: (e) => { S.kind = e.target.value; loadItems(); } }, kinds.map(([v, l]) => h('option', { value: v, selected: v === S.kind }, t(l)))));
+      if (S.scope === 'files') filters.append(h('select', { id: 'lib-source', 'aria-label': t('Origem'), onchange: (e) => { S.source = e.target.value; loadItems(); } },
+        [['all', 'Todos'], ['generated', 'Gerados por modelos'], ['upload', 'Enviados por você']].map(([v, l]) => h('option', { value: v, selected: v === S.source }, t(l)))));
+    }
+    const can = (S.scope === 'models' || S.scope === 'files') && !S.browse && !S.q;
+    bar.replaceChildren(
+      h('div', { class: 'lib-search' }, icon('search', 16), search),
+      h('div', { class: 'grow' }),
+      can ? h('button', { class: 'btn', type: 'button', id: 'lib-newfolder', onclick: newFolder }, icon('plus', 14), t('Nova pasta')) : null,
+      S.scope === 'models' && !S.browse ? h('button', { class: 'btn primary', type: 'button', id: 'lib-get', onclick: () => go({ browse: true }) }, icon('download', 14), t('Baixar mais modelos')) : null,
+      (S.scope === 'models' || S.scope === 'files') && !S.browse ? h('div', { class: 'seg', role: 'group', 'aria-label': t('Visualização') },
+        h('button', { type: 'button', class: S.view === 'grid' ? 'on' : '', id: 'lib-grid', title: t('Grade'), 'aria-label': t('Grade'), onclick: () => { S.view = 'grid'; LS('view', 'grid'); paintBar(); paintItems(); } }, icon('grid', 15)),
+        h('button', { type: 'button', class: S.view === 'list' ? 'on' : '', id: 'lib-list', title: t('Lista'), 'aria-label': t('Lista'), onclick: () => { S.view = 'list'; LS('view', 'list'); paintBar(); paintItems(); } }, icon('rowsmall', 15))) : null);
+  }
+
+  let data = { folders: [], items: [], path: [], search: false };
+  async function loadItems() {
+    const my = ++seq;
+    try {
+      const r = await api('/api/library/items?scope=' + S.scope + '&folder=' + encodeURIComponent(S.folder) + '&q=' + encodeURIComponent(S.q) + '&kind=' + S.kind + '&source=' + S.source);
+      if (my !== seq) return;
+      data = r; S.path = r.path || []; if (r.tree) S.tree = r.tree;
+      paintSide(); paintBar(); paintItems();
+    } catch (e) {
+      if (my !== seq) return;
+      if (e.status === 404 && S.folder) { S.folder = ''; return loadItems(); }   // a pasta foi apagada em outra aba
+      content.replaceChildren(h('div', { class: 'res err', role: 'alert' }, e.message));
+    }
+  }
+
+  const menu = (items) => {
+    const wrap = h('div', { class: 'lib-menu', onclick: pass, ondragstart: (e) => e.preventDefault(), draggable: 'false' });
+    const pop = h('div', { class: 'lib-pop hidden', role: 'menu' }, items.filter(Boolean).map(([label, fn, cls]) => h('button', { type: 'button', role: 'menuitem', class: cls || '', onclick: (e) => { e.stopPropagation(); pop.classList.add('hidden'); fn(); } }, label)));
+    const btn = h('button', { type: 'button', class: 'btn sm ghost', title: t('Mais ações'), 'aria-label': t('Mais ações'), 'aria-haspopup': 'menu', onclick: (e) => {
+      e.stopPropagation(); const open = pop.classList.contains('hidden'); document.querySelectorAll('.lib-pop').forEach((p) => p.classList.add('hidden')); pop.classList.toggle('hidden', !open);
+      if (open) setTimeout(() => document.addEventListener('click', () => pop.classList.add('hidden'), { once: true }), 0);
+    } }, icon('more', 15));
+    wrap.append(btn, pop);
+    return wrap;
+  };
+
+  const folderCard = (f) => h('div', { class: 'lib-card folder', 'data-folder': f.id, draggable: 'true', title: f.path ? f.path : f.name, ondragstart: dragStart({ folders: [f.id] }), ...dropTarget(f.id), ondblclick: () => open(f), onclick: () => open(f) },
+    icon('folder', S.view === 'grid' ? 30 : 18),
+    h('div', { class: 'meta' }, h('div', { class: 'nm' }, f.name), h('div', { class: 'dim small' }, f.path ? t('em {p}', { p: f.path }) : t('{n} item(ns)', { n: f.count || 0 }))),
+    menu([[t('Abrir'), () => open(f)], [t('Renomear'), () => renameFolder(f)], [t('Mover para…'), () => moveDialog([], [f.id])], [t('Excluir pasta'), () => deleteFolder(f), 'danger']]));
+  const open = (f) => { S.q = ''; search.value = ''; go({ folder: f.id, browse: false }); };
+
+  const thumb = (f) => f.kind === 'image' ? h('img', { src: f.url, alt: f.name, loading: 'lazy', draggable: 'false' })
+    : f.kind === 'video' ? h('video', { src: f.url, preload: 'metadata', muted: true, 'aria-label': f.name }) : h('div', { class: 'ico' }, icon('audio', 30));
+
+  function fileCard(f) {
+    return h('div', { class: 'lib-card file', 'data-asset': f.id, draggable: 'true', ondragstart: dragStart({ keys: [f.key] }) },
+      h('a', { class: 'th', href: f.url, target: '_blank', rel: 'noopener', title: t('Abrir {n}', { n: f.name }), draggable: 'false' }, thumb(f)),
+      h('div', { class: 'meta' }, h('div', { class: 'nm', title: f.name }, f.name),
+        h('div', { class: 'dim small' }, [f.model || f.provider, fmtBytes(f.bytes), f.w ? f.w + '×' + f.h : '', f.duration ? Math.round(f.duration) + ' s' : ''].filter(Boolean).join(' · ')),
+        h('a', { class: 'small', href: '#/project/' + f.project, title: t('Abrir o projeto'), draggable: 'false' }, f.project_name), f.path ? h('div', { class: 'dim small' }, t('em {p}', { p: f.path })) : null),
+      menu([[t('Mover para…'), () => moveDialog([f.key], [])], [t('Baixar'), () => { const a = h('a', { href: f.url + '?download=1', download: f.name }); document.body.append(a); a.click(); a.remove(); }],
+        [t('Apagar'), async () => {
+          if (!(await confirmDialog(t('Apagar o arquivo {n}? Ele some do projeto «{p}» também.', { n: f.name, p: f.project_name })))) return;
+          try { await api('/api/projects/' + f.project + '/assets/' + f.id, { method: 'DELETE' }); loadItems(); } catch (e) { toast(e.message, 'err'); }
+        }, 'danger']]));
+  }
+
+  function modelCard(m) {
+    const kindLabel = t((GGUF_KINDS.find(([x]) => x === m.kind) || [0, m.kind])[1]);
+    const useIt = async () => {
+      try {
+        if (m.kind === 'text') { await saveSettings({ providers: { local_hf: { model: m.name } }, active: { generation: 'local_hf' } }); toast(t('Usando como modelo de texto'), 'ok'); }
+        else { await saveSettings({ media: { models: { gguf_local: { [m.kind]: m.name } }, active: { [m.kind]: 'gguf_local' } } }); toast(m.kind === 'image' ? t('Usando para imagens') : t('Usando para vídeos'), 'ok'); }
+      } catch (e) { toast(e.message, 'err'); }
+    };
+    return h('div', { class: 'lib-card model', 'data-model': m.name, draggable: 'true', ondragstart: dragStart({ keys: [m.key] }) },
+      h('div', { class: 'th ico' }, icon(m.kind === 'text' ? 'type' : m.kind === 'image' ? 'image' : m.kind === 'video' ? 'video' : 'audio', 30)),
+      h('div', { class: 'meta' }, h('div', { class: 'nm mono', title: m.name }, m.name),
+        h('div', { class: 'dim small' }, [kindLabel, fmtBytes(m.size), m.parts > 1 ? t('{n} partes', { n: m.parts }) : ''].filter(Boolean).join(' · ')), m.quant ? h('span', { class: 'chip solid' }, m.quant) : null,
+        m.path ? h('div', { class: 'dim small' }, t('em {p}', { p: m.path })) : null),
+      menu([m.kind === 'text' || m.kind === 'image' || m.kind === 'video' ? [t('Usar'), useIt] : null, [t('Mover para…'), () => moveDialog([m.key], [])],
+        [t('Apagar'), async () => {
+          if (!(await confirmDialog(t('Apagar o arquivo {n}?', { n: m.name })))) return;
+          try { await api('/api/hf/local/' + encodeURIComponent(m.name) + '?kind=' + m.kind, { method: 'DELETE' }); loadItems(); } catch (e) { toast(e.message, 'err'); }
+        }, 'danger']]));
+  }
+
+  function emptyText() {
+    if (data.search) return t('Nada encontrado para «{q}».', { q: S.q });
+    if (S.folder) return t('Esta pasta está vazia. Arraste itens para cá ou crie uma subpasta.');
+    return S.scope === 'models' ? t('Nenhum modelo baixado ainda. Use «Baixar mais modelos».') : t('Nenhum arquivo ainda. Rode um nó de imagem, vídeo, som ou voz num projeto.');
+  }
+
+  function paintItems() {
+    const folders = data.folders || [], items = data.items || [];
+    content.className = 'lib-content ' + (S.view === 'list' ? 'list' : 'grid');
+    content.replaceChildren(
+      ...(folders.length ? [h('h4', { class: 'lib-h' }, t('Pastas')), h('div', { class: 'lib-grid', id: 'lib-folders' }, folders.map(folderCard))] : []),
+      ...(items.length ? [h('h4', { class: 'lib-h' }, S.scope === 'models' ? t('Modelos') : t('Arquivos')), h('div', { class: 'lib-grid', id: 'lib-items' }, items.map((i) => S.scope === 'models' ? modelCard(i) : fileCard(i)))] : []),
+      !folders.length && !items.length ? h('div', { class: 'lib-empty muted' }, emptyText()) : null);
+    content.ondragover = (e) => { if (S.folder && e.dataTransfer.types.includes(DRAG) && e.target === content) { e.preventDefault(); } };
+  }
+
+  // ---------------------------------------------------------------------------------------------- baixar mais modelos (o catálogo e a busca de antes)
+  async function browseModels() {
+    const holder = h('div');
+    main.replaceChildren(bar, crumbs, holder);
+    const m = await import('./models.js');
+    await m.default(holder, { ...(ctx || {}), embedded: true });
   }
 
   // ---------------------------------------------------------------------------------------------- downloads
@@ -102,7 +265,7 @@ export default async function render(root, ctx) {
             h('div', { class: 'grow', style: { minWidth: 0 } }, h('div', { class: 'mono', style: { fontSize: '13px', overflowWrap: 'anywhere' } }, m.name),
               h('div', { class: 'dim small' }, [kindLabel(m.kind), fmtBytes(m.size), m.mtime ? new Date(m.mtime * 1000).toLocaleString() : ''].filter(Boolean).join(' · '))),
             m.quant ? h('span', { class: 'chip solid' }, m.quant) : null)))
-            : [h('div', { class: 'muted small' }, t('Nenhum modelo baixado ainda.'), ' ', h('button', { class: 'btn sm', type: 'button', onclick: () => { tab = 'models'; show(); } }, t('Baixar modelos')))]));
+            : [h('div', { class: 'muted small' }, t('Nenhum modelo baixado ainda.'), ' ', h('button', { class: 'btn sm', type: 'button', onclick: () => { go({ scope: 'models', browse: true }); } }, t('Baixar modelos')))]));
         }
         timer = setTimeout(tick, run.length ? 1000 : 4000);   // mais rápido enquanto há download; devagar quando parado
       } catch (e) { if (alive) timer = setTimeout(tick, 5000); }
@@ -111,9 +274,23 @@ export default async function render(root, ctx) {
     return () => { alive = false; clearTimeout(timer); };
   }
 
-  root.replaceChildren(h('div', { class: 'page narrow cfg' }, h('div', { class: 'page-h' }, h('div', null, h('h1', null, t('Biblioteca')),
-    h('p', null, t('Os modelos baixados, os arquivos gerados nos seus projetos e os downloads.')))), seg, body));
+
+  // ---------------------------------------------------------------------------------------------- tela
+  async function show() {
+    stop(); stop = () => {};
+    paintSide(); paintBar();
+    if (S.scope === 'downloads') { const holder = h('div'); main.replaceChildren(bar, crumbs, holder); stop = await downloadsTab(holder); return; }
+    if (S.browse) return browseModels();
+    main.replaceChildren(bar, crumbs, filters, content);
+    await loadItems();
+  }
+
+  root.replaceChildren(h('div', { class: 'page lib-page' }, h('div', { class: 'page-h' }, h('div', null, h('h1', null, t('Biblioteca')),
+    h('p', null, t('Seus modelos de IA e arquivos gerados, organizados em pastas. Arraste para mover; no canvas, a aba «Biblioteca» leva os arquivos para o fluxo.')))),
+  h('div', { class: 'lib-layout' }, side, main)));
+  // a árvore de pastas é carregada junto da primeira listagem
+  try { S.tree = (await api('/api/library/folders?scope=' + (S.scope === 'downloads' ? 'files' : S.scope))).folders; } catch (e) { S.tree = []; }
   await show();
-  const mo = new MutationObserver(() => { if (!root.isConnected || !document.getElementById('lib-body')) { stop(); mo.disconnect(); } });   // saiu da tela: para de atualizar
+  const mo = new MutationObserver(() => { if (!root.isConnected || !document.getElementById('lib-body')) { stop(); mo.disconnect(); } });
   mo.observe(document.body, { childList: true, subtree: true });
 }

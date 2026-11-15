@@ -8,7 +8,7 @@ Inspirado no ElevenLabs Flow e muito mais leve que o ComfyUI: ligue alguns nós,
 
 [Instalar](#instalar) · [O comando `flow`](#o-comando-flow) · [Projetos](#projetos--a-tela-inicial) · [Nós](#os-nós) · [Style Folder](#style-folder--pastas-e-subpastas) · [Modelos](#modelos--os-arquivos-de-apoio-se-instalam-sozinhos) · [Provedores](#provedores-de-ia) · [Núcleo Rust](#núcleo-rust) · [Desenvolvimento](#desenvolvimento) · [Changelog](CHANGELOG.md) · [English](README.md)
 
-`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Núcleo Rust` · `sem dependências obrigatórias` · `v0.26.0`
+`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Núcleo Rust` · `sem dependências obrigatórias` · `v0.27.0`
 
 </div>
 
@@ -115,7 +115,7 @@ Projetos antigos abrem iguais (um Style Folder sem pastas funciona como antes).
 
 ## Modelos — os arquivos de apoio se instalam sozinhos
 
-Abra a **Biblioteca** (ela substituiu a antiga tela *Modelos*; `#/models` continua funcionando) — três abas: **Modelos** (baixados, recomendados, lista da Unsloth, busca no Hugging Face), **Arquivos gerados** (tudo o que seus nós produziram, de todos os projetos, com filtros de tipo/origem, busca, baixar e apagar) e **Downloads** (o que está baixando agora, com progresso e cancelar, os recentes e todos os modelos baixados). Para instalar e gerenciar modelos locais (GGUF, pelo llama.cpp e pela stable-diffusion.cpp):
+Abra a **Biblioteca** (ela substituiu a antiga tela *Modelos*; `#/models` continua funcionando) — uma tela no estilo do Google Drive, com **pastas e subpastas** (virtuais: nada muda no disco) para modelos de IA e arquivos gerados, busca em todas as pastas, arrastar e soltar para organizar e três seções: **Modelos de IA** (baixados, em pastas; «Baixar mais modelos» abre o catálogo: recomendados, lista da Unsloth, busca no Hugging Face), **Arquivos gerados** (tudo o que seus nós produziram, de todos os projetos, com filtros de tipo/origem, busca, baixar e apagar) e **Downloads** (o que está baixando agora, com progresso e cancelar, os recentes e todos os modelos baixados). Para instalar e gerenciar modelos locais (GGUF, pelo llama.cpp e pela stable-diffusion.cpp):
 
 - **Recomendados:** um modelo de texto pequeno e um de imagem (Z-Image), com a quantização já escolhida. O de imagem vem com o VAE e o codificador de texto dele.
 - **Busca no Hugging Face** por tipo (Texto, Imagem, Vídeo, Som, Voz, Outros); você vê **todas as quantizações** (bits, tamanho, qualidade, se cabe na sua RAM, a recomendada) e escolhe qual baixar.
@@ -182,7 +182,7 @@ node tests/js/i18n_check.mjs                     # toda frase da interface tem t
 
 Os testes de navegador precisam de Node, Playwright e Chromium (`NODE_PATH` apontando para a sua instalação do `playwright`). Código compatível com Python 3.9 (sem `match`, sem `X | Y` em tempo de execução). Todo texto da interface e do terminal é em português primeiro, com tradução para o inglês (`openflow/web/js/en.js`, `openflow/term_en.py`); os testes conferem.
 
-## Limites honestos (v0.26.0)
+## Limites honestos (v0.27.0)
 
 Verificado aqui (Linux, Python 3.13): a suíte completa de testes em Python (442 testes), os testes de navegador no Chromium, os testes em Rust e o `install.sh` de ponta a ponta contra uma cópia local. **Não verificado:** o `install.ps1` num Windows de verdade e o `install.sh` no macOS (os jobs de CI estão escritos mas não rodaram); a compilação do núcleo Rust para macOS/Windows/ARM; downloads reais de VAEs, codificadores de texto e `mmproj` do Hugging Face (os testes simulam os downloads — os nomes de arquivo dos repositórios curados e de exemplo foram conferidos nas listagens do Hugging Face); inferência com modelos GGUF e GPUs reais; entrada de imagens por `mmproj` com um modelo real; provedores de nuvem com chaves reais (os testes usam servidores falsos). Não há medições de desempenho.
 
