@@ -18,7 +18,6 @@ run('canvas_support', async ({ api, open, check }) => {
   const txt = await page.locator('.cv-node div.err').innerText();
   check('erro-sem-o-marcador-interno', /Faltam os arquivos de apoio/.test(txt) && !/flow-support/.test(txt));
   check('botao-baixar-os-arquivos-de-apoio', (await page.locator('#sup-im').count()) === 1);
-  if (await page.locator('#cv-dock:not(.min)').count()) await page.locator('#cv-dock-toggle').click();   // a caixa de prompt (v0.17.27) cobre o pé do canvas: minimiza para clicar no nó
   await page.locator('#sup-im').click(); await page.waitForTimeout(800);
   check('pede-o-download-do-modelo-certo', !!posted && posted.model === 'qwen-image-2.1-Q4_K_M.gguf');
   check('botao-some-quando-termina', (await page.locator('#sup-im').count()) === 0);

@@ -15,7 +15,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from openflow.agents.runner import Cancelled  # noqa: E402
+from openflow.util import Cancelled  # noqa: E402
 from openflow.canvas import media as M  # noqa: E402
 from openflow.canvas import procedural as proc  # noqa: E402
 from openflow.canvas import schema as S  # noqa: E402

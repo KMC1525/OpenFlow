@@ -2,6 +2,17 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.39.0] — 2026-11-15
+
+### Removido (por enquanto) — «Gerar fluxo com IA»
+- Saíram a **caixa de prompt do canvas** («Gerar fluxo com IA»), a rota `POST /api/projects/{id}/flow`, o pipeline Planejador → Revisor (`canvas/flow.py`) e o pacote `agents/` que só ele usava, além dos textos, estilos e testes dele. Projetos, nós, modelos de projeto (templates) e tudo mais continuam como estavam; montar o fluxo agora é só pela paleta, por arrastar e soltar, ou pelos modelos de projeto.
+- **Fica:** a equipe (esforço Low…Omni e 1–32 agentes) dos nós de texto com IA — o seletor foi para a barra do topo do canvas, ao lado de «Executar tudo» (antes morava dentro da caixa de prompt) — e a mesa de agentes (`team.py`), que os nós «Texto IA» e «Refinar com IA» usam. O Demo não trata mais o marcador de agente do planejador.
+- O que era `Cancelled` do pacote removido agora está em `openflow/util.py`.
+
+### Ainda não verificado
+- Não removi `team.ensemble_json`/`critique_json` (a mesa de agentes que devolvia JSON): ficaram sem uso na aplicação, mas cobertos por testes, para quando o recurso voltar.
+- Em telas médias a barra do topo quebra em duas linhas (equipe + Executar tudo embaixo); conferi só por captura de tela em 1500, 1100 e 390 px.
+
 ## [0.38.0] — 2026-11-15
 
 ### Corrigido — varredura geral (todos os nós, telas e a API)

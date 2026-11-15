@@ -76,17 +76,11 @@ class BrowserTests(unittest.TestCase):
     def test_10_missing_gguf_support_files_offer_a_download_button(self):
         self.run_script("canvas_support_ui.js")
 
-    def test_11_prompt_box_generates_a_flow_and_minimizes(self):
-        self.run_script("canvas_flow_ui.js")
-
     def test_12_model_search_bar_quantizations_download_and_use(self):
         self.run_script("canvas_hub_ui.js")
 
     def test_13_text_node_linked_to_image_and_video_shows_the_linked_text(self):
         self.run_script("canvas_text_link_ui.js")
-
-    def test_14_the_prompt_panel_does_not_hide_a_node_error_after_a_run(self):
-        self.run_script("canvas_dock_reveal_ui.js")
 
     def test_15_library_models_generated_files_and_downloads_tabs(self):
         self.run_script("library_ui.js")
@@ -96,6 +90,9 @@ class BrowserTests(unittest.TestCase):
 
     def test_17_3d_model_node_viewer_and_library(self):
         self.run_script("model3d_ui.js")
+
+    def test_19_the_ai_flow_generator_is_gone_but_the_team_stays(self):
+        self.run_script("no_flow_ai_ui.js")
 
     def test_18_sweep_all_screens_and_all_nodes(self):
         self.run_script("sweep_ui.js")

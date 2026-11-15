@@ -2,6 +2,17 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.39.0] — 2026-11-15
+
+### Removed (for now) — "Generate flow with AI"
+- Gone: the **canvas prompt box** ("Generate flow with AI"), the `POST /api/projects/{id}/flow` route, the Planner → Reviewer pipeline (`canvas/flow.py`) and the `agents/` package only it used, plus its texts, styles and tests. Projects, nodes, project templates and everything else stay as they were; building a flow is now through the palette, drag and drop, or project templates.
+- **Stays:** the team (effort Low…Omni and 1–32 agents) for AI text nodes — its picker moved to the canvas top bar, next to "Run all" (it used to live inside the prompt box) — and the agent table (`team.py`) that the "AI text" and "Refine with AI" nodes use. The Demo no longer handles the planner's agent marker.
+- `Cancelled`, which lived in the removed package, is now in `openflow/util.py`.
+
+### Not verified yet
+- I did not remove `team.ensemble_json`/`critique_json` (the agent table that returned JSON): they are unused by the app now but covered by tests, for when the feature returns.
+- On medium screens the top bar wraps into two rows (team + Run all below); checked only by screenshots at 1500, 1100 and 390 px.
+
 ## [0.38.0] — 2026-11-15
 
 ### Fixed — general sweep (every node, screen and the API)

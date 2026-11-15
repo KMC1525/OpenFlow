@@ -1,16 +1,13 @@
 """Equipe de agentes de todas as seções: 1/2/4/8/12/16/20/24/28/32 agentes (mesa em paralelo + revisão entre pares + Sintetizador) e esforço Low … Omni (`openflow/team.py`)."""
-import json
 import sys
 import threading
 import unittest
 from pathlib import Path
-from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from openflow import team  # noqa: E402
-from openflow.agents.runner import Cancelled, Runner  # noqa: E402
-from openflow.storage import DEFAULT_SETTINGS, Store  # noqa: E402
+from openflow.storage import Store  # noqa: E402
 from tests.helpers import TmpCase  # noqa: E402
 from tests.helpers import ServerCase  # noqa: E402
 
@@ -236,99 +233,6 @@ class EnsembleTests(unittest.TestCase):
         self.assertEqual(team.critique_json(boom, "x", {}, {"v": 1}), {"v": 1})
 
 
-class ScriptedProvider:
-    """Provedor de JSON: guarda cada chamada; o «rascunho» do agente N devolve {"who": N}; a síntese devolve a união."""
-    vision = False
-    model = "m"
-    thinking = "off"
-    cfg = {"id": "x"}
-
-    def __init__(self, reply=None):
-        self.calls, self.lock, self.reply = [], threading.Lock(), reply
-
-    def chat(self, messages, system="", temperature=0.8, max_tokens=100, json_mode=False, stream=False):
-        text = messages[0]["content"] if isinstance(messages[0]["content"], str) else messages[0]["content"][0]["text"]
-        with self.lock:
-            self.calls.append({"text": text, "max_tokens": max_tokens, "thinking": self.thinking})
-        if self.reply is not None:
-            return self.reply(text)
-        if "you are the Synthesizer" in text:
-            payload = json.loads(text.split("INPUT_JSON:\n", 1)[1])
-            return json.dumps({"title": "merged", "n": len(payload["drafts"])})
-        if "CRITIQUE ROUND" in text:
-            return json.dumps({"title": "critiqued"})
-        return json.dumps({"title": "draft"})
-
-
-class RunnerTests(TmpCase):
-    def runner(self, provider, **cfg):
-        events = []
-        r = Runner(Store(self.tmp / "home"), events.append)
-        r.provider = provider
-        r.gen = {"temperature": 0.5, "max_tokens": 1000, "content": "free"}
-        r.configure_team(cfg, None, "x")
-        return r, events
-
-    def test_default_team_keeps_the_old_single_call(self):
-        prov = ScriptedProvider()
-        r, _ = self.runner(prov)
-        out, fb = r._agent("planner", "planner", "Plan. Output JSON: {}", {"a": 1}, lambda p: {"title": "fb"})
-        self.assertEqual((out, fb, len(prov.calls)), ({"title": "draft"}, False, 1))
-        self.assertEqual(prov.calls[0]["max_tokens"], 1000)
-
-    def test_four_agents_run_a_table_per_step_and_the_logs_keep_every_agent(self):
-        prov = ScriptedProvider()
-        r, _ = self.runner(prov, agents=4, effort="high")
-        out, fb = r._agent("designer", "architect", "Do. Output JSON: {}", {"a": 1}, lambda p: {"title": "fb"})
-        self.assertEqual((out, fb), ({"title": "merged", "n": 4}, False))
-        self.assertEqual(len(prov.calls), 5)
-        self.assertEqual(len(r.logs), 5)   # um registro por agente + a síntese
-        self.assertEqual(len({name for name, _ in r.logs}), 5)
-
-    def test_revision_rounds_and_solo_steps_use_a_single_agent(self):
-        prov = ScriptedProvider()
-        r, _ = self.runner(prov, agents=8)
-        r._agent("designer", "architect", "Fix. Output JSON: {}", {}, lambda p: {}, feedback=True)
-        r._agent("polisher", "architect", "Polish. Output JSON: {}", {}, lambda p: {}, solo=True)
-        self.assertEqual(len(prov.calls), 2)
-
-    def test_invalid_json_from_every_agent_uses_the_deterministic_fallback(self):
-        prov = ScriptedProvider(reply=lambda text: "isto não é JSON")
-        r, events = self.runner(prov, agents=4)
-        out, fb = r._agent("planner", "planner", "Plan. Output JSON: {}", {"a": 1}, lambda p: {"title": "fallback"})
-        self.assertEqual((out, fb), ({"title": "fallback"}, True))
-        self.assertTrue(any("fallback" in w for w in r.warnings))
-
-    def test_high_effort_levels_enlarge_the_answer_and_planning_steps_get_a_critique_from_max(self):
-        prov = ScriptedProvider()
-        r, _ = self.runner(prov, effort="omni")
-        out, _ = r._agent("planner", "planner", "Plan. Output JSON: {}", {}, lambda p: {})
-        self.assertEqual(out, {"title": "critiqued"})   # Omni: o plano passa por uma rodada de crítica
-        self.assertEqual(prov.calls[0]["max_tokens"], 2000)   # 1000 × 2,0
-        prov = ScriptedProvider()
-        r, _ = self.runner(prov, effort="high")
-        r._agent("planner", "planner", "Plan. Output JSON: {}", {}, lambda p: {})
-        self.assertEqual(len(prov.calls), 1)
-
-    def test_thinking_is_requested_from_the_provider_when_supported(self):
-        prov = ScriptedProvider()
-        prov.model = "claude-sonnet-4-5"
-        events = []
-        r = Runner(Store(self.tmp / "h2"), events.append)
-        r.provider = prov
-        r.configure_team({"effort": "mega"}, None, "anthropic")
-        self.assertEqual(prov.thinking, "xhigh")
-        r.emit({"type": "start", "steps": []})
-        self.assertEqual(events[0]["team"], {"agents": 1, "effort": "mega", "thinking": "xhigh", "peers": 0, "calls_per_step": 1})
-
-    def test_cancelling_during_a_table_stops_the_step(self):
-        prov = ScriptedProvider()
-        r, _ = self.runner(prov, agents=4)
-        r.cancelled = lambda: True
-        with self.assertRaises(Cancelled):
-            r._agent("planner", "planner", "x", {}, lambda p: {})
-
-
 class SettingsTests(TmpCase):
     def test_every_section_has_a_team_with_safe_defaults(self):
         self.assertEqual(team.SECTIONS, ("generation", "canvas"))
@@ -359,15 +263,13 @@ class ApiTests(ServerCase):
         self.assertEqual([e["id"] for e in o["efforts"]], list(team.LEVELS))
         self.assertTrue(all("hint" in e and "thinking" in e for e in o["efforts"]))
 
-    def test_the_team_chosen_in_the_editor_reaches_the_flow_planner(self):
+    def test_the_team_chosen_in_the_editor_is_accepted_by_the_run_and_the_ai_flow_generator_is_gone(self):
         status, p = self.c.json("POST", "/api/projects", {"name": "Equipe", "template": "blank"})
         self.assertEqual(status, 201)
-        status, r = self.c.json("POST", f"/api/projects/{p['id']}/flow", {"prompt": "um gato dormindo", "agents": 4, "effort": "mega"})
+        status, r = self.c.json("POST", f"/api/projects/{p['id']}/run", {"team": {"agents": 4, "effort": "mega"}})
         self.assertEqual(status, 200, r)
-        events = self.c.sse(f"/api/jobs/{r['job_id']}/events")
-        start = next(e for e in events if e["type"] == "start")
-        self.assertEqual((start["team"]["agents"], start["team"]["effort"]), (4, "mega"))
-        self.assertEqual(events[-2]["type"], "done")
+        self.assertIn("job_id", r)
+        self.assertEqual(self.c.json("POST", f"/api/projects/{p['id']}/flow", {"prompt": "um gato dormindo"})[0], 404)   # v0.39: «Gerar fluxo com IA» saiu
 
 
 if __name__ == "__main__":

@@ -1,11 +1,9 @@
 """Provedor Demo: funciona 100% offline, sem IA, para testar o fluxo e a interface.
 
-Os nós de mídia têm geradores procedurais próprios (`canvas/procedural.py`); aqui só ficam as chamadas de texto. Os agentes do planejador de fluxo
-são reconhecidos pelo marcador `[[OPENFLOW_AGENT:nome]]` do prompt de sistema e recebem um JSON vazio, o que faz o pipeline cair no método automático (modelos de partida).
+Os nós de mídia têm geradores procedurais próprios (`canvas/procedural.py`); aqui só ficam as chamadas de texto.
 """
 from __future__ import annotations
 
-import re
 from typing import Iterator, List
 
 from .base import Provider, content_text, split_system
@@ -21,9 +19,7 @@ class DemoProvider(Provider):
         self.model = "demo"
 
     def _chat(self, messages, system, temperature, max_tokens, json_mode) -> str:
-        sys_text, rest = split_system(messages, system)
-        if re.search(r"\[\[OPENFLOW_AGENT:\w+\]\]", sys_text):
-            return "{}"
+        _sys, rest = split_system(messages, system)
         last_user = ""
         for msg in reversed(rest):
             if msg["role"] == "user":

@@ -26,7 +26,7 @@ CATALOG: List[Dict[str, Any]] = [
         "id": "text-qwen3.8-2b-distill", "kind": "text", "label": "Qwen3.8 2B Distill", "source": "empero-ai/Qwen3.8-2B-Distill", "license": "apache-2.0",
         "repo": "empero-ai/Qwen3.8-2B-Distill-GGUF", "file": "Qwen3.8-2B-Q8_0.gguf", "quant": "Q8_0", "size": 2076674432,
         "n_ctx": 32768,  # janela de contexto base dos modelos de texto pré-instalados (o usuário pode mudar)
-        "hint": "Modelo de texto pequeno e rápido (2B, destilado para raciocínio): roda o nó Texto IA, o planejador de fluxos e a descrição de estilo no seu computador.",
+        "hint": "Modelo de texto pequeno e rápido (2B, destilado para raciocínio): roda o nó Texto IA e a descrição de estilo no seu computador.",
         "companions": [],
     },
     {

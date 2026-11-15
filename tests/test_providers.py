@@ -5,7 +5,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from openflow.agents.llm import call_json  # noqa: E402
 from openflow.providers import ProviderError, build_provider  # noqa: E402
 
 
@@ -21,8 +20,6 @@ class DemoProviderTests(unittest.TestCase):
         self.assertEqual(p.model, "demo")
         self.assertEqual("".join(p.chat([{"role": "user", "content": "Descreva a cena"}], stream=True)), "(Demo) Descreva a cena")
         self.assertEqual(p.test(), p.test())
-        # os agentes do planejador de fluxos recebem um JSON vazio (o pipeline cai no método automático)
-        self.assertEqual(p.chat([{"role": "system", "content": "[[OPENFLOW_AGENT:flow_planner]]"}, {"role": "user", "content": "INPUT_JSON: {}"}]), "{}")
 
 
 if __name__ == "__main__":
