@@ -32,6 +32,14 @@ FAMILIES: List[Dict[str, Any]] = [
      "need": "o VAE (ae.safetensors) e o codificador de texto Qwen3-4B-Instruct-2507 (um .gguf, ex.: unsloth/Qwen3-4B-Instruct-2507-GGUF)",
      "downloads": {"vae_path": {"repo": "Comfy-Org/z_image_turbo", "file": "split_files/vae/ae.safetensors", "label": "VAE (ae.safetensors)", "approx": 0.34},
                    "llm_path": {"repo": "unsloth/Qwen3-4B-Instruct-2507-GGUF", "file": "Qwen3-4B-Instruct-2507-Q4_K_M.gguf", "label": "Codificador de texto Qwen3-4B-Instruct-2507 (Q4_K_M)", "approx": 2.5}}},
+    # ---- v0.21 · Unsloth: MOSS-Image (SFT e Base; 5,1B). Receita do cartão unsloth/MOSS-Image-SFT-GGUF: sd-cli (master-975 ou mais novo) com o VAE e o tokenizer do repositório FP8 e o Qwen3.5-9B Q8_0 como codificador de texto; 50 passos, CFG 3.
+    {"id": "moss-image", "name": r"moss[-_ ]?image", "label": "MOSS-Image", "cap": "image",
+     "load": {"vae_path": r"moss[-_]?image[-_]?vae.*\.safetensors$", "llm_path": r"^qwen[-_]?3[._]?5[-_]?9b(?!.*mmproj)[^/]*\.gguf$", "tokenizer_path": r"moss[-_]?image[-_]?tokenizer.*\.json$"},
+     "run": {"cfg_scale": 3.0, "sample_steps": 50}, "options": {"offload_params_to_cpu": True, "diffusion_flash_attn": True},
+     "need": "o VAE e o tokenizer do MOSS-Image (em unsloth/MOSS-Image-SFT-FP8) e o codificador de texto Qwen3.5-9B (Qwen3.5-9B-Q8_0.gguf, em unsloth/Qwen3.5-9B-GGUF)",
+     "downloads": {"vae_path": {"repo": "unsloth/MOSS-Image-SFT-FP8", "file": "vae/diffusion_pytorch_model.safetensors", "dest": "moss-image-vae.safetensors", "label": "VAE do MOSS-Image", "approx": 0.25},
+                   "llm_path": {"repo": "unsloth/Qwen3.5-9B-GGUF", "file": "Qwen3.5-9B-Q8_0.gguf", "label": "Codificador de texto Qwen3.5-9B (Q8_0)", "approx": 9.5},
+                   "tokenizer_path": {"repo": "unsloth/MOSS-Image-SFT-FP8", "file": "tokenizer/tokenizer.json", "dest": "moss-image-tokenizer.json", "label": "Tokenizer do MOSS-Image", "approx": 0.02}}},
     # ---- v0.9 · Wan (Alibaba) local: Wan2.2 A14B (texto → vídeo e imagem → vídeo; dois modelos, ruído baixo + alto) e Wan2.1 imagem → vídeo. GGUF da QuantStack e da city96.
     {"id": "wan22-t2v-a14b", "name": r"wan[-_. ]?2[._]?2.*t2v.*a14b(?!.*high[-_]?noise)", "label": "Wan2.2 T2V A14B", "cap": "video",
      "load": {"vae_path": r"wan[-_]?2[._]?1[-_]?vae.*\.safetensors$", "t5xxl_path": r"umt5[-_]?xxl.*\.(safetensors|gguf)$", "high_noise_diffusion_model_path": r"^wan2[._]?2[-_]t2v[-_]a14b[-_]high[-_]?noise.*\.gguf$"},
@@ -131,13 +139,15 @@ FAMILIES: List[Dict[str, Any]] = [
      "downloads": {"vae_path": {"repo": "Comfy-Org/Fibo-2.0", "file": "vae/flux2-vae.safetensors", "label": "VAE do FIBO 2.0 (FLUX.2)", "approx": 0.34},
                    "llm_path": {"repo": "unsloth/Qwen3-VL-4B-Instruct-GGUF", "file": "Qwen3-VL-4B-Instruct-Q4_K_M.gguf", "label": "Codificador de texto Qwen3-VL-4B-Instruct (Q4_K_M)", "approx": 2.5}}},
     {"id": "flux1-krea", "name": r"flux[-_. ]?1[-_. ]?krea", "label": "FLUX.1 Krea [dev]", "cap": "image",
-     "load": {"vae_path": r"^ae\.safetensors$", "clip_l_path": r"clip[_-]?l.*\.safetensors$", "t5xxl_path": r"t5xxl.*\.(safetensors|gguf)$"}, "marker": "double_blocks.", "run": {}, "options": {"offload_params_to_cpu": True, "diffusion_flash_attn": True},
+     "load": {"vae_path": r"^ae\.safetensors$", "clip_l_path": r"clip[_-]?l.*\.safetensors$", "t5xxl_path": r"t5xxl.*\.(safetensors|gguf)$"}, "marker": "double_blocks.", "run": {"cfg_scale": 1.0, "sample_steps": 28, "sample_method": "euler"}, "variants": [{"match": r"schnell", "run": {"cfg_scale": 1.0, "sample_steps": 4, "sample_method": "euler"}}],   # destilados: CFG 1 (o padrão 7 estraga a imagem); schnell: 4 passos
+     "options": {"offload_params_to_cpu": True, "diffusion_flash_attn": True},
      "need": "o VAE (ae.safetensors), o clip_l.safetensors e o t5xxl (safetensors ou .gguf)",
      "downloads": {"vae_path": {"repo": "Comfy-Org/z_image_turbo", "file": "split_files/vae/ae.safetensors", "label": "VAE (ae.safetensors)", "approx": 0.33},
                    "clip_l_path": {"repo": "comfyanonymous/flux_text_encoders", "file": "clip_l.safetensors", "label": "clip_l", "approx": 0.25},
                    "t5xxl_path": {"repo": "comfyanonymous/flux_text_encoders", "file": "t5xxl_fp8_e4m3fn.safetensors", "label": "t5xxl (fp8)", "approx": 4.9}}},
     {"id": "flux", "name": r"flux(?![-_. ]?[23])", "label": "FLUX",
-     "load": {"vae_path": r"^ae\.safetensors$", "clip_l_path": r"clip[_-]?l.*\.safetensors$", "t5xxl_path": r"t5xxl.*\.(safetensors|gguf)$"}, "marker": "double_blocks.", "run": {}, "options": {"offload_params_to_cpu": True, "diffusion_flash_attn": True},
+     "load": {"vae_path": r"^ae\.safetensors$", "clip_l_path": r"clip[_-]?l.*\.safetensors$", "t5xxl_path": r"t5xxl.*\.(safetensors|gguf)$"}, "marker": "double_blocks.", "run": {"cfg_scale": 1.0, "sample_steps": 28, "sample_method": "euler"}, "variants": [{"match": r"schnell", "run": {"cfg_scale": 1.0, "sample_steps": 4, "sample_method": "euler"}}],   # destilados: CFG 1 (o padrão 7 estraga a imagem); schnell: 4 passos
+     "options": {"offload_params_to_cpu": True, "diffusion_flash_attn": True},
      "need": "o VAE (ae.safetensors), o clip_l.safetensors e o t5xxl (safetensors ou .gguf)",
      "downloads": {"vae_path": {"repo": "Comfy-Org/z_image_turbo", "file": "split_files/vae/ae.safetensors", "label": "VAE (ae.safetensors)", "approx": 0.33},
                    "clip_l_path": {"repo": "comfyanonymous/flux_text_encoders", "file": "clip_l.safetensors", "label": "clip_l", "approx": 0.25},
@@ -235,13 +245,16 @@ def download_missing(folder: Path, filename: str, token: str = "", progress: Opt
                 progress(int((base + (done / total if total else 0)) * 1000), n * 1000)
 
         folder.mkdir(parents=True, exist_ok=True)
-        hf.download_many(t["repo"], [t["file"]], folder, token, None, prog, cancelled, any_file=True)
-        got.append(Path(t["file"]).name)
+        if t.get("dest"):   # o arquivo é grafado com outro nome (o VAE de um repositório pode se chamar só «diffusion_pytorch_model.safetensors»)
+            hf.download(t["repo"], t["file"], folder, token, prog, cancelled, any_file=True, dest_name=t["dest"])
+        else:
+            hf.download_many(t["repo"], [t["file"]], folder, token, None, prog, cancelled, any_file=True)
+        got.append(t.get("dest") or Path(t["file"]).name)
     return got
 
 
 # --------------------------------------------------------------------------- instalação automática junto do modelo (v0.1)
-ROLE_OF_KEY = {"vae_path": "vae", "llm_path": "text_encoder", "clip_l_path": "text_encoder", "clip_g_path": "text_encoder", "t5xxl_path": "text_encoder", "llm_vision_path": "mmproj", "clip_vision_path": "text_encoder", "high_noise_diffusion_model_path": "model"}
+ROLE_OF_KEY = {"vae_path": "vae", "llm_path": "text_encoder", "clip_l_path": "text_encoder", "clip_g_path": "text_encoder", "t5xxl_path": "text_encoder", "llm_vision_path": "mmproj", "tokenizer_path": "text_encoder", "clip_vision_path": "text_encoder", "high_noise_diffusion_model_path": "model"}
 ROLE_LABEL = {"vae": "VAE", "text_encoder": "Codificador de texto", "mmproj": "Projetor de visão (mmproj)", "model": "Modelo de ruído alto"}
 _SHARD_RE = re.compile(r"^(?P<base>.+)-(?P<n>\d{5})-of-(?P<total>\d{5})\.gguf$", re.I)
 _VAE_RE = re.compile(r"^ae\.|vae", re.I)   # aplicado ao nome do arquivo: «ae.safetensors» (FLUX) ou qualquer «…vae…»
@@ -321,7 +334,7 @@ def plan(folder: Path, filename: str, kind: str = "image", repo: str = "", repo_
         for key, got in found.items():
             if got is None:
                 d = download_spec(fam, key, filename)
-                items.append({"role": ROLE_OF_KEY.get(key, "text_encoder"), "key": key, "repo": d["repo"], "file": d["file"], "dest": Path(d["file"]).name, "label": d["label"], "size": int(d["approx"] * 1e9)})
+                items.append({"role": ROLE_OF_KEY.get(key, "text_encoder"), "key": key, "repo": d["repo"], "file": d["file"], "dest": d.get("dest") or Path(d["file"]).name, "label": d["label"], "size": int(d["approx"] * 1e9)})
     tree = repo_tree or []
     if kind in ("text", "other") and tree and not mmproj_for(folder, filename):
         mm = _pick_mmproj(tree, filename)

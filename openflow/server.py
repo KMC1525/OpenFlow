@@ -140,6 +140,7 @@ class App:
         a("POST", r"/api/jobs/(?P<jid>[\w-]+)/cancel", self.r_job_cancel)
 
         a("GET", r"/api/hf/search", self.r_hf_search)
+        a("GET", r"/api/unsloth/catalog", self.r_unsloth_catalog)
         a("GET", r"/api/hf/files", self.r_hf_files)
         a("GET", r"/api/hf/local", self.r_hf_local)
         a("POST", r"/api/hf/download", self.r_hf_download)
@@ -327,6 +328,13 @@ class App:
             req.json({"results": hf.search(q, self._hf_token(), kind=hf.check_kind(req.query.get("kind", ["text"])[0] or "text"))})
         except ProviderError as exc:
             raise HttpError(502, str(exc))
+
+    def r_unsloth_catalog(self, req: "Request") -> None:
+        """Os modelos de imagem e vídeo da Unsloth e o que o OpenFlow faz com cada um (`?kind=image|video`)."""
+        from . import unsloth_models
+
+        kind = req.query.get("kind", [""])[0]
+        req.json({"models": unsloth_models.catalog(kind if kind in ("image", "video") else "")})
 
     def r_hf_files(self, req: "Request") -> None:
         """As quantizações de um repositório + os arquivos de apoio (VAE, codificadores de texto, mmproj) que serão baixados junto do modelo."""

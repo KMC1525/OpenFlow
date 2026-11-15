@@ -2,6 +2,22 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.21.0] — 2026-11-15
+
+### Novo — modelos de imagem e vídeo da Unsloth (Hugging Face)
+- **Tela Modelos → «Modelos da Unsloth»:** a lista dos modelos GGUF de **imagem** e de **vídeo** da organização `unsloth`, na aba escolhida (Imagem/Vídeo), cada um com o estado real no OpenFlow — **«Funciona»** (o OpenFlow baixa junto o VAE, o codificador de texto e o tokenizer), **«Use outro repositório»** ou **«Ainda não»** (com o motivo). O botão «Ver quantizações» abre o repositório na busca.
+- **Funcionam:** Qwen-Image 2.1, 2.1 Turbo, 2512 e original; Qwen-Image-Edit 2511/2509; Z-Image e Z-Image Turbo; FLUX.2 klein 4B/9B (e base) e FLUX.2 dev; FLUX.1 schnell, dev e Kontext dev; Wan2.2 TI2V 5B (vídeo) — e o **novo MOSS-Image (SFT e Base, 5,1B)**.
+- **MOSS-Image:** segue a receita do cartão da Unsloth: `sd-cli` (master-975 ou mais novo) com o **VAE e o tokenizer** de `unsloth/MOSS-Image-SFT-FP8` e o **Qwen3.5-9B Q8_0** (≈ 9,5 GB) como codificador de texto, 50 passos e CFG 3. Tudo é baixado junto do modelo; o VAE e o tokenizer são gravados com nomes próprios (`moss-image-vae.safetensors`, `moss-image-tokenizer.json`) para não colidirem com outros arquivos `diffusion_pytorch_model`. A biblioteca Python do PyPI não conhece o MOSS-Image: ele vai direto ao `sd-cli`.
+- **FLUX.3 Image Klein** da Unsloth aparece como «Use outro repositório» → `leejet/flux-3-image-klein-GGUF` (v0.18).
+- O codificador Qwen3.5-9B e o VAE/tokenizer do MOSS-Image não aparecem como «modelos» na lista de instalados.
+
+### Corrigido
+- **FLUX.1 (schnell, dev, Kontext, Krea) usava o CFG padrão 7:** nos FLUX destilados isso estraga a imagem. Agora a receita é CFG 1 e 28 passos (schnell: 4 passos).
+
+### Ainda não verificado / não incluído
+- Não baixei nem gerei com nenhum desses modelos aqui (sem rede/GPU/sd-cli); os testes cobrem o reconhecimento, os arquivos de apoio (com os nomes e repositórios conferidos no Hugging Face), a montagem do comando e o catálogo. A receita do FLUX.1 (CFG 1, 28 passos) é a que recomendo pela documentação da stable-diffusion.cpp e não foi testada.
+- **Ainda sem receita (aparecem como «Ainda não», com o motivo):** MiniMax H3 (precisa de VAE de vídeo e de áudio, de opções especiais do sd-cli e entrega áudio estéreo, que o OpenFlow ainda não monta), LTX-2, 2.3 e 2.5 (cartões só descrevem o ComfyUI) e ERNIE-Image (não confirmei suporte na stable-diffusion.cpp).
+
 ## [0.20.0] — 2026-11-15
 
 ### Corrigido

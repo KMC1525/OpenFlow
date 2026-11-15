@@ -2,6 +2,22 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.21.0] — 2026-11-15
+
+### New — Unsloth image and video models (Hugging Face)
+- **Models screen → "Unsloth models":** the list of GGUF **image** and **video** models of the `unsloth` organization, for the chosen tab (Image/Video), each with its real state in OpenFlow — **"Works"** (OpenFlow downloads the VAE, text encoder and tokenizer with it), **"Use another repository"** or **"Not yet"** (with the reason). "See quantizations" opens the repository in the search.
+- **Working:** Qwen-Image 2.1, 2.1 Turbo, 2512 and original; Qwen-Image-Edit 2511/2509; Z-Image and Z-Image Turbo; FLUX.2 klein 4B/9B (and base) and FLUX.2 dev; FLUX.1 schnell, dev and Kontext dev; Wan2.2 TI2V 5B (video) — and the **new MOSS-Image (SFT and Base, 5.1B)**.
+- **MOSS-Image:** follows the Unsloth card recipe: `sd-cli` (master-975 or newer) with the **VAE and tokenizer** from `unsloth/MOSS-Image-SFT-FP8` and **Qwen3.5-9B Q8_0** (≈ 9.5 GB) as the text encoder, 50 steps and CFG 3. Everything is downloaded with the model; the VAE and tokenizer are saved under their own names (`moss-image-vae.safetensors`, `moss-image-tokenizer.json`) so they do not collide with other `diffusion_pytorch_model` files. The PyPI Python library does not know MOSS-Image: it goes straight to `sd-cli`.
+- Unsloth's **FLUX.3 Image Klein** shows as "Use another repository" → `leejet/flux-3-image-klein-GGUF` (v0.18).
+- The Qwen3.5-9B encoder and MOSS-Image's VAE/tokenizer do not show up as "models" in the installed list.
+
+### Fixed
+- **FLUX.1 (schnell, dev, Kontext, Krea) used the default CFG 7:** on distilled FLUX that ruins the image. Now the recipe is CFG 1 and 28 steps (schnell: 4 steps).
+
+### Not verified yet / not included
+- I did not download or generate with any of these models here (no network/GPU/sd-cli); the tests cover recognition, support files (names and repositories checked on Hugging Face), command building and the catalog. The FLUX.1 recipe (CFG 1, 28 steps) is what I recommend from the stable-diffusion.cpp docs and was not tested.
+- **Still without a recipe (shown as "Not yet", with the reason):** MiniMax H3 (needs a video and an audio VAE, special sd-cli options and delivers stereo audio, which OpenFlow does not assemble yet), LTX-2, 2.3 and 2.5 (the cards only describe ComfyUI) and ERNIE-Image (I did not confirm stable-diffusion.cpp support).
+
 ## [0.20.0] — 2026-11-15
 
 ### Fixed
