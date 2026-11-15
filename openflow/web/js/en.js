@@ -1237,7 +1237,7 @@ export default {
   'Lendo as quantizações de {r}…': 'Reading the quantizations of {r}…',
   'Texto (IA)': 'Text (AI)',
   'Imagem, vídeo, som e voz': 'Image, video, sound and voice',
-  'Modelo de texto pequeno e rápido (2B, destilado para raciocínio): roda o nó Texto IA, o planejador de fluxos e a descrição de estilo no seu computador.': 'Small, fast text model (2B, distilled for reasoning): runs the AI Text node, the flow planner and the style description on your computer.',
+  'Modelo de texto pequeno e rápido (2B, destilado para raciocínio): roda o nó Texto IA e a descrição de estilo no seu computador.': 'Small, fast text model (2B, distilled for reasoning): runs the AI Text node and the style description on your computer.',
   'Modelo de imagem da Tongyi-MAI (Alibaba). Vem com o VAE e o codificador de texto (Qwen3-4B) de que precisa; roda pelo provedor GGUF local do OpenFlow.': 'Image model from Tongyi-MAI (Alibaba). It comes with the VAE and the text encoder (Qwen3-4B) it needs; it runs through OpenFlow\'s local GGUF provider.',
   'Vem junto:': 'Comes along:',
   'Tipo': 'Type',
