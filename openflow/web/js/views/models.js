@@ -160,7 +160,7 @@ export default async function render(root, ctx) {
     if (!unslothAll) { try { unslothAll = (await api('/api/unsloth/catalog')).models; } catch (e) { unslothAll = []; } }
     const mine = unslothAll.filter((m) => m.kind === kind);
     const open = (repo) => { q.value = repo; search(); openRepo(repo); };
-    const chip = { ready: [t('Funciona'), 'chip on'], alt: [t('Use outro repositório'), 'chip'], soon: [t('Ainda não'), 'chip'] };
+    const chip = { ready: [t('Funciona'), 'chip on'], alt: [t('Use outro repositório'), 'chip'], beta: [t('Experimental'), 'chip on'], soon: [t('Ainda não'), 'chip'] };
     unslothBox.replaceChildren(...mine.map((m) => h('div', { class: 'unrow' }, h('div', { class: 'row nw' }, h('div', { class: 'grow', style: { minWidth: 0 } },
       h('div', { class: 'row', style: { gap: '8px', flexWrap: 'wrap' } }, h('b', null, m.label), h('span', { class: chip[m.status][1] }, chip[m.status][0]), h('span', { class: 'chip' }, m.size)),
       h('div', { class: 'dim small' }, m.status === 'soon' ? t(m.why) : t(m.hint)), h('div', { class: 'mono dim', style: { fontSize: '11px' } }, m.repo)),

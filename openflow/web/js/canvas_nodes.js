@@ -433,8 +433,25 @@ export function nodeResult(c, n) {
     const sup = /\[\[flow-support:([^\]]+)\]\]/.exec(error);   // GGUF de difusão sem VAE/codificador de texto: oferece baixar o que falta
     const upd = /\[\[flow-sd-update\]\]/.test(error);   // a stable-diffusion.cpp instalada não reconhece o modelo: oferece compilar a versão mais nova
     const repoHit = /\[\[flow-sd-repo:([^\]]+)\]\]/.exec(error);   // o arquivo é para o ComfyUI/diffusers: oferece abrir o repositório compatível com a stable-diffusion.cpp
+    const ltx = /\[\[flow-ltx2:([^\]]+)\]\]/.exec(error);   // LTX-2.x: faltam os componentes do repositório diffusers: oferece baixá-los
     const tools = /\[\[flow-sd-tools\]\]/.test(error), cli = tools || /\[\[flow-sd-cli\]\]/.test(error);   // «tools»: faltam git/compilador: o botão instala o que falta e compila; «cli»:   // sem compilar: baixa o executável pronto (sd-cli) da stable-diffusion.cpp
-    box.append(h('div', { class: 'err' }, error.replace(/\s*\[\[flow-support:[^\]]+\]\]/, '').replace(/\s*\[\[flow-sd-update\]\]/, '').replace(/\s*\[\[flow-sd-cli\]\]/, '').replace(/\s*\[\[flow-sd-tools\]\]/, '').replace(/\s*\[\[flow-sd-repo:[^\]]+\]\]/, '')));
+    box.append(h('div', { class: 'err' }, error.replace(/\s*\[\[flow-support:[^\]]+\]\]/, '').replace(/\s*\[\[flow-sd-update\]\]/, '').replace(/\s*\[\[flow-sd-cli\]\]/, '').replace(/\s*\[\[flow-sd-tools\]\]/, '').replace(/\s*\[\[flow-sd-repo:[^\]]+\]\]/, '').replace(/\s*\[\[flow-ltx2:[^\]]+\]\]/, '')));
+    if (ltx) {
+      const lb = h('button', { class: 'btn sm primary nodrag', type: 'button', id: 'ltx2-' + n.id, style: { marginTop: '6px', marginRight: '6px' } }, icon('download', 13), t('Baixar os componentes do LTX-2'));
+      lb.onclick = async () => {
+        lb.disabled = true;
+        try {
+          const r = await api('/api/media/ltx2-components', { method: 'POST', body: { base: ltx[1] } });
+          events('/api/jobs/' + r.job_id + '/events', (ev) => {
+            if (ev.type === 'note') lb.lastChild.textContent = ' ' + ev.message.slice(0, 40);
+            else if (ev.type === 'done') { toast(t('Componentes do LTX-2 prontos. Execute o nó de novo.'), 'ok'); lb.remove(); }
+            else if (ev.type === 'error') { toast(ev.message, 'err'); lb.disabled = false; }
+            else if (ev.type === 'cancelled') { lb.disabled = false; }
+          });
+        } catch (e) { lb.disabled = false; toast(e.status === 409 ? t('Já há um download em andamento.') : e.message, 'err'); }
+      };
+      box.append(lb);
+    }
     if (repoHit) {   // o arquivo é para o ComfyUI/diffusers: um clique baixa o equivalente compatível com a stable-diffusion.cpp e passa a usá-lo neste nó
       const rb = h('button', { class: 'btn sm primary nodrag', type: 'button', id: 'sdnative-' + n.id, style: { marginTop: '6px', marginRight: '6px' } }, icon('download', 13), t('Baixar a versão compatível'));
       const label = (info) => t('Baixar e usar {f} ({s})', { f: info.file, s: (info.size / 1024 ** 3).toFixed(1) + ' GB' });

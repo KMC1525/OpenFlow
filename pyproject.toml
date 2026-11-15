@@ -28,9 +28,9 @@ local = ["llama-cpp-python>=0.2.90", "stable-diffusion-cpp-python"]
 # Extração de texto de PDFs mais precisa
 docs = ["pypdf>=4.0"]
 # Modelos locais do Hugging Face (imagem, vídeo, som, voz e transcrição)
-media = ["torch", "torchvision", "diffusers>=0.30", "transformers>=4.44", "accelerate", "safetensors", "sentencepiece", "numpy", "pillow"]
+media = ["torch", "torchvision", "diffusers>=0.30", "transformers>=4.44", "accelerate", "safetensors", "sentencepiece", "numpy", "pillow", "gguf", "av"]
 # Tudo de uma vez (é o que os instaladores e o `flow update` usam por padrão)
-all = ["pypdf>=4.0", "torch", "torchvision", "diffusers>=0.30", "transformers>=4.44", "accelerate", "safetensors", "sentencepiece", "numpy", "pillow", "llama-cpp-python>=0.2.90", "stable-diffusion-cpp-python"]
+all = ["pypdf>=4.0", "torch", "torchvision", "diffusers>=0.30", "transformers>=4.44", "accelerate", "safetensors", "sentencepiece", "numpy", "pillow", "gguf", "av", "llama-cpp-python>=0.2.90", "stable-diffusion-cpp-python"]
 
 [project.urls]
 Homepage = "https://github.com/KMC1525/OpenFlow"

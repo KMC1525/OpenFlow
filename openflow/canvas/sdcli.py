@@ -396,9 +396,9 @@ def sys_platform() -> str:
 
 #: parâmetro de carga da biblioteca Python → opção do sd-cli (caminhos de arquivo)
 LOAD_FLAGS = {"diffusion_model_path": "--diffusion-model", "model_path": "-m", "vae_path": "--vae", "llm_path": "--llm", "t5xxl_path": "--t5xxl", "clip_l_path": "--clip_l", "clip_g_path": "--clip_g",
-              "tokenizer_path": "--tokenizer", "llm_vision_path": "--llm_vision", "clip_vision_path": "--clip_vision", "high_noise_diffusion_model_path": "--high-noise-diffusion-model"}
+              "tokenizer_path": "--tokenizer", "llm_vision_path": "--llm_vision", "clip_vision_path": "--clip_vision", "audio_vae_path": "--audio-vae", "high_noise_diffusion_model_path": "--high-noise-diffusion-model"}
 #: parâmetro de carga booleano → opção
-LOAD_SWITCHES = {"offload_params_to_cpu": ["--offload-to-cpu"], "diffusion_flash_attn": ["--flash-attn", "off,diffusion=on"], "keep_clip_on_cpu": ["--clip-on-cpu"], "vae_tiling": ["--vae-tiling"]}
+LOAD_SWITCHES = {"offload_params_to_cpu": ["--offload-to-cpu"], "diffusion_flash_attn": ["--flash-attn", "off,diffusion=on"], "keep_clip_on_cpu": ["--clip-on-cpu"], "te_on_cpu": ["--backend", "te=cpu"], "vae_tiling": ["--vae-tiling"]}
 #: parâmetro de geração → opção
 RUN_FLAGS = {"cfg_scale": "--cfg-scale", "sample_steps": "--steps", "sample_method": "--sampling-method", "flow_shift": "--flow-shift", "strength": "--strength", "guidance": "--guidance",
              "video_frames": "--video-frames", "fps": "--fps", "high_noise_cfg_scale": "--high-noise-cfg-scale", "high_noise_sample_method": "--high-noise-sampling-method",
@@ -503,6 +503,23 @@ def generate_image(exe: Path, load: Dict[str, Any], run_params: Dict[str, Any], 
         if not out.is_file():
             raise ProviderError("O sd-cli terminou sem gerar a imagem.")
         return out.read_bytes(), warns
+
+
+def generate_video_file(exe: Path, load: Dict[str, Any], run_params: Dict[str, Any], *, prompt: str, width: int, height: int, seed: int, fps: int, init: Optional[bytes] = None,
+                        container: str = "webm", cancelled: Callable[[], bool] = lambda: False, note: Callable[[str], None] = lambda m: None) -> Tuple[bytes, str, List[str]]:
+    """Um vídeo que o próprio sd-cli grava em arquivo (ex.: MiniMax H3, com a trilha de áudio estéreo): → (bytes, tipo MIME, avisos). Diferente de `generate_video`, não há quadros soltos nem ffmpeg."""
+    with tempfile.TemporaryDirectory(prefix="flow-sdcli-") as tmp:
+        d = Path(tmp)
+        init_file = None
+        if init:
+            init_file = d / "init.png"
+            init_file.write_bytes(init)
+        out = d / f"out.{container}"
+        args, warns = build_args(exe, load, {**run_params, "fps": fps}, prompt=prompt, width=width, height=height, seed=seed, init=init_file, out=out, video=True)
+        run(args, exe, cancelled, note)
+        if not out.is_file():
+            raise ProviderError("O sd-cli terminou sem gravar o vídeo.")
+        return out.read_bytes(), {"webm": "video/webm", "mp4": "video/mp4"}.get(container, "video/" + container), warns
 
 
 def generate_video(exe: Path, load: Dict[str, Any], run_params: Dict[str, Any], *, prompt: str, width: int, height: int, seed: int, fps: int, init: Optional[bytes] = None,

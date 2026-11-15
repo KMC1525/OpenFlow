@@ -40,6 +40,30 @@ FAMILIES: List[Dict[str, Any]] = [
      "downloads": {"vae_path": {"repo": "unsloth/MOSS-Image-SFT-FP8", "file": "vae/diffusion_pytorch_model.safetensors", "dest": "moss-image-vae.safetensors", "label": "VAE do MOSS-Image", "approx": 0.25},
                    "llm_path": {"repo": "unsloth/Qwen3.5-9B-GGUF", "file": "Qwen3.5-9B-Q8_0.gguf", "label": "Codificador de texto Qwen3.5-9B (Q8_0)", "approx": 9.5},
                    "tokenizer_path": {"repo": "unsloth/MOSS-Image-SFT-FP8", "file": "tokenizer/tokenizer.json", "dest": "moss-image-tokenizer.json", "label": "Tokenizer do MOSS-Image", "approx": 0.02}}},
+    # ---- v0.22 · MiniMax H3 (vídeo com áudio estéreo): receita do cartão unsloth/MiniMax-H3-GGUF. O sd-cli grava o vídeo (WebM) com a trilha sonora; `--backend te=cpu` e CFG 1,0 não são opcionais.
+    {"id": "minimax-h3", "name": r"minimax[-_ ]?h3(?!.*ref2va)", "label": "MiniMax H3 (texto + quadros)", "cap": "video",
+     "load": {"vae_path": r"minimax_h3_video_vae.*\.safetensors$", "audio_vae_path": r"minimax_h3_audio_vae.*\.safetensors$", "llm_path": r"^qwen3vl_32b_minimax_h3[^/]*\.gguf$"},
+     "run": {"cfg_scale": 1.0, "sample_steps": 8},
+     "video": {"fps": 24, "sizes": {"landscape": [960, 544], "portrait": [544, 960]}, "max_frames": 361, "image": "optional", "container": "webm"},   # 15 s a 24 fps no máximo; 960×544 ou 544×960
+     "options": {"offload_params_to_cpu": True, "diffusion_flash_attn": True, "te_on_cpu": True},
+     "need": "o VAE de vídeo e o VAE de áudio do MiniMax H3 (Comfy-Org/MiniMax-H3) e o codificador de texto Qwen3-VL-32B do MiniMax H3 (unsloth/MiniMax-H3-GGUF; Q2_K_M para os denoisers Q2, Q4_K_M para os demais)",
+     "downloads": {"vae_path": {"repo": "Comfy-Org/MiniMax-H3", "file": "vae/minimax_h3_video_vae_fp16.safetensors", "label": "VAE de vídeo do MiniMax H3", "approx": 5.2},
+                   "audio_vae_path": {"repo": "Comfy-Org/MiniMax-H3", "file": "vae/minimax_h3_audio_vae_fp32.safetensors", "label": "VAE de áudio do MiniMax H3", "approx": 0.6},
+                   "llm_path": {"repo": "unsloth/MiniMax-H3-GGUF", "file": "qwen3vl_32b_minimax_h3-Q4_K_M.gguf", "label": "Codificador de texto Qwen3-VL-32B do MiniMax H3 (Q4_K_M)", "approx": 18.2,
+                                "pick": [{"match": r"-(UD-)?Q2_K(_XL)?\.gguf$", "file": "qwen3vl_32b_minimax_h3-Q2_K_M.gguf", "label": "Codificador de texto Qwen3-VL-32B do MiniMax H3 (Q2_K_M)", "approx": 13.1}]}}},
+    {"id": "minimax-h3-ref", "name": r"minimax[-_ ]?h3.*ref2va", "label": "MiniMax H3 (referências)", "cap": "video",
+     "load": {"vae_path": r"minimax_h3_video_vae.*\.safetensors$", "audio_vae_path": r"minimax_h3_audio_vae.*\.safetensors$", "llm_path": r"^qwen3vl_32b_minimax_h3[^/]*\.gguf$"},
+     "run": {"cfg_scale": 1.0, "sample_steps": 8},
+     "video": {"fps": 24, "sizes": {"landscape": [960, 544], "portrait": [544, 960]}, "max_frames": 361, "image": "ignored", "container": "webm"},   # a variante de referências: texto → vídeo no OpenFlow
+     "options": {"offload_params_to_cpu": True, "diffusion_flash_attn": True, "te_on_cpu": True},
+     "need": "o VAE de vídeo e o VAE de áudio do MiniMax H3 (Comfy-Org/MiniMax-H3) e o codificador de texto Qwen3-VL-32B do MiniMax H3 (unsloth/MiniMax-H3-GGUF)",
+     "downloads": {"vae_path": {"repo": "Comfy-Org/MiniMax-H3", "file": "vae/minimax_h3_video_vae_fp16.safetensors", "label": "VAE de vídeo do MiniMax H3", "approx": 5.2},
+                   "audio_vae_path": {"repo": "Comfy-Org/MiniMax-H3", "file": "vae/minimax_h3_audio_vae_fp32.safetensors", "label": "VAE de áudio do MiniMax H3", "approx": 0.6},
+                   "llm_path": {"repo": "unsloth/MiniMax-H3-GGUF", "file": "qwen3vl_32b_minimax_h3-Q4_K_M.gguf", "label": "Codificador de texto Qwen3-VL-32B do MiniMax H3 (Q4_K_M)", "approx": 18.2,
+                                "pick": [{"match": r"-(UD-)?Q2_K(_XL)?\.gguf$", "file": "qwen3vl_32b_minimax_h3-Q2_K_M.gguf", "label": "Codificador de texto Qwen3-VL-32B do MiniMax H3 (Q2_K_M)", "approx": 13.1}]}}},
+    # ---- v0.22 · LTX-2, 2.3 e 2.5 (Lightricks; vídeo com áudio): pelo diffusers, não pelo sd-cli (`engine`); os componentes vêm do repositório diffusers e só baixam por botão (ver ltx2.py)
+    {"id": "ltx2", "name": r"ltx[-_. ]?2(?![\d])|ltx[-_. ]?2[._-]\d", "label": "LTX-2.x", "cap": "video", "engine": "ltx2", "load": {}, "downloads": {}, "run": {},
+     "video": {"fps": 24, "max_frames": 481, "image": "optional"}, "need": "os componentes do repositório diffusers da Lightricks (codificador de texto Gemma, VAEs e vocoder), baixados pelo botão do nó"},
     # ---- v0.9 · Wan (Alibaba) local: Wan2.2 A14B (texto → vídeo e imagem → vídeo; dois modelos, ruído baixo + alto) e Wan2.1 imagem → vídeo. GGUF da QuantStack e da city96.
     {"id": "wan22-t2v-a14b", "name": r"wan[-_. ]?2[._]?2.*t2v.*a14b(?!.*high[-_]?noise)", "label": "Wan2.2 T2V A14B", "cap": "video",
      "load": {"vae_path": r"wan[-_]?2[._]?1[-_]?vae.*\.safetensors$", "t5xxl_path": r"umt5[-_]?xxl.*\.(safetensors|gguf)$", "high_noise_diffusion_model_path": r"^wan2[._]?2[-_]t2v[-_]a14b[-_]high[-_]?noise.*\.gguf$"},
@@ -159,6 +183,10 @@ def download_spec(fam: Dict[str, Any], key: str, filename: str) -> Dict[str, Any
     """De onde baixar o arquivo de apoio `key` do modelo `filename`. Normalmente é fixo (`downloads`); o que acompanha o próprio modelo (o «HighNoise» do Wan2.2 A14B, de mesma quantização) tem `derive`:
     o nome é o do modelo com `swap[0]` trocado por `swap[1]`, na pasta `dir` do repositório."""
     d = dict(fam["downloads"][key])
+    for pk in d.pop("pick", None) or []:   # o arquivo depende do nome do modelo (ex.: codificador Q2_K_M só para os denoisers Q2)
+        if re.search(pk["match"], Path(filename).name, re.I):
+            d.update({k: v for k, v in pk.items() if k != "match"})
+            break
     dv = d.pop("derive", None)
     if dv:
         name = Path(filename).name

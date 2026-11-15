@@ -16,7 +16,7 @@ from .media import MEDIA_PRESETS, media_config
 from .localmodels import MARKER, PRECISIONS
 
 
-SUPPORT_RE = re.compile(r"(qwen2[._]?5.*vl|qwen3-|qwen3[._]?5|moss[-_]?image[-_](?:vae|tokenizer)|t5xxl|clip[_-]?[lg]\b|clip[_-]?vision|umt5|mmproj|high[-_]?noise)", re.I)   # `high-noise`: o segundo modelo do Wan2.2 A14B
+SUPPORT_RE = re.compile(r"(qwen2[._]?5.*vl|qwen3-|qwen3[._]?5|qwen3vl_32b_minimax|moss[-_]?image[-_](?:vae|tokenizer)|t5xxl|clip[_-]?[lg]\b|clip[_-]?vision|umt5|mmproj|high[-_]?noise)", re.I)   # `high-noise`: o segundo modelo do Wan2.2 A14B
 
 
 def hf_cache_dir() -> Path:

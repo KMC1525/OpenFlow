@@ -2,6 +2,20 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.22.0] — 2026-11-15
+
+### Novo — MiniMax H3 e LTX-2 / 2.3 / 2.5 (vídeo com áudio)
+- **MiniMax H3** (`unsloth/MiniMax-H3-GGUF`, variantes texto + quadros e referências): o OpenFlow agora monta a receita do cartão pelo `sd-cli` — **VAE de vídeo** e **VAE de áudio** (de `Comfy-Org/MiniMax-H3`, baixados junto do modelo), codificador de texto **Qwen3-VL-32B** (Q2_K_M para os denoisers Q2, Q4_K_M para os demais), `--cfg-scale 1.0`, `--backend te=cpu`, flash attention e descarga de parâmetros para a CPU. O `sd-cli` grava o **WebM com áudio estéreo** (24 fps, até 15 s, 960×544 ou 544×960) e o OpenFlow o entrega como está. Novos pontos de apoio: `--audio-vae` e `te_on_cpu` no `sdcli`, `generate_video_file`, e `pick` nos arquivos de apoio (o arquivo depende da quantização do modelo). A biblioteca Python do PyPI nunca o reconhece: vai direto ao `sd-cli`.
+- **LTX-2, 2.3 e 2.5** (`unsloth/LTX-2*-GGUF`): rodam pelo **diffusers (≥ 0.43)** — o GGUF vira o transformador (`LTX2VideoTransformer3DModel.from_single_file`) e o resto vem do repositório diffusers da Lightricks. Texto → vídeo ou imagem inicial → vídeo, **MP4 com áudio**, 24 fps, quadros 8k+1, lados múltiplos de 32; «distilled» usa 8 passos e CFG 1, «dev» 30 passos e CFG 3.
+- **Os componentes (≈ 25 GB) nunca baixam em silêncio:** faltando, o nó mostra o erro com o botão **«Baixar os componentes do LTX-2»** (`POST /api/media/ltx2-components`).
+- Catálogo da Unsloth: MiniMax H3 e LTX-2/2.3/2.5 passam de «Ainda não» a **«Experimental»**. `pip install "openflow[media]"` agora inclui `gguf` e `av`.
+
+### Ainda não verificado / limites
+- **Não gerei nada com esses modelos aqui** (sem GPU, sem rede, sem sd-cli): os testes cobrem reconhecimento, escolha dos arquivos de apoio, argumentos do `sd-cli`, o fluxo do botão e mensagens de erro com diffusers/Hugging Face simulados. Por isso aparecem como «Experimental».
+- **LTX-2.3:** não achei repositório diffusers próprio; uso o do LTX-2.5 como base (**palpite não confirmado**). `Lightricks/LTX-2.5-Diffusers` é restrito: precisa aceitar a licença e informar o token do Hugging Face.
+- O LTX-2 pelo diffusers é pesado (GPU com muita VRAM/RAM) e o formato do GGUF da Unsloth contra a configuração do repositório base pode não bater; nesse caso o nó mostra o erro do diffusers.
+- MiniMax H3: ainda sem controle de duração além do limite de 15 s, e a variante de referências roda como texto → vídeo.
+
 ## [0.21.0] — 2026-11-15
 
 ### Novo — modelos de imagem e vídeo da Unsloth (Hugging Face)
