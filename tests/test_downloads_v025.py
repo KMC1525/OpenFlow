@@ -130,6 +130,17 @@ class FetchTests(unittest.TestCase):
         self.assertEqual(part.read_bytes(), DATA)
         self.assertIn("bytes=700000-", st["requests"])
 
+    def test_server_without_range_is_asked_only_once(self):
+        srv, st = make_server(ranges=False)
+        self.run_fetch(srv)
+        self.assertEqual(len(st["requests"]), 1)          # a resposta do teste de faixas já era o arquivo: não pede de novo
+
+    def test_no_internet_at_the_start_fails_at_once(self):
+        t0 = time.time()
+        with self.assertRaises(ProviderError):
+            dl.fetch("http://127.0.0.1:9/x", self.tmp / "m.part", {}, 4, None, lambda: False)   # porta fechada
+        self.assertLess(time.time() - t0, 5)
+
     def test_plan_splits_big_files_only(self):
         with mock.patch.object(dl, "MIN_SEGMENT", 32 << 20):
             self.assertEqual(len(dl._plan(10 << 20, 4)), 1)
