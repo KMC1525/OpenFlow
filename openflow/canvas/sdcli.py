@@ -63,6 +63,13 @@ def backend() -> str:
         return "cpu"
     if _nvidia():
         return "cuda12"
+    try:   # AMD/Intel dedicadas (v0.29): o executável Vulkan acelera sozinho; integrada só se o usuário pedir «GPU»
+        from .. import native
+
+        if any(not g.get("integrated") and g.get("vendor") in ("amd", "intel") for g in native.gpu_info()):
+            return "vulkan"
+    except Exception:  # noqa: BLE001
+        pass
     return "vulkan" if dev == "gpu" else "cpu"
 
 

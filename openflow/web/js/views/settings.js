@@ -279,6 +279,30 @@ async function projectTab() {
     saveRow(() => saveSettings({ canvas: cv })));
 }
 
+// Aceleração por placa de vídeo (v0.29): NVIDIA/AMD/Intel, se o llama.cpp instalado usa a placa e quanto cada modelo de texto deve render nela
+function gpuAccelCard(hw) {
+  const body = h('div', { id: 'gpu-body', 'aria-live': 'polite' }, h('span', { class: 'muted small' }, t('Procurando placas de vídeo…')));
+  const win = /windows/i.test(hw.os || '');
+  const cmd = (backend) => { const flag = { cuda: '-DGGML_CUDA=on', vulkan: '-DGGML_VULKAN=on', metal: '-DGGML_METAL=on' }[backend]; const pip = 'pip install --upgrade --force-reinstall --no-cache-dir llama-cpp-python'; return win ? '$env:CMAKE_ARGS="' + flag + '"; ' + pip : 'CMAKE_ARGS="' + flag + '" ' + pip; };
+  const paint = (r) => {
+    if (!r.gpus.length) return body.replaceChildren(h('p', { class: 'muted small', style: { margin: 0 } }, t('Nenhuma placa de vídeo NVIDIA, AMD ou Intel detectada: os modelos rodam na CPU (veja o card acima). No Windows, só placas NVIDIA são detectadas.')));
+    const BK = { cuda: 'CUDA', vulkan: 'Vulkan', metal: 'Metal' };
+    body.replaceChildren(
+      h('dl', { class: 'kv', style: { margin: 0 } },
+        ...r.gpus.flatMap((g) => [h('dt', null, 'GPU ' + g.index), h('dd', { class: 'gpu-row' }, g.name + ' · ' + (g.integrated ? t('integrada (usa a RAM)') : g.vram_total ? fmtBytes(g.vram_total) + ' ' + t('de memória') : '') + ' · ' + BK[g.backend])]),
+        h('dt', null, t('llama.cpp (texto)')), h('dd', { id: 'gpu-llama' }, !r.llama.installed ? t('não instalado') : r.llama.offload ? h('span', { class: 'chip on' }, t('usa a placa')) : h('span', { class: 'chip warn' }, t('só CPU: não usa a placa'))),
+        h('dt', null, t('Imagem e vídeo (sd-cli)')), h('dd', null, { cuda12: 'CUDA', vulkan: 'Vulkan', cpu: 'CPU' }[r.sd_cli] || r.sd_cli)),
+      r.llama.installed && !r.llama.offload && r.backend ? h('div', { class: 'field' }, h('label', { class: 'f' }, t('Para o texto usar a placa, reinstale o llama-cpp-python com suporte a {b} (leva alguns minutos para compilar)', { b: BK[r.backend] })),
+        h('div', { class: 'codebox' }, h('span', { id: 'gpu-cmd' }, cmd(r.backend)), h('button', { class: 'btn sm ghost', type: 'button', onclick: () => navigator.clipboard.writeText(cmd(r.backend)).then(() => toast(t('Copiado'), 'ok')) }, t('Copiar')))) : null,
+      r.models.length ? h('div', { class: 'col', style: { marginTop: '10px', gap: '6px' }, id: 'gpu-models' }, r.models.map((m) => h('div', { class: 'row nw' }, h('span', { class: 'mono small grow', style: { overflowWrap: 'anywhere' } }, m.name),
+        h('span', { class: 'dim small' }, fmtBytes(m.size)),
+        h('span', { class: 'small' }, m.all_gpu ? t('tudo na placa') : m.layers_fit ? t('{a} de {b} camadas na placa', { a: m.layers_fit, b: m.layers }) : t('na CPU')),
+        m.est_tps ? h('span', { class: 'small' }, '≈ ' + m.est_tps.toFixed(1) + ' tok/s') : null, m.layers_fit && !m.all_gpu && !m.kv_on_gpu ? h('span', { class: 'chip' }, t('cache na RAM')) : null))) : null);
+  };
+  api('/api/gpu').then(paint).catch((e) => body.replaceChildren(h('span', { class: 'muted small' }, e.message)));
+  return cfgCard(t('Placa de vídeo (aceleração)'), h('p', { class: 'muted small', style: { marginTop: 0 } }, t('Em placas pequenas (2–6 GB, notebooks) o OpenFlow deixa o cache de atenção na RAM e enche a memória da placa só com camadas do modelo; GPU integrada não é usada (ela divide a RAM com o processador).')), body);
+}
+
 // CPU (v0.28): o processador, a velocidade da memória (o que limita os modelos na CPU) e quanto cada modelo de texto baixado deve render, só na CPU
 function cpuCard(pf) {
   const body = h('div', { id: 'cpu-body', 'aria-live': 'polite' }, h('span', { class: 'muted small' }, t('Lendo o processador…')));
@@ -339,6 +363,7 @@ async function performance() {
       h('p', { class: 'muted small', style: { marginBottom: 0 } }, t('Seu hardware: {t}', { t: hw.tier }) + ' · ' + hw.cpus + ' CPU · ' + (hw.ram_gb ? hw.ram_gb + ' GB RAM' : '—') + ' · ' + (hw.gpu || t('não detectada (NVIDIA)')))),
     gpuCard(pf, hw),
     cpuCard(pf),
+    gpuAccelCard(hw),
     cfgCard(t('Núcleo Rust'),
       h('dl', { class: 'kv', style: { margin: 0 } }, h('dt', null, t('Núcleo Rust')), h('dd', null, nat.active ? h('span', { class: 'chip on' }, t('ativo')) : h('span', { class: 'muted' }, t('inativo — usando Python puro'))),
         h('dt', null, 'Rust (cargo)'), h('dd', null, nat.cargo ? t('encontrado') : t('não encontrado (opcional)')),

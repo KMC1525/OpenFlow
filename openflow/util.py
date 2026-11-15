@@ -174,6 +174,14 @@ def gpu_list() -> list:
 def _gpu_name() -> Optional[str]:
     """Os nomes de todas as placas (uma por linha do nvidia-smi), separados por « + » (antes só a primeira aparecia)."""
     gpus = gpu_list()
+    try:   # AMD/Intel (v0.29): também aparecem, com o nome do banco pci.ids quando o sistema tem
+        from . import native
+
+        others = [g for g in native.gpu_info() if g.get("vendor") in ("amd", "intel")]
+    except Exception:  # noqa: BLE001
+        others = []
+    if not gpus and others:
+        return " + ".join(f"{g['name']}" + (f" ({round(g['vram_total'] / 1048576)} MiB)" if g.get("vram_total") else " (integrada)") for g in others)
     if not gpus:
         return None
     return " + ".join(f"{g['name']} ({g['mem_mb']} MiB)" if g["mem_mb"] else g["name"] for g in gpus)

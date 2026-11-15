@@ -15,6 +15,7 @@ import ctypes
 import math
 import os
 import random
+import re
 import shutil
 import subprocess
 import sys
@@ -23,7 +24,7 @@ from array import array
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-ABI = 5   # versão da interface desta versão do OpenFlow; bibliotecas antigas (1 a 4) ainda servem (sem os recursos novos: CPU, v0.28): a 1 só para o áudio, a 2 também para modelos locais, a 3 para agentes/armazenamento — sem os recursos novos (análise de mídia e grafos, v0.17)
+ABI = 6   # versão da interface desta versão do OpenFlow; bibliotecas antigas (1 a 5) ainda servem (sem os recursos novos: CPU v0.28 e GPU v0.29): a 1 só para o áudio, a 2 também para modelos locais, a 3 para agentes/armazenamento — sem os recursos novos (análise de mídia e grafos, v0.17)
 SRC = Path(__file__).resolve().parent
 _LIB: Any = None
 _TRIED = False
@@ -138,6 +139,12 @@ def _bind(lib: Any) -> None:
         lib.flow_mem_bench.restype = i64
         lib.flow_plan_cpu.argtypes = [u64, i64, f64, f64, u32, u32, u32, u32, u32, u64, u64, u32, vp, sz]
         lib.flow_plan_cpu.restype = i64
+    if lib.flow_abi_version() >= 6:  # v0.29: placas de vídeo NVIDIA/AMD/Intel e o planejador de GPU
+        sz, i64, vp, f64, u32, u64 = ctypes.c_size_t, ctypes.c_int64, ctypes.c_void_p, ctypes.c_double, ctypes.c_uint32, ctypes.c_uint64
+        lib.flow_gpu_info.argtypes = [vp, sz]
+        lib.flow_gpu_info.restype = i64
+        lib.flow_plan_gpu.argtypes = [u64, i64, i64, i64, u64, u64, u32, u32, f64, f64, u64, u32, vp, sz]
+        lib.flow_plan_gpu.restype = i64
 
 
 def load(force: bool = False) -> Any:
@@ -155,7 +162,7 @@ def load(force: bool = False) -> Any:
                 continue
             try:
                 lib = ctypes.CDLL(str(path))
-                if lib.flow_abi_version() not in (1, 2, 3, 4, ABI):
+                if lib.flow_abi_version() not in (1, 2, 3, 4, 5, ABI):
                     _REASON = f"{path.name}: versão da interface diferente (recompile com `flow native setup`)"
                     continue
                 _bind(lib)
@@ -1464,3 +1471,135 @@ def cached_bench(refresh: bool = False) -> Optional[Dict[str, Any]]:
     except OSError:
         pass
     return r
+
+
+# --------------------------------------------------------------------------- v0.29: placas de vídeo NVIDIA/AMD/Intel
+def _lib6() -> Any:
+    lib = load()
+    return lib if lib is not None and hasattr(lib, "flow_gpu_info") else None
+
+
+_VENDOR_NUM = {"nvidia": 0, "amd": 1, "intel": 2, "apple": 3}
+
+# Largura de banda aproximada da memória de placas comuns (GB/s, especificações dos fabricantes); só serve para estimar a velocidade — placa fora da lista: sem estimativa.
+_GPU_BW = ((r"rtx\s*4090", 1008), (r"rtx\s*4080", 717), (r"rtx\s*4070\s*ti", 504), (r"rtx\s*4070", 504), (r"rtx\s*4060\s*ti", 288), (r"rtx\s*4060", 272), (r"rtx\s*3090", 936), (r"rtx\s*3080", 760),
+           (r"rtx\s*3070", 448), (r"rtx\s*3060\s*ti", 448), (r"rtx\s*3060", 360), (r"rtx\s*3050", 224), (r"rtx\s*2080", 448), (r"rtx\s*2070", 448), (r"rtx\s*2060", 336), (r"gtx\s*1660", 192),
+           (r"gtx\s*1650", 128), (r"gtx\s*1080", 320), (r"gtx\s*1070", 256), (r"gtx\s*1060", 192), (r"rx\s*7900\s*xtx", 960), (r"rx\s*7800", 624), (r"rx\s*7600", 288), (r"rx\s*6800", 512),
+           (r"rx\s*6700", 384), (r"rx\s*6600", 224), (r"rx\s*580", 256), (r"arc\s*a770", 560), (r"arc\s*a750", 512), (r"arc\s*a380", 186))
+
+
+def gpu_bandwidth(name: str) -> float:
+    """Largura de banda aproximada da memória da placa (GB/s), ou 0 se não está na lista (então não há estimativa de velocidade)."""
+    n = (name or "").lower()
+    for rx, bw in _GPU_BW:
+        if re.search(rx, n):
+            return float(bw)
+    return 0.0
+
+
+def gpu_info() -> list:
+    """As placas de vídeo (NVIDIA pelo nvidia-smi; AMD e Intel pelo /sys/class/drm no Linux): [{index, vendor, name, integrated, vram_total, vram_free, backend (cuda|vulkan|metal), bw_gbs}].
+    Sem o núcleo Rust, o Python lê as mesmas fontes."""
+    lib = _lib6()
+    if lib is not None:
+        r = _call_json(lib.flow_gpu_info)
+        if r is not None:
+            return [dict(g, bw_gbs=gpu_bandwidth(g.get("name", ""))) for g in r.get("gpus", [])]
+    out: list = []
+    exe = shutil.which("nvidia-smi")
+    if exe:
+        try:
+            raw = subprocess.run([exe, "--query-gpu=index,name,memory.total,memory.free", "--format=csv,noheader,nounits"], capture_output=True, text=True, timeout=5).stdout.strip().splitlines()
+            for line in raw:
+                p = [x.strip() for x in line.split(",")]
+                if len(p) >= 4 and p[0].isdigit():
+                    out.append({"index": int(p[0]), "vendor": "nvidia", "name": ", ".join(p[1:-2]), "integrated": False, "vram_total": int(float(p[-2]) * 1048576), "vram_free": int(float(p[-1]) * 1048576), "backend": "cuda", "pci": ""})
+        except (OSError, subprocess.SubprocessError, ValueError):
+            pass
+    try:
+        for d in sorted(Path("/sys/class/drm").iterdir()):
+            if not re.fullmatch(r"card\d+", d.name):
+                continue
+            dev = d / "device"
+            vid = (dev / "vendor").read_text().strip().lower().removeprefix("0x") if (dev / "vendor").exists() else ""
+            did = (dev / "device").read_text().strip().lower().removeprefix("0x") if (dev / "device").exists() else ""
+            idx = int(d.name[4:])
+            if vid == "1002":
+                tot = int((dev / "mem_info_vram_total").read_text()) if (dev / "mem_info_vram_total").exists() else 0
+                used = int((dev / "mem_info_vram_used").read_text()) if (dev / "mem_info_vram_used").exists() else 0
+                out.append({"index": idx, "vendor": "amd", "name": f"AMD GPU ({vid}:{did})", "integrated": tot <= (2 << 30), "vram_total": tot, "vram_free": max(tot - used, 0), "backend": "vulkan", "pci": f"{vid}:{did}"})
+            elif vid == "8086":
+                lm = int((d / "lmem_total_bytes").read_text()) if (d / "lmem_total_bytes").exists() else 0
+                out.append({"index": idx, "vendor": "intel", "name": f"Intel GPU ({vid}:{did})", "integrated": lm == 0, "vram_total": lm, "vram_free": lm, "backend": "vulkan", "pci": f"{vid}:{did}"})
+    except (OSError, ValueError):
+        pass
+    return [dict(g, bw_gbs=gpu_bandwidth(g.get("name", ""))) for g in out]
+
+
+def plan_gpu(weights: int, layers: int, kv_per_token: int, ctx: int, vram_total: int, vram_free: int, vendor: str, integrated: bool, bw_gpu: float, bw_cpu: float, ram_avail: int, mode: int) -> Dict[str, Any]:
+    """Quantas camadas do modelo vão para a placa e se o cache de atenção fica nela (ver gpu.rs). Placas pequenas ganham deixando o cache na RAM e enchendo a VRAM só com camadas."""
+    v = _VENDOR_NUM.get(vendor, 0)
+    lib = _lib6()
+    if lib is not None:
+        r = _call_json(lambda buf, cap: lib.flow_plan_gpu(int(weights), int(layers), int(kv_per_token), int(ctx), int(vram_total), int(vram_free), int(v), int(integrated), float(bw_gpu), float(bw_cpu), int(ram_avail), int(mode), buf, cap))
+        if r:
+            return r
+    w, n_layers = float(weights), float(max(layers, 1))
+    layer_bytes = w / n_layers
+    kvpt = float(kv_per_token) if kv_per_token > 0 else 131072.0
+    ctx_f = float(max(ctx, 512))
+    kv_total = kvpt * ctx_f * (0.53 if mode == 0 else 1.0)
+    vram, total = float(vram_free), float(vram_total)
+    reserve = (600.0 + (400.0 if 0.0 < total <= 6144.0 * MIB else 0.0)) * MIB
+    usable = max(vram * 0.92 - reserve, 0.0)
+    notes: list = []
+
+    def fit(kv_on_gpu: bool) -> float:
+        per = layer_bytes + (kv_total / n_layers if kv_on_gpu else 0.0)
+        return 0.0 if per <= 0.0 else max(min(math.floor(usable / per), n_layers), 0.0)
+
+    a, b = fit(True), fit(False)
+
+    def time_for(ngl: float) -> float:
+        gb = 1073741824.0
+        g = (ngl * layer_bytes / gb) / bw_gpu if bw_gpu > 0.0 else 0.0
+        c = ((n_layers - ngl) * layer_bytes / gb) / bw_cpu if bw_cpu > 0.0 else 0.0
+        return g + c
+
+    known = bw_gpu > 0.0 and bw_cpu > 0.0
+    kv_on_gpu, ngl = True, a
+    if b > a and a < n_layers:
+        better = time_for(b) < time_for(a) * 0.97 if known else True
+        if better:
+            kv_on_gpu, ngl = False, b
+            notes.append("o cache de atenção fica na RAM para caber mais camadas na placa")
+    if integrated:
+        notes.append("GPU integrada: usa a mesma RAM do processador; o ganho é pequeno e a CPU costuma render igual")
+    if ngl < 1.0:
+        ngl = 0.0
+    all_gpu = ngl >= n_layers
+    est = 0.0
+    if known and w > 0.0:
+        t = time_for(ngl)
+        est = 0.65 / t if t > 0.0 else 0.0
+    est_cpu = bw_cpu * 0.65 / (w / 1073741824.0) if bw_cpu > 0.0 and w > 0.0 else 0.0
+    if 0.0 < ngl and not all_gpu:
+        notes.append(f"{int(ngl)} de {int(n_layers)} camadas na placa; o resto roda na CPU")
+    if ngl == 0.0 and vram_free > 0:
+        notes.append("a placa não tem memória livre suficiente nem para uma camada: o modelo roda na CPU")
+    flash = v in (0, 3)
+    return {"n_gpu_layers": -1 if all_gpu else int(ngl), "layers_fit": int(ngl), "offload_kqv": bool(kv_on_gpu or ngl == 0.0), "flash": flash, "use_gpu": bool(ngl > 0.0 and not (integrated and v != 3)),
+            "est_tps": math.floor(est * 10.0 + 0.5) / 10.0, "est_tps_cpu": math.floor(est_cpu * 10.0 + 0.5) / 10.0, "reserve_mb": int(reserve / MIB), "notes": notes}
+
+
+def llama_gpu_support() -> Dict[str, Any]:
+    """A instalação do llama-cpp-python consegue mandar camadas para a placa? `llama_supports_gpu_offload()` diz se a compilação tem CUDA/Vulkan/Metal/HIP; o pacote padrão do PyPI é só CPU
+    (e então o OpenFlow deve tratar o modelo como de CPU, em vez de planejar para uma GPU que não será usada). {installed, offload}."""
+    try:
+        import llama_cpp  # type: ignore
+    except ImportError:
+        return {"installed": False, "offload": False}
+    try:
+        return {"installed": True, "offload": bool(llama_cpp.llama_supports_gpu_offload())}
+    except Exception:  # noqa: BLE001 — versão antiga sem a função: assume que o que o usuário compilou funciona
+        return {"installed": True, "offload": True}

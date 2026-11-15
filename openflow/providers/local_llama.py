@@ -99,13 +99,27 @@ def _plan(path: str, hw: Dict[str, Any], prof: Dict[str, Any], want_ctx: int, ex
         mem = perf.memory_state()
         if mem["ram_avail"] <= 0:   # memória desconhecida (sem o núcleo Rust fora do Linux): sem plano, vale o comportamento antigo — nunca encolher a janela por falta de dado
             return {}
-        gpu_known = bool(hw.get("gpu")) or mem["unified"]
+        gpu_known = (bool(hw.get("gpu")) or mem["unified"]) and _gpu_offload_ok()   # llama-cpp-python do PyPI é só CPU: não planeja para uma placa que não será usada (v0.29)
         plan = native.plan_llm(int(info.get("bytes") or 0), int(info.get("layers") or 0), int(info.get("kv_bytes_per_token") or 0), int(info.get("ctx_train") or 0), int(want_ctx), explicit,
                                0, mem["ram_avail"], mem["vram_free"] if gpu_known else 0, mem["unified"], mem["phys"], mem["logical"], perf.MODE_NUM[prof["mode"]])
         plan["info"] = {k: info.get(k) for k in ("arch", "name", "quant", "layers", "ctx_train", "bytes", "params")}
         return plan
     except Exception:  # noqa: BLE001
         return {}
+
+
+_SUPPORT: Dict[str, Any] = {}
+
+
+def _gpu_offload_ok() -> bool:
+    """O llama-cpp-python instalado manda camadas para a placa (CUDA/Vulkan/Metal/HIP)? Se o pacote não está instalado ou a pergunta falha, assume que sim (o erro de import aparece depois, com a instrução)."""
+    if "v" not in _SUPPORT:
+        try:
+            r = native.llama_gpu_support()
+            _SUPPORT["v"] = bool(r["offload"]) if r["installed"] else True
+        except Exception:  # noqa: BLE001
+            _SUPPORT["v"] = True
+    return bool(_SUPPORT["v"])
 
 
 def context_size(configured: Any, model_name: str, tier: str) -> int:
@@ -208,6 +222,13 @@ class LocalLlamaProvider(Provider):
             raise ProviderError(f"Modelo não encontrado: {path}")
         return path
 
+    @staticmethod
+    def _kv_per_token(path: str) -> int:
+        try:
+            return int((native.model_info(path) or {}).get("kv_bytes_per_token") or 0)
+        except Exception:  # noqa: BLE001
+            return 0
+
     def _llm(self):
         need_reply = int(getattr(self, "_need_reply", 0) or 0)   # tamanho da resposta pedida (definido por _chat/_stream antes de chamar)
         try:
@@ -239,7 +260,19 @@ class LocalLlamaProvider(Provider):
             if llm is None:
                 dev = perf.device()   # Configurações → Desempenho → Rodar em: automático, só CPU ou GPU
                 use_gpu = dev != "cpu" and (dev == "gpu" or bool(hw.get("gpu")) or (hw["os"] == "Darwin" and "arm" in hw["arch"].lower()))
+                if use_gpu and not _gpu_offload_ok():   # a instalação não manda camadas para a placa: roda (e é ajustado) como modelo de CPU
+                    use_gpu = False
+                    native.LAST["gpu_note"] = "llama-cpp-python sem suporte a GPU (compilação só CPU): rodando na CPU"
                 ngl = int(plan["n_gpu_layers"]) if plan and use_gpu else (-1 if use_gpu else 0)
+                gtune: Dict[str, Any] = {}
+                if use_gpu and plan:   # placa dedicada NVIDIA/AMD/Intel (v0.29): camadas e cache de atenção pelo planejador da placa (núcleo Rust)
+                    ginfo = plan.get("info") or {}
+                    gtune = perf.gpu_tuning(int(ginfo.get("bytes") or 0), int(ginfo.get("layers") or 0), int(self._kv_per_token(path)), ctx, prof["mode"])
+                    if gtune and not gtune.get("use_gpu") and dev != "gpu":
+                        use_gpu, ngl = False, 0   # integrada (ou sem memória para uma camada): a CPU rende igual ou mais
+                    elif gtune and gtune.get("use_gpu"):
+                        ngl = int(gtune["n_gpu_layers"])
+                        native.LAST["gpu"] = {"model": os.path.basename(path), "layers": gtune["layers_fit"], "kv_on_gpu": gtune["offload_kqv"], "est_tps": gtune.get("est_tps"), "gpu": (gtune.get("gpu") or {}).get("name")}
                 threads = int(plan["n_threads"]) if plan else max(1, hw["cpus"] - 1)
                 base = dict(model_path=path, n_ctx=ctx, n_threads=threads, n_gpu_layers=ngl, verbose=False)
                 if ngl == 0:   # só CPU (AMD/Intel/ARM, v0.28): threads, lotes e cache de atenção conforme o processador e a memória (núcleo Rust)
@@ -255,7 +288,11 @@ class LocalLlamaProvider(Provider):
                             perf.pin_performance_cores(tune["info"])
                         native.LAST["cpu"] = {"model": os.path.basename(path), "threads": base["n_threads"], "est_tps": tune.get("est_tps"), "weak": tune.get("weak")}
                 if use_gpu and ngl != 0:
-                    base.update(perf.llama_split())   # várias placas NVIDIA: camadas divididas em proporção à memória livre (ou só a placa escolhida)
+                    base.update(perf.llama_split())
+                    if gtune and gtune.get("use_gpu"):
+                        base["offload_kqv"] = bool(gtune["offload_kqv"])   # placa pequena: o cache de atenção fica na RAM e a VRAM recebe mais camadas
+                        if not (prof.get("kv_q8") or prof.get("kv_q4")):
+                            prof = dict(prof, flash=bool(gtune["flash"]))   # Vulkan (AMD/Intel): flash attention fica desligada (a quantização do cache a exige, então só vale sem ela)   # várias placas NVIDIA: camadas divididas em proporção à memória livre (ou só a placa escolhida)
                 handler = vision_handler(Path(path))   # modelo com mmproj ao lado: aceita imagens
                 if handler is not None:
                     base["chat_handler"] = handler
