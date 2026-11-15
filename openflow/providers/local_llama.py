@@ -249,7 +249,7 @@ class LocalLlamaProvider(Provider):
                         prof = dict(prof, n_batch=min(int(prof["n_batch"]), int(tune["n_batch"])), n_ubatch=int(tune["n_ubatch"]), n_threads_batch=int(tune["n_threads_batch"]))
                         if tune.get("kv_q8") and path not in _PLAIN:
                             prof["kv_q8"], prof["flash"] = True, bool(tune.get("flash"))
-                        if tune.get("ctx_cap") and not self.n_ctx_cfg and base["n_ctx"] > int(tune["ctx_cap"]):
+                        if tune.get("ctx_cap") and not self.n_ctx_cfg and prof["mode"] != "max" and base["n_ctx"] > int(tune["ctx_cap"]):   # modo Máximo: sem limite do OpenFlow
                             base["n_ctx"] = max(2048, int(tune["ctx_cap"]))   # CPU fraca: janela menor (a atenção custa tempo e memória)
                         if tune.get("pin"):
                             perf.pin_performance_cores(tune["info"])
