@@ -54,6 +54,7 @@ class ProjectRoutes:
         a("POST", r"/api/media/support/download", self.r_support_download)
         a("POST", r"/api/media/sd-latest", self.r_sd_latest)
         a("POST", r"/api/media/sd-cli", self.r_sd_cli)
+        a("POST", r"/api/media/ltx2-components", self.r_ltx2_components)
         a("GET", r"/api/media/sd-native", self.r_sd_native_info)
         a("POST", r"/api/media/sd-native", self.r_sd_native)
         a("GET", r"/api/media/hub/search", self.r_hub_search)
@@ -360,6 +361,32 @@ class ProjectRoutes:
 
         job = self.app.jobs.start("support_files", work)
         req.json({"job_id": job.id, "files": [m["label"] for m in info["missing"]], "approx_gb": info["approx_gb"]})
+
+    def r_ltx2_components(self, req) -> None:
+        """Baixa os componentes do LTX-2.x (codificador de texto Gemma, VAEs, vocoder) do repositório diffusers da Lightricks para o cache do Hugging Face. Só a pedido (botão no nó)."""
+        body = req.body_json()
+        base = str(body.get("base") or "")
+        from .canvas import ltx2
+
+        if base not in set(ltx2.BASES.values()):
+            raise HttpError(400, "Repositório base desconhecido.")
+        running = self.app.jobs.running("ltx2_components")
+        if running:
+            raise HttpError(409, json.dumps({"job_id": running.id}))
+
+        def work(job: Job) -> None:
+            from .providers import ProviderError
+
+            job.emit({"type": "start"})
+            try:
+                path = ltx2.download_components(base, self._hf_token(), lambda m: job.emit({"type": "note", "message": m}), lambda: job.cancelled)
+            except ProviderError as exc:
+                job.emit({"type": "cancelled"} if str(exc) == "cancelado" else {"type": "error", "message": str(exc)[:400]})
+                return
+            job.emit({"type": "done", "path": path})
+
+        job = self.app.jobs.start("ltx2_components", work)
+        req.json({"job_id": job.id})
 
     def r_sd_cli(self, req) -> None:
         """Baixa o `sd-cli` pré-compilado da stable-diffusion.cpp (sem git nem compilador) para `<dados>/bin/sd-cpp/`: o OpenFlow passa a usá-lo nos modelos que a biblioteca Python não reconhece. Só a pedido (botão no nó)."""

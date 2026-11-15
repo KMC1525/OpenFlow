@@ -1896,7 +1896,7 @@ def _lib_unsupported(name: str) -> bool:
         return False
 
 
-_NEWER_THAN_LIB = re.compile(r"flux[-_. ]?3|moss[-_ ]?image", re.I)
+_NEWER_THAN_LIB = re.compile(r"flux[-_. ]?3|moss[-_ ]?image|minimax[-_ ]?h3", re.I)
 
 
 def _lib_is_stale() -> bool:
@@ -2458,6 +2458,8 @@ class GGUFMedia(MediaProvider):
         path = self._path("video", model)
         fam = support.family_of(path.name)
         fam = fam if fam and fam.get("cap") == "video" else None
+        if fam and fam.get("engine") == "ltx2":   # LTX-2.x: pelo diffusers (ltx2.py), não pela stable-diffusion.cpp
+            return self._video_ltx2(path, prompt, duration, aspect, image, seed, long_side, extra)
         base: Dict[str, Any] = {}
         if fam and not extra.get("load"):   # família conhecida (Wan2.2 TI2V…, ver `support.FAMILIES`): acha o VAE e o codificador de texto ao lado do modelo
             found = support.find_companions(path.parent, path, fam)
@@ -2468,6 +2470,10 @@ class GGUFMedia(MediaProvider):
             base = {"load": {"diffusion_model_path": "@model", **found, **fam.get("options", {})}, "run": support.run_for(fam, path.name)}
         extra = {**base.get("run", {}), **extra}
         vload = {**base.get("load", {}), **(extra.pop("load", None) or {})}
+        if fam and (fam.get("video") or {}).get("container"):   # MiniMax H3…: VAE de áudio, `--backend te=cpu` e a trilha estéreo só existem no sd-cli (a biblioteca Python não os tem)
+            if not self._cli_fallback(_SDUnsupportedModel(path.name)):
+                raise self._no_cli_error(path)
+            return self._video_cli(path, vload, extra, fam, prompt, duration, aspect, image, seed, long_side)
         try:
             sd = self._engine("video", path, vload)
         except ProviderError as exc:
@@ -2506,6 +2512,31 @@ class GGUFMedia(MediaProvider):
         frames = fn(**kw)
         return _frames_to_mp4(frames, fps)
 
+    def _video_ltx2(self, path: Path, prompt: str, duration: int, aspect: str, image: Optional[Ref], seed: int, long_side: int, extra: Dict[str, Any]) -> Media:
+        """LTX-2 / 2.3 / 2.5 pelo diffusers (ver ltx2.py): vídeo MP4 com áudio. Os componentes do repositório base só baixam pelo botão do nó."""
+        from . import ltx2
+
+        info = ltx2.parse(path.name)
+        if info is None:
+            raise ProviderError(f"Não reconheci a versão do LTX-2 em {path.name}.")
+        if not ltx2.components_cached(info["base"]):
+            size = 0
+            try:
+                size = ltx2.components_size(info["base"])
+            except Exception:  # noqa: BLE001 — sem rede: só não diz o tamanho
+                pass
+            raise ProviderError(ltx2.missing_message(info["base"], size))
+        steps, cfg = ltx2.RUN[info["variant"]]
+        pil = _pil_refs([image]) if image is not None else []
+        w, h = ltx2.size_for(aspect, long_side)
+        frames = ltx2.frames_for(duration)
+        self.ctl.note(f"Carregando o LTX-{info['version']} ({info['variant']}) pelo diffusers (pode demorar e exige bastante memória)…")
+        pipe = _local_load("video", f"ltx2:{path.name}:{bool(pil)}", lambda: ltx2.load_pipeline(path, info["base"], bool(pil)))
+        self.ctl.note("Gerando vídeo com áudio (pode demorar)…")
+        data = ltx2.generate(pipe, prompt=prompt, width=w, height=h, frames=frames, steps=int(extra.get("sample_steps") or steps), cfg=float(extra.get("cfg_scale") or cfg),
+                             seed=int(seed or 0), image=pil[0].resize((w, h)) if pil else None, check=self.ctl.check)
+        return Media(data, "video/mp4")
+
     def _start_image(self, vinfo: Dict[str, Any], image: Optional[Ref]) -> Optional[Ref]:
         """A imagem inicial do vídeo conforme o modelo: imagem → vídeo (Wan I2V) exige uma; texto → vídeo (Wan T2V A14B) a ignora, com aviso; os demais (TI2V…) aceitam as duas coisas."""
         mode = vinfo.get("image")
@@ -2538,6 +2569,21 @@ class GGUFMedia(MediaProvider):
                 b = io.BytesIO()
                 pil[0].resize((w, h)).save(b, format="PNG")
                 init = b.getvalue()
+        container = vinfo.get("container")
+        if container:   # o próprio sd-cli grava o vídeo (com áudio estéreo): nada de quadros soltos nem ffmpeg
+            self.ctl.note(f"Gerando o vídeo com áudio pelo sd-cli ({cli.name}). Pode demorar bastante.")
+            run_p["video_frames"] = max(9, min(int(vinfo.get("max_frames") or 361), int(round(max(1, int(duration)) * fps)) // 8 * 8 + 1))
+            try:
+                data, mime, warns = self._cli_call(path, lambda c: sdcli.generate_video_file(c, self._load_kwargs(path, load), run_p, prompt=prompt, width=w, height=h, seed=int(seed) if seed else -1, fps=fps, init=init, container=container, cancelled=self._cancelled, note=self.ctl.note))
+            except ProviderError as exc:
+                if str(exc) == "cancelado":
+                    self.ctl.check()
+                if "get sd version from file failed" in str(exc):
+                    raise self._layout_error(path) from None
+                raise
+            if warns:
+                self.ctl.note("Opções sem equivalente no sd-cli (ignoradas): " + ", ".join(sorted(set(warns))))
+            return Media(data, mime)
         self.ctl.note(f"A stable-diffusion-cpp-python não reconhece este modelo: gerando o vídeo pelo sd-cli ({cli.name}). Pode demorar bastante.")
         try:
             frames, warns = self._cli_call(path, lambda c: sdcli.generate_video(c, self._load_kwargs(path, load), run_p, prompt=prompt, width=w, height=h, seed=int(seed) if seed else -1, fps=fps, init=init, cancelled=self._cancelled, note=self.ctl.note))

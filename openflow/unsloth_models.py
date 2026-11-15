@@ -3,6 +3,7 @@
 A lista vem dos repositórios GGUF reais da organização e das receitas dos cartões deles. `status`:
   ready — o OpenFlow reconhece a família e baixa/usa tudo o que o modelo precisa;
   alt   — o arquivo da Unsloth é para ComfyUI/diffusers e não carrega na stable-diffusion.cpp; `use` aponta o repositório que carrega;
+  beta  — roda, mas ainda não foi verificado em hardware real (v0.22: MiniMax H3 e LTX-2.x); `hint` diz o que precisa;
   soon  — ainda sem receita no OpenFlow (o cartão só descreve o ComfyUI ou precisa de recursos que o OpenFlow não tem); `why` diz o motivo.
 """
 from __future__ import annotations
@@ -34,11 +35,14 @@ CATALOG: List[Dict[str, Any]] = [
     {"repo": "unsloth/ERNIE-Image-Turbo-GGUF", "kind": "image", "label": "ERNIE-Image Turbo", "size": "8B", "status": "soon", "why": "O cartão só descreve o ComfyUI-GGUF; não confirmei suporte na stable-diffusion.cpp, então o OpenFlow ainda não tem receita."},
     # ---- vídeo
     {"repo": "unsloth/Wan2.2-TI2V-5B-GGUF", "kind": "video", "label": "Wan2.2 TI2V 5B", "size": "5B", "status": "ready", "hint": "Texto ou imagem → vídeo em 720p; baixa o VAE e o UMT5-XXL junto."},
-    {"repo": "unsloth/MiniMax-H3-GGUF", "kind": "video", "label": "MiniMax H3", "size": "≈ 11–21 GB + 13–18 GB de texto", "status": "soon",
-     "why": "Roda na stable-diffusion.cpp, mas precisa de um VAE de vídeo e um de áudio (da Comfy-Org), de opções especiais do sd-cli (--backend te=cpu, CFG 1,0) e entrega vídeo com áudio estéreo; o OpenFlow ainda monta só vídeo sem áudio."},
-    {"repo": "unsloth/LTX-2.5-GGUF", "kind": "video", "label": "LTX-2.5", "size": "22B", "status": "soon", "why": "O cartão descreve só o ComfyUI (conectores, VAE de áudio e codificador Gemma 3 12B); sem receita para a stable-diffusion.cpp."},
-    {"repo": "unsloth/LTX-2.3-GGUF", "kind": "video", "label": "LTX-2.3", "size": "22B", "status": "soon", "why": "O cartão descreve só o ComfyUI; sem receita para a stable-diffusion.cpp."},
-    {"repo": "unsloth/LTX-2-GGUF", "kind": "video", "label": "LTX-2", "size": "19B", "status": "soon", "why": "O cartão descreve só o ComfyUI; sem receita para a stable-diffusion.cpp."},
+    {"repo": "unsloth/MiniMax-H3-GGUF", "kind": "video", "label": "MiniMax H3", "size": "≈ 11–21 GB + 13–18 GB de texto", "status": "beta",
+     "hint": "Novo na v0.22: vídeo com áudio estéreo (WebM, até 15 s). Baixa junto o VAE de vídeo, o VAE de áudio e o codificador Qwen3-VL-32B; usa o sd-cli (CFG 1,0 e codificador de texto na CPU, como pede o cartão). Pesado: precisa de muita memória."},
+    {"repo": "unsloth/LTX-2.5-GGUF", "kind": "video", "label": "LTX-2.5", "size": "22B", "status": "beta",
+     "hint": "Novo na v0.22: vídeo com áudio (MP4) pelo diffusers (precisa do flow update). Os componentes do repositório diffusers (≈ 25 GB, restrito: aceite a licença e informe o token) baixam por um botão no nó."},
+    {"repo": "unsloth/LTX-2.3-GGUF", "kind": "video", "label": "LTX-2.3", "size": "22B", "status": "beta",
+     "hint": "Novo na v0.22: vídeo com áudio (MP4) pelo diffusers. Usa os componentes do LTX-2.5 como base (não confirmado); baixados por um botão no nó."},
+    {"repo": "unsloth/LTX-2-GGUF", "kind": "video", "label": "LTX-2", "size": "19B", "status": "beta",
+     "hint": "Novo na v0.22: vídeo com áudio (MP4) pelo diffusers; os componentes de Lightricks/LTX-2 (≈ 25 GB) baixam por um botão no nó."},
 ]
 
 
