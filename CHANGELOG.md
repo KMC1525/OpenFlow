@@ -2,6 +2,22 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.30.0] — 2026-11-15
+
+### Novo — MiniMax H3 Image (imagem e edição) e o MiniMax H3 completo
+- **MiniMax H3 Image** (`unsloth/MiniMax-H3-Image-GGUF`, 33B): roda no OpenFlow pelo `sd-cli` com a receita do cartão — **6 passos, CFG 1,0, `euler`, `--sigmas minimax-h3-image` e `--rng cpu`** (os dois últimos não são opcionais), descarga de parâmetros para a CPU. Baixa junto o **VAE de imagem** (do `MiniMaxAI/MiniMax-H3-Image`, gravado como `minimax-h3-image-vae.safetensors` para não colidir com outros «diffusion_pytorch_model») e o **codificador Qwen3-VL-32B** do MiniMax H3 (Q2_K_M para os denoisers Q2, Q4_K_M para os demais). Recomendado pelo cartão: `UD-Q4_K_XL` (13,6 GB).
+- **Edição com até 16 referências:** as imagens ligadas ao nó vão como `-r` e o OpenFlow usa a convenção do modelo: **`<Picture 1>`, `<Picture 2>`…** no prompt. Se o seu prompt já cita as imagens, fica como está; senão o OpenFlow acrescenta («Edit <Picture 1>. …» com uma referência; «Reference images: <Picture 1>, … .» com várias). As referências valem também no modo Gerar.
+- **Tamanhos em múltiplos de 32** (cada token do modelo cobre 32×32 pixels); em edição de uma imagem, o tamanho segue a proporção dela (o cartão avisa que um tamanho quadrado corta uma referência larga).
+- **Famílias separadas:** imagem, vídeo (texto + quadros) e vídeo por referências do H3 não se confundem mais pelo nome do arquivo (`minimax_h3_image…` antes casava com a família de vídeo).
+- A biblioteca Python do PyPI nunca reconhece o H3: vai direto ao `sd-cli` (como o H3 de vídeo da v0.22). Na lista da Unsloth (Modelos → Baixar mais modelos) o **MiniMax H3 Image** aparece como «Experimental».
+
+### Ainda não verificado
+- **Não gerei imagens com o H3 Image aqui** (sem GPU, sem rede, sem `sd-cli`; o modelo tem 33B): os testes cobrem família, receita, arquivos de apoio, argumentos do `sd-cli`, convenção `<Picture N>` e tamanhos. O `sd-cli` precisa ser recente (o suporte entrou na stable-diffusion.cpp pelo PR #2324).
+- A regra do prompt `<Picture N>` quando você não as cita é uma **escolha minha a partir do cartão**, não testada; se o resultado ficar estranho, cite as imagens no prompt.
+- **O codificador de texto (≈ 18 GB) é baixado uma vez por tipo de modelo:** usar o H3 de imagem e o de vídeo ocupa duas cópias dele. O OpenFlow ainda não compartilha o arquivo entre as pastas.
+- O pipeline original em diffusers (68 GB, `MiniMaxAI/MiniMax-H3-Image`) e o expansor de prompt `MiniMax-H3-Image-PE` (um modelo de texto de 27B) **não** foram incluídos; o PE pode ser usado como modelo de texto à parte.
+- No H3 de vídeo nada mudou além de a família não capturar mais os arquivos de imagem.
+
 ## [0.29.0] — 2026-11-15
 
 ### Novo — GPU Upgrade: modelos locais mais rápidos em placas NVIDIA, AMD e Intel (núcleo Rust)

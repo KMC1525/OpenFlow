@@ -209,6 +209,7 @@ def _auth(key: str, header: str = "Authorization", scheme: str = "Bearer ") -> D
 
 
 #: GGUF que juntam várias imagens de referência na mesma geração (edição, Kontext, FLUX.2 klein/dev, Qwen-Image 2.1): as referências valem também no modo Gerar
+_H3_IMAGE = re.compile(r"minimax[-_ ]?h3[-_ ]?image", re.I)   # MiniMax H3 Image: edita com até 16 imagens de referência (<Picture 1>, <Picture 2>…)
 _GGUF_MULTI_REF = re.compile(r"edit|kontext|klein|qwen[-_]?image[-_]?2[._]?1|flux[-_. ]?2[-_. ]?dev", re.I)
 
 
@@ -1860,6 +1861,16 @@ def _pil_refs(refs: Sequence[Ref], limit: int = 4) -> List[Any]:
     return out
 
 
+def h3_picture_prompt(prompt: str, n: int) -> str:
+    """MiniMax H3 Image: as imagens de referência (`-r`) são `<Picture 1>`, `<Picture 2>`… no prompt. Se o prompt já as cita, fica como está; senão o OpenFlow acrescenta a convenção do cartão:
+    com uma referência «Edit <Picture 1>. …», com várias lista todas antes do pedido."""
+    if n <= 0 or re.search(r"<Picture\s*\d+>", prompt or ""):
+        return prompt
+    if n == 1:
+        return "Edit <Picture 1>. " + prompt
+    return "Reference images: " + ", ".join(f"<Picture {i}>" for i in range(1, n + 1)) + ". " + prompt
+
+
 def _max_side() -> int:
     """Maior lado, em pixels, que os modelos locais (GGUF) geram: 2048 por padrão; `OPENFLOW_MAX_SIDE` muda (512 a 4096). Tamanhos grandes pedem muita RAM/VRAM e tempo."""
     try:
@@ -2148,17 +2159,19 @@ class GGUFMedia(MediaProvider):
 
     def max_refs(self, model: str = "") -> int:
         name = Path(self.model_for("image", model) or model or "").name
+        if _H3_IMAGE.search(name):
+            return 16   # MiniMax H3 Image: até 16 referências
         if re.search(r"flux[-_. ]?3", name, re.I):
             return 10
         return 4 if _GGUF_MULTI_REF.search(name) else 1   # os demais modelos usam só uma imagem de partida
 
     def frames_edit_for(self, model: str = "") -> bool:
         name = Path(self.model_for("image", model) or model or "").name
-        return bool(_GGUF_MULTI_REF.search(name) or re.search(r"flux[-_. ]?3", name, re.I))
+        return bool(_GGUF_MULTI_REF.search(name) or re.search(r"flux[-_. ]?3", name, re.I) or _H3_IMAGE.search(name))
 
     def refs_need_edit(self, model: str = "") -> bool:
         name = Path(self.model_for("image", model) or model or "").name
-        return not (_GGUF_MULTI_REF.search(name) or re.search(r"flux[-_. ]?3", name, re.I))
+        return not (_GGUF_MULTI_REF.search(name) or re.search(r"flux[-_. ]?3", name, re.I) or _H3_IMAGE.search(name))
 
     def _path(self, cap: str, model: str) -> Path:
         name = Path(self.model_for(cap, model)).name
@@ -2315,7 +2328,8 @@ class GGUFMedia(MediaProvider):
         kw = self._load_kwargs(path, load)
         w, h = parse_wh(size)
         k = min(1.0, float(_max_side()) / max(w, h))
-        w, h = max(256, int(w * k) // 16 * 16), max(256, int(h * k) // 16 * 16)
+        mult = 32 if _H3_IMAGE.search(path.name) else 16   # MiniMax H3 Image: cada token cobre 32×32 pixels
+        w, h = max(256, int(w * k) // mult * mult), max(256, int(h * k) // mult * mult)
         pil = _pil_refs(refs, self.max_refs("")) if refs else []
         if refs and not pil:
             raise ProviderError("Não consegui ler as imagens de referência ligadas ao nó (formato não suportado).")
@@ -2324,9 +2338,11 @@ class GGUFMedia(MediaProvider):
             b = io.BytesIO()
             im.save(b, format="PNG")
             ref_png.append(b.getvalue())
-        multi = bool(_GGUF_MULTI_REF.search(path.name) or re.search(r"flux[-_. ]?3", path.name, re.I))
+        multi = bool(_GGUF_MULTI_REF.search(path.name) or re.search(r"flux[-_. ]?3", path.name, re.I) or _H3_IMAGE.search(path.name))
+        if ref_png and _H3_IMAGE.search(path.name):
+            prompt = h3_picture_prompt(prompt, len(ref_png))   # o MiniMax H3 Image chama as referências de <Picture 1>, <Picture 2>… no prompt
         if len(pil) == 1 and self.edit_mode:
-            w, h = _size_like(pil[0], w, h, 16)
+            w, h = _size_like(pil[0], w, h, mult)
         run_p = {k2: v for k2, v in extra.items() if k2 not in ("load",)}
         out: List[Media] = []
         self.ctl.note(f"A stable-diffusion-cpp-python não reconhece este modelo: gerando pelo sd-cli ({cli.name}).")

@@ -40,8 +40,17 @@ FAMILIES: List[Dict[str, Any]] = [
      "downloads": {"vae_path": {"repo": "unsloth/MOSS-Image-SFT-FP8", "file": "vae/diffusion_pytorch_model.safetensors", "dest": "moss-image-vae.safetensors", "label": "VAE do MOSS-Image", "approx": 0.25},
                    "llm_path": {"repo": "unsloth/Qwen3.5-9B-GGUF", "file": "Qwen3.5-9B-Q8_0.gguf", "label": "Codificador de texto Qwen3.5-9B (Q8_0)", "approx": 9.5},
                    "tokenizer_path": {"repo": "unsloth/MOSS-Image-SFT-FP8", "file": "tokenizer/tokenizer.json", "dest": "moss-image-tokenizer.json", "label": "Tokenizer do MOSS-Image", "approx": 0.02}}},
+    # ---- v0.30 · MiniMax H3 Image (imagem e edição, 33B, destilado em 6 passos sem CFG): receita do cartão unsloth/MiniMax-H3-Image-GGUF. O VAE é o da versão original (vae/ do MiniMaxAI/MiniMax-H3-Image) e o codificador de texto é o mesmo Qwen3-VL-32B do vídeo.
+    {"id": "minimax-h3-image", "name": r"minimax[-_ ]?h3[-_ ]?image", "label": "MiniMax H3 Image", "cap": "image",
+     "load": {"vae_path": r"minimax[-_]?h3[-_]?image[-_]?vae.*\.safetensors$", "llm_path": r"^qwen3vl_32b_minimax_h3[^/]*\.gguf$"},
+     "run": {"cfg_scale": 1.0, "sample_steps": 6, "sample_method": "euler", "sigmas": "minimax-h3-image", "rng": "cpu"},   # «--sigmas minimax-h3-image» e «--rng cpu» não são opcionais
+     "options": {"offload_params_to_cpu": True},
+     "need": "o VAE de imagem do MiniMax H3 Image (vae/ de MiniMaxAI/MiniMax-H3-Image) e o codificador de texto Qwen3-VL-32B do MiniMax H3 (unsloth/MiniMax-H3-GGUF; Q2_K_M para os denoisers Q2, Q4_K_M para os demais)",
+     "downloads": {"vae_path": {"repo": "MiniMaxAI/MiniMax-H3-Image", "file": "vae/diffusion_pytorch_model.safetensors", "dest": "minimax-h3-image-vae.safetensors", "label": "VAE do MiniMax H3 Image", "approx": 2.3},
+                   "llm_path": {"repo": "unsloth/MiniMax-H3-GGUF", "file": "qwen3vl_32b_minimax_h3-Q4_K_M.gguf", "label": "Codificador de texto Qwen3-VL-32B do MiniMax H3 (Q4_K_M)", "approx": 18.2,
+                                "pick": [{"match": r"-(UD-)?Q2_K(_XL)?\.gguf$", "file": "qwen3vl_32b_minimax_h3-Q2_K_M.gguf", "label": "Codificador de texto Qwen3-VL-32B do MiniMax H3 (Q2_K_M)", "approx": 13.1}]}}},
     # ---- v0.22 · MiniMax H3 (vídeo com áudio estéreo): receita do cartão unsloth/MiniMax-H3-GGUF. O sd-cli grava o vídeo (WebM) com a trilha sonora; `--backend te=cpu` e CFG 1,0 não são opcionais.
-    {"id": "minimax-h3", "name": r"minimax[-_ ]?h3(?!.*ref2va)", "label": "MiniMax H3 (texto + quadros)", "cap": "video",
+    {"id": "minimax-h3", "name": r"minimax[-_ ]?h3(?![-_ ]?image)(?!.*ref2va)", "label": "MiniMax H3 (texto + quadros)", "cap": "video",
      "load": {"vae_path": r"minimax_h3_video_vae.*\.safetensors$", "audio_vae_path": r"minimax_h3_audio_vae.*\.safetensors$", "llm_path": r"^qwen3vl_32b_minimax_h3[^/]*\.gguf$"},
      "run": {"cfg_scale": 1.0, "sample_steps": 8},
      "video": {"fps": 24, "sizes": {"landscape": [960, 544], "portrait": [544, 960]}, "max_frames": 361, "image": "optional", "container": "webm"},   # 15 s a 24 fps no máximo; 960×544 ou 544×960
@@ -51,7 +60,7 @@ FAMILIES: List[Dict[str, Any]] = [
                    "audio_vae_path": {"repo": "Comfy-Org/MiniMax-H3", "file": "vae/minimax_h3_audio_vae_fp32.safetensors", "label": "VAE de áudio do MiniMax H3", "approx": 0.6},
                    "llm_path": {"repo": "unsloth/MiniMax-H3-GGUF", "file": "qwen3vl_32b_minimax_h3-Q4_K_M.gguf", "label": "Codificador de texto Qwen3-VL-32B do MiniMax H3 (Q4_K_M)", "approx": 18.2,
                                 "pick": [{"match": r"-(UD-)?Q2_K(_XL)?\.gguf$", "file": "qwen3vl_32b_minimax_h3-Q2_K_M.gguf", "label": "Codificador de texto Qwen3-VL-32B do MiniMax H3 (Q2_K_M)", "approx": 13.1}]}}},
-    {"id": "minimax-h3-ref", "name": r"minimax[-_ ]?h3.*ref2va", "label": "MiniMax H3 (referências)", "cap": "video",
+    {"id": "minimax-h3-ref", "name": r"minimax[-_ ]?h3(?![-_ ]?image).*ref2va", "label": "MiniMax H3 (referências)", "cap": "video",
      "load": {"vae_path": r"minimax_h3_video_vae.*\.safetensors$", "audio_vae_path": r"minimax_h3_audio_vae.*\.safetensors$", "llm_path": r"^qwen3vl_32b_minimax_h3[^/]*\.gguf$"},
      "run": {"cfg_scale": 1.0, "sample_steps": 8},
      "video": {"fps": 24, "sizes": {"landscape": [960, 544], "portrait": [544, 960]}, "max_frames": 361, "image": "ignored", "container": "webm"},   # a variante de referências: texto → vídeo no OpenFlow

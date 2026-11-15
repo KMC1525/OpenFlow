@@ -411,7 +411,7 @@ LOAD_SWITCHES = {"offload_params_to_cpu": ["--offload-to-cpu"], "diffusion_flash
 #: parâmetro de geração → opção
 RUN_FLAGS = {"cfg_scale": "--cfg-scale", "sample_steps": "--steps", "sample_method": "--sampling-method", "flow_shift": "--flow-shift", "strength": "--strength", "guidance": "--guidance",
              "video_frames": "--video-frames", "fps": "--fps", "high_noise_cfg_scale": "--high-noise-cfg-scale", "high_noise_sample_method": "--high-noise-sampling-method",
-             "high_noise_sample_steps": "--high-noise-steps"}
+             "high_noise_sample_steps": "--high-noise-steps", "sigmas": "--sigmas", "rng": "--rng"}
 
 
 def build_args(exe: Path, load: Dict[str, Any], run: Dict[str, Any], *, prompt: str, width: int, height: int, seed: int, negative: str = "", refs: Sequence[Path] = (), init: Optional[Path] = None,
