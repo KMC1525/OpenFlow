@@ -138,6 +138,8 @@ class App:
         a("GET", r"/api/jobs/(?P<jid>[\w-]+)", self.r_job_get)
         a("GET", r"/api/jobs", self.r_jobs)
         a("GET", r"/api/library/downloads", self.r_downloads)
+        a("GET", r"/api/cpu", self.r_cpu)
+        a("POST", r"/api/cpu/bench", self.r_cpu_bench)
         a("GET", r"/api/jobs/(?P<jid>[\w-]+)/events", self.r_job_events)
         a("POST", r"/api/jobs/(?P<jid>[\w-]+)/cancel", self.r_job_cancel)
 
@@ -319,6 +321,36 @@ class App:
             out.append({"speed": int(speed), "eta": eta, "id": j.id, "kind": j.kind, "label": self.DOWNLOAD_KINDS[j.kind], "title": str(title), "repo": j.meta.get("repo", ""), "status": status, "created": j.created,
                         "done": int((prog or {}).get("done") or 0), "total": int((prog or {}).get("total") or 0), "note": note or "", "error": err or ""})
         req.json({"downloads": out, "running": sum(1 for d in out if d["status"] == "running")})
+
+    def _cpu_report(self) -> Dict[str, Any]:
+        from . import native, perf
+
+        info = native.cpu_info()
+        bench = native.cached_bench() or {}
+        mem = perf.memory_state()
+        mode = perf.MODE_NUM[perf.resolve(str((self.store.get_settings().get("performance") or {}).get("mode") or "auto"), hardware_info())]
+        models = []
+        for m in hf.local_models(self.store.models_dir, "text"):
+            plan = native.plan_cpu(int(m["size"]), 4096, float(bench.get("bw1") or 0), float(bench.get("bwn") or 0), int(info.get("p_physical") or 1), int(info.get("e_physical") or 0),
+                                   int(info.get("p_logical") or 1) + int(info.get("e_logical") or 0), bool(info.get("hybrid")), int(info.get("simd") or 0), int(info.get("l2_kb") or 0), int(mem.get("ram_avail") or 0), mode)
+            tps = float(plan.get("est_tps") or 0)
+            models.append({"name": m["name"], "size": m["size"], "quant": m.get("quant", ""), "est_tps": tps, "verdict": "" if not tps else "fast" if tps >= 8 else "ok" if tps >= 3 else "slow", "threads": plan["n_threads"]})
+        ref = native.plan_cpu(4 << 30, 4096, float(bench.get("bw1") or 0), float(bench.get("bwn") or 0), int(info.get("p_physical") or 1), int(info.get("e_physical") or 0),
+                              int(info.get("p_logical") or 1) + int(info.get("e_logical") or 0), bool(info.get("hybrid")), int(info.get("simd") or 0), int(info.get("l2_kb") or 0), int(mem.get("ram_avail") or 0), mode)
+        return {"info": {k: v for k, v in info.items() if k not in ("p_cpus", "e_cpus", "features")}, "features": info.get("features", []), "bench": {k: v for k, v in bench.items() if k != "key"}, "models": models,
+                "weak": bool(ref.get("weak")), "max_gb_5tps": ref.get("max_gb_5tps", 0), "max_gb_10tps": ref.get("max_gb_10tps", 0), "pinned": bool(perf._PINNED["cpus"]), "rust": native.status().get("active", False)}
+
+    def r_cpu(self, req: "Request") -> None:
+        """O processador, a largura de banda da memória (se já medida) e a velocidade esperada de cada modelo de texto baixado, só na CPU. Configurações → Desempenho mostra isto."""
+        req.json(self._cpu_report())
+
+    def r_cpu_bench(self, req: "Request") -> None:
+        """Mede de novo a largura de banda da memória (menos de 1 s; precisa do núcleo Rust)."""
+        from . import native
+
+        if not native.cached_bench(refresh=True):
+            raise HttpError(400, "Para medir a memória o OpenFlow precisa do núcleo Rust: rode  flow native setup.")
+        req.json(self._cpu_report())
 
     def r_job_cancel(self, req: "Request", jid: str) -> None:
         job = self.jobs.get(jid)

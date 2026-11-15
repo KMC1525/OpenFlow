@@ -23,7 +23,7 @@ from array import array
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-ABI = 4   # versão da interface desta versão do OpenFlow; bibliotecas antigas (1, 2 e 3) ainda servem: a 1 só para o áudio, a 2 também para modelos locais, a 3 para agentes/armazenamento — sem os recursos novos (análise de mídia e grafos, v0.17)
+ABI = 5   # versão da interface desta versão do OpenFlow; bibliotecas antigas (1 a 4) ainda servem (sem os recursos novos: CPU, v0.28): a 1 só para o áudio, a 2 também para modelos locais, a 3 para agentes/armazenamento — sem os recursos novos (análise de mídia e grafos, v0.17)
 SRC = Path(__file__).resolve().parent
 _LIB: Any = None
 _TRIED = False
@@ -130,6 +130,14 @@ def _bind(lib: Any) -> None:
         lib.flow_topo.argtypes = [sz, vp, vp, sz, vp, vp]
         for fn in ("audio_levels", "silence_ranges", "pick_peaks", "onset_env", "tempo", "frame_activity", "scene_cuts", "waveform", "topo"):
             getattr(lib, "flow_" + fn).restype = i64
+    if lib.flow_abi_version() >= 5:  # v0.28: CPU (identificação, núcleos de desempenho/eficiência, largura de banda da memória, planejador)
+        sz, i64, vp, f64, u32, u64 = ctypes.c_size_t, ctypes.c_int64, ctypes.c_void_p, ctypes.c_double, ctypes.c_uint32, ctypes.c_uint64
+        lib.flow_cpu_info.argtypes = [vp, sz]
+        lib.flow_cpu_info.restype = i64
+        lib.flow_mem_bench.argtypes = [u32, u32, vp, sz]
+        lib.flow_mem_bench.restype = i64
+        lib.flow_plan_cpu.argtypes = [u64, i64, f64, f64, u32, u32, u32, u32, u32, u64, u64, u32, vp, sz]
+        lib.flow_plan_cpu.restype = i64
 
 
 def load(force: bool = False) -> Any:
@@ -147,7 +155,7 @@ def load(force: bool = False) -> Any:
                 continue
             try:
                 lib = ctypes.CDLL(str(path))
-                if lib.flow_abi_version() not in (1, 2, 3, ABI):
+                if lib.flow_abi_version() not in (1, 2, 3, 4, ABI):
                     _REASON = f"{path.name}: versão da interface diferente (recompile com `flow native setup`)"
                     continue
                 _bind(lib)
@@ -1291,3 +1299,168 @@ def topo(n: int, edges: list) -> Dict[str, Any]:
             if indeg[nx] == 0:
                 q.append(nx)
     return {"order": order_l, "level": level, "cycle": len(order_l) < n}
+
+
+# --------------------------------------------------------------------------- v0.28: CPU (AMD/Intel/ARM) para modelos locais
+def _lib5() -> Any:
+    lib = load()
+    return lib if lib is not None and hasattr(lib, "flow_cpu_info") else None
+
+
+def _parse_cpu_list(s: str) -> list:
+    out: list = []
+    for part in s.strip().split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if "-" in part:
+            a, _, b = part.partition("-")
+            if a.strip().isdigit() and b.strip().isdigit() and int(b) >= int(a) and int(b) - int(a) < 4096:
+                out.extend(range(int(a), int(b) + 1))
+        elif part.isdigit():
+            out.append(int(part))
+    return out
+
+
+def _simd_level(features: list) -> int:
+    has = set(features)
+    if {"avx512f", "avx512bw", "avx512vl"} <= has:
+        return 3
+    if {"avx2", "fma"} <= has:
+        return 2
+    if "avx" in has:
+        return 1
+    if "neon" in has:
+        return 4
+    return 0
+
+
+def cpu_info() -> Dict[str, Any]:
+    """O processador: fabricante (intel/amd/other), nome, núcleos de desempenho (P) e de eficiência (E) — `p_cpus`/`e_cpus` são as CPUs lógicas de cada tipo —, caches e o melhor SIMD
+    (0 SSE · 1 AVX · 2 AVX2 · 3 AVX-512 · 4 NEON). Sem o núcleo Rust, uma versão em Python lê o que o sistema oferece (/proc/cpuinfo no Linux)."""
+    lib = _lib5()
+    if lib is not None:
+        r = _call_json(lib.flow_cpu_info)
+        if r:
+            return r
+    si = sys_info()
+    feats = list(si.get("features") or [])
+    brand, vendor = "", "other"
+    try:
+        for line in Path("/proc/cpuinfo").read_text().splitlines():
+            if line.startswith(("model name", "Model")) and not brand:
+                brand = line.partition(":")[2].strip()
+            if line.startswith("vendor_id") and vendor == "other":
+                v = line.partition(":")[2].strip()
+                vendor = "amd" if v == "AuthenticAMD" else "intel" if v == "GenuineIntel" else "other"
+            if line.startswith("flags") and not feats:
+                fl = set(line.partition(":")[2].split())
+                feats = [n for n in ("sse4_2", "avx", "avx2", "fma", "f16c", "avx512f", "avx512bw", "avx512vl") if n in fl]
+                feats = [n.replace("sse4_2", "sse4.2") for n in feats]
+    except OSError:
+        pass
+    logical, phys = int(si.get("logical") or 1), int(si.get("physical") or 1)
+    p_cpus, e_cpus = list(range(logical)), []
+    p_phys, e_phys = phys, 0
+    try:
+        core = _parse_cpu_list(Path("/sys/devices/cpu_core/cpus").read_text())
+        atom = _parse_cpu_list(Path("/sys/devices/cpu_atom/cpus").read_text())
+        if core and atom:
+            def _phys(cpus: list) -> int:
+                seen = set()
+                for i in cpus:
+                    try:
+                        seen.add(Path(f"/sys/devices/system/cpu/cpu{i}/topology/thread_siblings_list").read_text().strip())
+                    except OSError:
+                        pass
+                return len(seen) or len(cpus)
+            p_cpus, e_cpus, p_phys, e_phys = core, atom, _phys(core), _phys(atom)
+    except OSError:
+        pass
+    return {"vendor": vendor, "brand": brand, "hybrid": bool(e_cpus), "p_physical": p_phys, "e_physical": e_phys, "p_logical": len(p_cpus), "e_logical": len(e_cpus), "p_cpus": p_cpus,
+            "e_cpus": e_cpus, "l2_kb": 0, "l3_kb": 0, "simd": _simd_level([f.replace("sse4_2", "sse4.2") for f in feats]), "features": feats}
+
+
+def mem_bench(mb: int = 128, threads: int = 0) -> Optional[Dict[str, Any]]:
+    """Largura de banda de leitura da memória em GB/s: {bw1 (uma thread), bwn (várias), threads, mb}. Só com o núcleo Rust (leva menos de 1 s); None sem ele."""
+    lib = _lib5()
+    if lib is None:
+        return None
+    return _call_json(lambda buf, cap: lib.flow_mem_bench(int(mb), int(threads), buf, cap))
+
+
+def _round1(x: float) -> float:
+    return math.floor(x * 10.0 + 0.5) / 10.0   # arredonda «meio para cima», como o Rust (round() do Python arredonda para o par)
+
+
+_GFLOPS = {3: 60.0, 2: 35.0, 1: 18.0, 4: 25.0}
+
+
+def plan_cpu(weights: int, ctx: int, bw1: float, bwn: float, p_phys: int, e_phys: int, logical: int, hybrid: bool, simd: int, l2_kb: int, ram_avail: int, mode: int) -> Dict[str, Any]:
+    """Threads, lotes e velocidade esperada de um modelo na CPU (ver cpu.rs): a geração de cada token lê todos os pesos da RAM, então tokens/s ≈ largura de banda ÷ tamanho do modelo, e threads
+    além das que saturam a memória só atrapalham. CPU híbrida: só os núcleos de desempenho. mode: 0 leve, 1 equilibrado, 2 máximo."""
+    lib = _lib5()
+    if lib is not None:
+        r = _call_json(lambda buf, cap: lib.flow_plan_cpu(int(weights), int(ctx), float(bw1), float(bwn), int(p_phys), int(e_phys), int(logical), int(hybrid), int(simd), int(l2_kb), int(ram_avail), int(mode), buf, cap))
+        if r:
+            return r
+    w = float(weights)
+    gb = w / 1073741824.0
+    p = float(max(p_phys, 1))
+    known = bwn > 0.0 and bw1 > 0.0
+    bwn = max(bwn, bw1) if known else 0.0
+    sat = min(max(math.ceil(bwn / bw1), 1.0), p) if known else p
+    gen = min(sat + 1.0, p)
+    if gen >= p and p >= 6.0:
+        gen = p - 1.0
+    if p <= 2.0:
+        gen = p
+    gen = max(gen, 1.0)
+    weak = p <= 4.0 or simd < 2 or (known and bwn < 15.0) or ram_avail < (6 << 30)
+    l2 = float(l2_kb) if l2_kb > 0 else 1024.0
+    n_ubatch = 64.0 if (weak or l2 < 768.0) else (256.0 if mode == 2 else 128.0)
+    n_batch = 128.0 if weak else (512.0 if mode == 2 else 256.0)
+    est_tps = bwn * 0.65 / gb if known and w > 0.0 else 0.0
+    params = w * 8.0 / 4.6
+    est_pp = p * _GFLOPS.get(simd, 8.0) * 1e9 * 0.35 / (2.0 * params) if w > 0.0 else 0.0
+    max5 = bwn * 0.65 / 5.0 if known else 0.0
+    max10 = bwn * 0.65 / 10.0 if known else 0.0
+    notes = []
+    if simd < 2:
+        notes.append("a CPU não tem AVX2: a geração será bem lenta")
+    if known and 0.0 < est_tps < 2.0:
+        notes.append(f"deve gerar só ~{est_tps:.1f} tokens/s com este modelo: prefira um menor ou uma quantização menor")
+    if hybrid and e_phys > 0:
+        notes.append(f"CPU híbrida: a geração usa só os {p_phys} núcleos de desempenho")
+    return {"n_threads": int(gen), "n_threads_batch": int(p), "n_batch": int(n_batch), "n_ubatch": int(n_ubatch), "weak": weak, "kv_q8": weak, "flash": simd >= 2, "ctx_cap": 4096 if weak else 0,
+            "est_tps": _round1(est_tps), "est_pp": _round1(est_pp), "max_gb_5tps": _round1(max5), "max_gb_10tps": _round1(max10), "pin": bool(hybrid and e_phys > 0), "notes": notes}
+
+
+# Medida da memória guardada em disco (por processador): a medida leva meio segundo; não precisa repetir a cada abertura do OpenFlow.
+_BENCH: Dict[str, Any] = {}
+
+
+def cached_bench(refresh: bool = False) -> Optional[Dict[str, Any]]:
+    """A largura de banda da memória deste computador (medida uma vez e guardada em `<dados>/cpu_bench.json`, por nome de processador). None se não dá para medir (sem o núcleo Rust)."""
+    from ..util import flow_home, read_json, write_json
+
+    info = cpu_info()
+    key = f"{info.get('brand') or 'cpu'}|{info.get('p_physical')}|{info.get('e_physical')}"
+    if not refresh and _BENCH.get("key") == key and _BENCH.get("v"):
+        return _BENCH["v"]
+    path = flow_home() / "cpu_bench.json"
+    if not refresh:
+        saved = read_json(path, {}) or {}
+        if saved.get("key") == key and saved.get("bw1") and saved.get("bwn"):
+            _BENCH.update(key=key, v=saved)
+            return saved
+    r = mem_bench(128, int(info.get("p_physical") or 0))
+    if not r or not r.get("bw1"):
+        return None
+    r = dict(r, key=key)
+    _BENCH.update(key=key, v=r)
+    try:
+        write_json(path, r)
+    except OSError:
+        pass
+    return r
