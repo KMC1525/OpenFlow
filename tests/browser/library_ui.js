@@ -22,7 +22,8 @@ run('library', async ({ api, open, check, base, expectError }) => {
   check('secoes-na-lateral', (await page.locator('.lib-sec').count()) === 3);
 
   await page.locator('#lib-tab-files').click(); await page.waitForSelector('#lib-folders .lib-card.folder', { timeout: 8000 });
-  check('raiz:mostra-a-pasta-e-os-arquivos-soltos', (await page.locator('#lib-folders .lib-card').count()) === 1 && (await page.locator('#lib-items .lib-card').count()) === 2);   // cachorro + paisagem; o gato está em Pets
+  const rootItems = await page.locator('#lib-items').innerText();
+  check('raiz:mostra-a-pasta-e-os-arquivos-soltos', (await page.locator('#lib-folders .lib-card', { hasText: 'Animais' }).count()) === 1 && rootItems.includes('cachorro.png') && rootItems.includes('paisagem.png') && !rootItems.includes('gato.png'));   // o gato está em Animais/Pets
   await page.locator('#lib-folders .lib-card', { hasText: 'Animais' }).click();
   await page.waitForSelector('.lib-crumbs b, .lib-crumbs .lib-crumb:nth-of-type(2)', { timeout: 5000 });
   check('entrar-na-pasta:mostra-a-subpasta', (await page.locator('#lib-folders .lib-card', { hasText: 'Pets' }).count()) === 1);
