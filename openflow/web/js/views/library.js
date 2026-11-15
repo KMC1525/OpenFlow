@@ -1,6 +1,6 @@
 import { api, events } from '../api.js';
 import { t } from '../i18n.js';
-import { confirmDialog, debounce, fmtBytes, h, icon, toast } from '../ui.js';
+import { confirmDialog, debounce, fmtBytes, fmtEta, h, icon, toast } from '../ui.js';
 import { GGUF_KINDS } from '../model_labels.js';
 import { go } from '../main.js';
 
@@ -78,7 +78,7 @@ export default async function render(root, ctx) {
       return h('div', { class: 'dlrow', 'data-job': d.id },
         h('div', { class: 'row nw' }, h('div', { class: 'grow', style: { minWidth: 0 } }, h('div', { class: 'mono', style: { fontSize: '13px', overflowWrap: 'anywhere' } }, d.title),
           h('div', { class: 'dim small' }, [t(d.label), d.repo].filter(Boolean).join(' · '))),
-        d.status === 'running' ? h('span', { class: 'small muted' }, d.total ? Math.round(pc * 100) + '% · ' + fmtBytes(d.done) + ' / ' + fmtBytes(d.total) : t('Preparando…')) : null,
+        d.status === 'running' ? h('span', { class: 'small muted' }, d.total ? Math.round(pc * 100) + '% · ' + fmtBytes(d.done) + ' / ' + fmtBytes(d.total) + (d.speed ? ' · ' + fmtBytes(d.speed) + '/s ' + fmtEta(d.eta) : '') : t('Preparando…')) : null,
         d.status === 'running' ? h('button', { class: 'btn sm', type: 'button', onclick: () => api('/api/jobs/' + d.id + '/cancel', { method: 'POST' }).then(tick).catch(() => {}) }, t('Cancelar'))
           : h('span', { class: 'chip ' + (d.status === 'done' ? 'on' : d.status === 'error' ? 'warn' : '') }, d.status === 'done' ? '✓ ' + t('Concluído') : d.status === 'error' ? '⚠ ' + t('Falhou') : t('Cancelado'))),
         d.status === 'running' ? h('div', { class: 'bar', role: 'progressbar', 'aria-label': d.title, 'aria-valuenow': Math.round(pc * 100) }, h('i', { style: { width: Math.round(pc * 100) + '%' } })) : null,

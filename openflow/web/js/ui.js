@@ -273,3 +273,13 @@ export function gradient(p) {
   const sky = (p && p.sky) || '#2a2a2a', ground = (p && p.ground) || '#111';
   return `linear-gradient(180deg, ${sky} 0%, ${sky} 52%, ${ground} 52%, ${ground} 100%)`;
 }
+
+
+// «≈ 3 min», «≈ 1 h 20 min»: tempo restante de um download (segundos → texto curto)
+export function fmtEta(sec) {
+  sec = Math.round(sec || 0);
+  if (sec <= 0) return '';
+  if (sec < 60) return '≈ ' + sec + ' s';
+  if (sec < 3600) return '≈ ' + Math.ceil(sec / 60) + ' min';
+  return '≈ ' + Math.floor(sec / 3600) + ' h ' + (Math.ceil((sec % 3600) / 60) % 60) + ' min';
+}

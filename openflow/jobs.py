@@ -43,6 +43,7 @@ class Job:
         with self.cond:
             ev = dict(ev)
             ev["seq"] = self.base + len(self.events)
+            ev.setdefault("ts", round(time.time(), 2))   # quando aconteceu: a Biblioteca calcula a velocidade dos downloads
             self.events.append(ev)
             if len(self.events) > MAX_EVENTS:   # tarefa muito longa (equipes grandes): aparar o começo sem renumerar o resto
                 drop = len(self.events) - KEEP_EVENTS

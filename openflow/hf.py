@@ -292,12 +292,23 @@ def local_models(models_dir: Path, kind: str = "text") -> List[Dict[str, Any]]:
     return out
 
 
+#: conexões simultâneas por arquivo (configuração hf.connections; ver dl.py)
+CONNECTIONS = 4
+
+
+def configure(hf_settings: Dict[str, Any]) -> None:
+    global CONNECTIONS
+    from . import dl
+
+    CONNECTIONS = dl.clamp_connections((hf_settings or {}).get("connections", dl.DEFAULT_CONNECTIONS))
+
+
 ANY_FILE_RE = re.compile(r"^[\w][\w .+()=/-]{0,200}$")
 
 
 def download(
     repo: str, filename: str, models_dir: Path, token: str = "",
-    progress: Optional[Callable[[int, int], None]] = None, cancelled: Callable[[], bool] = lambda: False, any_file: bool = False, dest_name: str = "",
+    progress: Optional[Callable[[int, int], None]] = None, cancelled: Callable[[], bool] = lambda: False, any_file: bool = False, dest_name: str = "", connections: int = 0,
 ) -> Path:
     """`any_file=True` (arquivos de apoio e catálogo de pré-instalados) permite arquivos que não são .gguf, como o VAE `.safetensors`.
     `dest_name` grava com outro nome (o mmproj de cada modelo vira `<modelo>.mmproj.gguf`: dois repositórios podem ter o mesmo `mmproj-F16.gguf`)."""
@@ -308,33 +319,10 @@ def download(
         raise ProviderError("Nome de destino inválido.")
     dest = models_dir / (dest_name or Path(filename).name)
     part = dest.with_suffix(dest.suffix + ".part")
-    start = part.stat().st_size if part.exists() else 0
-    headers = _headers(token)
-    if start:
-        headers["Range"] = f"bytes={start}-"
     url = f"{HF}/{repo}/resolve/main/{urllib.parse.quote(filename)}"
-    resp = http.request(url, headers=headers, timeout=60)
-    try:
-        total = int(resp.headers.get("Content-Length") or 0)
-        if resp.status == 206:
-            total += start
-        else:
-            start = 0  # servidor ignorou o Range
-        mode = "ab" if start else "wb"
-        done = start
-        with open(part, mode) as fh:
-            while True:
-                if cancelled():
-                    raise ProviderError("cancelado")
-                chunk = resp.read(1 << 20)
-                if not chunk:
-                    break
-                fh.write(chunk)
-                done += len(chunk)
-                if progress:
-                    progress(done, total)
-    finally:
-        resp.close()
+    from . import dl
+
+    dl.fetch(url, part, _headers(token), connections or CONNECTIONS, progress, cancelled)   # várias conexões, retomada e novas tentativas (v0.25)
     os.replace(part, dest)
     return dest
 

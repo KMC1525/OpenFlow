@@ -49,7 +49,7 @@ class PreinstalledRoutes:
         running = self.app.jobs.running("preinstalled")
         if running:
             raise HttpError(409, json.dumps({"job_id": running.id}))
-        token = (self.store.get_settings().get("hf") or {}).get("token", "")
+        token = self.app._hf_token()
 
         def work(job: Job) -> None:
             job.emit({"type": "start", "id": e["id"], "label": e["label"], "quant": e["quant"]})

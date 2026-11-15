@@ -2,6 +2,21 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.25.0] — 2026-11-15
+
+### Improved — faster downloads that are never lost
+- **Several connections per file:** a multi-GB model is now split into ranges (`Range`) downloaded **at the same time** (4 by default) into a pre-allocated file. A single connection is often far below your internet speed; with several, the download tends to use the whole bandwidth. Small files (< 64 MB) and servers without range support still use one connection, with no error.
+- **Real resume:** each range's progress is kept in a `.seg` file next to the `.part`; if you close OpenFlow, cancel, or lose power, downloading again **continues where it stopped**. `.part` files from older versions still resume too.
+- **A network drop no longer kills the download:** a dropped connection is retried by itself from the byte where it stopped (up to 6 attempts with growing waits). If the CDN's signed address expires mid-download, OpenFlow asks for a new one.
+- **Speed and time left:** downloads show "12 MB/s ≈ 4 min" on the Models screen and in the Library's Downloads tab.
+- **Setting:** Library → Models → "Download speed" → **connections per download** (1 to 8; default 4). Use 1 if downloads slow down the rest of your internet.
+- Applies to everything downloaded from Hugging Face: models, VAEs, text encoders, `mmproj`, the recommended ones and the "Download the compatible version" button.
+
+### Not verified
+- Tested against a local HTTP server that honours `Range`: byte-identical file, a connection dropped mid-range, cancel and resume, a server without `Range`, an old `.part`. **I did not measure speed against the real Hugging Face** (no network here): the gain depends on the server limiting each connection and on your internet; if one connection already saturates yours, the gain will be small.
+- The Hugging Face credential is sent only to the original server (the CDN carries its signature in the URL); I did not test a gated-repository token end to end.
+- Support files and models split into shards still download one file at a time (each file in parallel inside).
+
 ## [0.24.0] — 2026-11-15
 
 ### Improved — FLUX.3 Image Klein

@@ -3,7 +3,7 @@ import { t } from '../i18n.js';
 import { refreshState, renderSide, saveSettings, state } from '../main.js';
 import { ROLE_LABEL } from '../labels.js';
 import { GGUF_HINT, GGUF_KINDS, QUALITY_LABEL } from '../model_labels.js';
-import { checkbox, confirmDialog, debounce, fmtBytes, h, icon, toast } from '../ui.js';
+import { checkbox, confirmDialog, debounce, fmtBytes, fmtEta, h, icon, toast } from '../ui.js';
 
 // Tela «Modelos»: o que está instalado (com o estado dos arquivos de apoio: VAE, codificador de texto e mmproj), os recomendados e a busca no Hugging Face.
 // Ao baixar um modelo, o OpenFlow baixa junto o que ele precisa para rodar (a menos que isso seja desligado aqui).
@@ -28,8 +28,14 @@ export default async function render(root, ctx) {
     area.replaceChildren(h('div', { class: 'card', style: { marginTop: '8px' } }, h('div', { class: 'row', style: { marginBottom: '8px' } }, h('span', { class: 'mono small grow' }, title), label,
       h('button', { class: 'btn sm', type: 'button', onclick: () => api('/api/jobs/' + jid + '/cancel', { method: 'POST' }).catch(() => {}) }, t('Cancelar'))),
     h('div', { class: 'bar', role: 'progressbar', 'aria-label': title }, bar), note));
+    const samples = [];   // (hora, bytes) dos últimos segundos: velocidade e tempo restante
     events('/api/jobs/' + jid + '/events', (ev) => {
-      if (ev.type === 'progress' && ev.total) { const pc = Math.min(1, ev.done / ev.total); bar.style.width = Math.round(pc * 100) + '%'; label.textContent = Math.round(pc * 100) + '% · ' + fmtBytes(ev.done) + ' / ' + fmtBytes(ev.total); }
+      if (ev.type === 'progress' && ev.total) {
+        const pc = Math.min(1, ev.done / ev.total); bar.style.width = Math.round(pc * 100) + '%';
+        const now = Date.now(); samples.push([now, ev.done]); while (samples.length > 2 && now - samples[0][0] > 8000) samples.shift();
+        const dt = (now - samples[0][0]) / 1000, speed = dt > 0.5 ? (ev.done - samples[0][1]) / dt : 0;
+        label.textContent = Math.round(pc * 100) + '% · ' + fmtBytes(ev.done) + ' / ' + fmtBytes(ev.total) + (speed > 0 ? ' · ' + fmtBytes(speed) + '/s ' + fmtEta((ev.total - ev.done) / speed) : '');
+      }
       else if (ev.type === 'note') note.textContent = ev.message;
       else if (ev.type === 'support') note.textContent = t('Vem junto: {l}', { l: ev.items.map((i) => t(ROLE_LABEL[i.role] || i.role)).join(', ') });
       else if (ev.type === 'done') { area.replaceChildren(); const bad = (ev.support_failed || ev.failed || []); toast(bad.length ? t('Pronto, mas {n} arquivo(s) de apoio não baixaram. Use «Instalar o que falta».', { n: bad.length }) : t('Download concluído'), bad.length ? '' : 'ok'); done(true); }
@@ -189,6 +195,11 @@ export default async function render(root, ctx) {
       h('div', { class: 'row nw', style: { marginTop: '10px' } }, h('div', { class: 'search', style: { maxWidth: 'none', flex: 1 } }, icon('search', 17), q), h('button', { class: 'btn', type: 'button', onclick: search }, t('Buscar'))),
       h('div', { style: { marginTop: '12px' } }, results), files),
     prog,
+    h('div', { class: 'card', style: { marginBottom: '16px' } }, h('h3', null, t('Velocidade dos downloads')),
+      h('p', { class: 'muted small', style: { marginTop: 0 } }, t('Cada arquivo grande é baixado por várias conexões ao mesmo tempo (e retoma sozinho se a internet cair). Mais conexões costumam ser mais rápidas; use menos se a sua internet ficar lenta para o resto.')),
+      h('div', { class: 'row nw' }, h('label', { for: 'md-conn', class: 'small' }, t('Conexões por download')),
+        h('select', { id: 'md-conn', 'aria-label': t('Conexões por download'), onchange: async (e) => { await saveSettings({ hf: { connections: Number(e.target.value) } }); toast(t('Salvo'), 'ok'); } },
+          [1, 2, 4, 6, 8].map((n) => h('option', { value: n, selected: n === (state.settings.hf.connections || 4) }, String(n)))))),
     h('div', { class: 'card' }, h('h3', null, t('Token do Hugging Face (opcional)')), h('p', { class: 'muted small', style: { marginTop: 0 } }, t('Necessário apenas para modelos restritos (gated).')),
       h('div', { class: 'row nw' }, tokenIn, h('button', { class: 'btn', type: 'button', onclick: async () => { if (tokenIn.value) { await saveSettings({ hf: { token: tokenIn.value } }); await refreshState(); toast(t('Salvo'), 'ok'); } } }, t('Salvar'))))));
   await Promise.all([paintInstalled(), paintPre()]);
