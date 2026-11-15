@@ -150,19 +150,33 @@ def _ram_gb() -> Optional[float]:
     return None
 
 
-def _gpu_name() -> Optional[str]:
+def gpu_list() -> list:
+    """As placas NVIDIA do computador (todas, na ordem do `nvidia-smi`): [{"index", "name", "mem_mb"}]. Vazio sem NVIDIA."""
     exe = shutil.which("nvidia-smi")
     if not exe:
-        return None
+        return []
     try:
-        out = subprocess.run(
-            [exe, "--query-gpu=name,memory.total", "--format=csv,noheader"],
-            capture_output=True, text=True, timeout=3,
-        )
-        line = out.stdout.strip().splitlines()[0] if out.returncode == 0 and out.stdout.strip() else ""
-        return line or None
-    except Exception:
+        out = subprocess.run([exe, "--query-gpu=index,name,memory.total", "--format=csv,noheader,nounits"], capture_output=True, text=True, timeout=3)
+    except Exception:  # noqa: BLE001
+        return []
+    gpus = []
+    for line in (out.stdout or "").strip().splitlines() if out.returncode == 0 else []:
+        parts = [x.strip() for x in line.split(",")]
+        if len(parts) >= 3 and parts[0].isdigit():
+            try:
+                mem = int(float(parts[-1]))
+            except ValueError:
+                mem = 0
+            gpus.append({"index": int(parts[0]), "name": ", ".join(parts[1:-1]), "mem_mb": mem})
+    return gpus
+
+
+def _gpu_name() -> Optional[str]:
+    """Os nomes de todas as placas (uma por linha do nvidia-smi), separados por « + » (antes só a primeira aparecia)."""
+    gpus = gpu_list()
+    if not gpus:
         return None
+    return " + ".join(f"{g['name']} ({g['mem_mb']} MiB)" if g["mem_mb"] else g["name"] for g in gpus)
 
 
 _HW_CACHE: Optional[dict] = None
@@ -238,7 +252,7 @@ def hardware_components() -> list:
             add("Áudio", x)
     gpu = _gpu_name()
     if gpu:
-        for g in gpu.split(";"):
+        for g in gpu.split(" + "):
             add("GPU (NVIDIA)", g.strip())
     ram = _ram_gb()
     if ram is not None:
@@ -268,6 +282,7 @@ def hardware_info(refresh: bool = False) -> dict:
         "cpus": cpus,
         "ram_gb": round(ram, 1) if ram is not None else None,
         "gpu": _gpu_name(),
+        "gpus": gpu_list(),   # todas as placas NVIDIA: a configuração Desempenho → GPUs escolhe quais usar
         "ffmpeg": bool(shutil.which("ffmpeg")),
         "tier": tier,
         "components": hardware_components(),

@@ -44,8 +44,3 @@ def system_prompt(agent: str, language: str, content_mode: str, domain: str = "f
     )
 
 
-def lang_name(code: str) -> str:
-    names = {"pt": "Portuguese (Brazil)", "pt-br": "Portuguese (Brazil)", "en": "English", "es": "Spanish", "fr": "French",
-             "de": "German", "it": "Italian", "ja": "Japanese", "ko": "Korean", "zh": "Chinese", "ru": "Russian"}
-    key = (code or "").lower()
-    return names.get(key) or names.get(key.split("-")[0]) or code or "the same language as the user's prompt"

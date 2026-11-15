@@ -279,6 +279,25 @@ async function projectTab() {
     saveRow(() => saveSettings({ canvas: cv })));
 }
 
+// Várias placas de vídeo (v0.26): quais o OpenFlow pode usar. Texto (llama.cpp): camadas divididas entre as placas escolhidas; imagem/vídeo/som: a placa escolhida com mais memória livre.
+function gpuCard(pf, hw) {
+  const gpus = hw.gpus || [];
+  if (!gpus.length) return null;
+  const chosen = new Set((pf.gpus || []).map(Number));
+  const all = !chosen.size;
+  const save = async (set) => { pf.gpus = [...set].sort(); await saveSettings({ performance: pf }); toast(t('Salvo. Vale a partir do próximo modelo carregado.'), 'ok'); };
+  return cfgCard(t('Placas de vídeo (GPUs)'),
+    h('p', { class: 'muted small', style: { marginTop: 0 } }, gpus.length > 1
+      ? t('{n} placas NVIDIA detectadas. Modelos de texto (llama.cpp) dividem as camadas entre as placas marcadas, em proporção à memória livre de cada uma. Imagem, vídeo e som usam uma placa só: a marcada com mais memória livre na hora. Sem nenhuma marcada, todas são usadas.', { n: gpus.length })
+      : t('Uma placa NVIDIA detectada. Com mais de uma, aqui você escolhe quais usar.')),
+    ...gpus.map((g) => checkbox('GPU ' + g.index + ' — ' + g.name + (g.mem_mb ? ' (' + Math.round(g.mem_mb / 1024) + ' GB)' : ''), all || chosen.has(g.index), async (v) => {
+      const cur = new Set(all ? gpus.map((x) => x.index) : [...chosen]);
+      if (v) cur.add(g.index); else cur.delete(g.index);
+      if (!cur.size) { toast(t('Deixe ao menos uma placa marcada.'), 'err'); return; }
+      await save(cur.size === gpus.length ? new Set() : cur);   // todas marcadas = sem restrição
+    })));
+}
+
 async function performance() {
   const pf = Object.assign({ mode: 'auto', idle_unload_min: 10 }, state.settings.performance || {});
   const nat = state.native || {};
@@ -293,6 +312,7 @@ async function performance() {
           t('Onde os modelos rodam. «GPU» usa a placa de vídeo (NVIDIA: CUDA; AMD/Intel: Vulkan); «Só CPU» nunca a usa. O executável sd-cli certo é baixado sozinho na próxima geração.') + ' ' + (hw.gpu ? t('GPU detectada: {g}', { g: hw.gpu }) : t('Nenhuma GPU NVIDIA detectada.'))),
         field(t('Descarregar modelos ociosos após (min)'), h('input', { type: 'number', min: 0, max: 1440, value: pf.idle_unload_min, onchange: async (e) => { pf.idle_unload_min = Math.max(0, parseInt(e.target.value || '0', 10)); await saveSettings({ performance: pf }); toast(t('Salvo'), 'ok'); } }), t('0 = nunca. No modo leve o limite é de até 3 min.'))),
       h('p', { class: 'muted small', style: { marginBottom: 0 } }, t('Seu hardware: {t}', { t: hw.tier }) + ' · ' + hw.cpus + ' CPU · ' + (hw.ram_gb ? hw.ram_gb + ' GB RAM' : '—') + ' · ' + (hw.gpu || t('não detectada (NVIDIA)')))),
+    gpuCard(pf, hw),
     cfgCard(t('Núcleo Rust'),
       h('dl', { class: 'kv', style: { margin: 0 } }, h('dt', null, t('Núcleo Rust')), h('dd', null, nat.active ? h('span', { class: 'chip on' }, t('ativo')) : h('span', { class: 'muted' }, t('inativo — usando Python puro'))),
         h('dt', null, 'Rust (cargo)'), h('dd', null, nat.cargo ? t('encontrado') : t('não encontrado (opcional)')),

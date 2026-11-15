@@ -379,7 +379,9 @@ def _probe(exe: Path) -> Tuple[bool, str]:
 
 
 def _env(exe: Path) -> Dict[str, str]:
-    env = dict(os.environ)
+    from .. import perf
+
+    env = perf.gpu_env(dict(os.environ))   # várias placas: o sd-cli usa a escolhida com mais memória livre
     d = str(exe.parent)
     if sys_platform() == "linux":
         env["LD_LIBRARY_PATH"] = d + (os.pathsep + env["LD_LIBRARY_PATH"] if env.get("LD_LIBRARY_PATH") else "")

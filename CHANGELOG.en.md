@@ -2,6 +2,28 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.26.0] — 2026-11-15
+
+### New — multiple graphics cards (multi-GPU)
+- **Every NVIDIA card is listed** (before only the first was) in Settings → Performance → **Graphics cards (GPUs)**, where you check which ones OpenFlow may use (none checked = all).
+- **Text (llama.cpp):** the model layers are **split across the checked cards** in proportion to each one's free memory (`tensor_split`), so models larger than a single card's VRAM can run. With a single card checked, the whole model stays on it (`main_gpu`).
+- **Image, video and sound** (sd-cli, the out-of-process stable-diffusion.cpp and PyTorch) use **one card at a time — the checked one with the most free memory at that moment** (`CUDA_VISIBLE_DEVICES`/`cuda.set_device`; numbering follows `nvidia-smi`). A `CUDA_VISIBLE_DEVICES` you set yourself still wins.
+- Applies from the next model loaded.
+
+### Fixed
+- **`flow libs --sd-cli` exited with code 1 even when it worked** (the function was defined twice and the second returned `True`): it now exits 0 on success and 1 on failure.
+- The GPU name in System/Performance showed only the first card when there were several.
+- An unused variable in the OpenRouter transcription was removed.
+
+### Removed (ASTA legacy that does not apply to OpenFlow)
+- **`websearch.py` (766 lines):** ASTA's Chat web search — OpenFlow has no Chat. Only the public-address check was still used, by the "Link" node; it moved to a small module (`safeurl.py`) with the same SSRF protection (localhost, private networks and redirects to them).
+- Functions with no use at all: `lang_name`, `png_of`, `_as_list`, `transcriber` and the core's `scan_dir`/`dup_groups` shortcuts; **29 UI icons** for features that do not exist here (worlds, avatars, games, scriber…).
+
+### Not verified
+- **I have no multi-GPU machine here:** the split between cards was tested with simulated `nvidia-smi` output and memory; real loading with `tensor_split` on two GPUs, and the card choice in PyTorch and sd-cli, **were not run**. AMD/Intel (Vulkan) and Apple stay as before: no card choice.
+- An image/video model is **not** split across cards (only text is); two simultaneous generations do not use different cards either.
+- The node bug hunt consisted of running every node type empty and in chains with the Demo provider (all answer with clear messages, no exceptions) and a static sweep (pyflakes/vulture). I found no other node bugs; that does not prove there are none.
+
 ## [0.25.0] — 2026-11-15
 
 ### Improved — faster downloads that are never lost

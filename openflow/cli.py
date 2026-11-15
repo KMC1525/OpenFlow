@@ -206,27 +206,6 @@ def _ensure_pip() -> bool:
         return False
 
 
-def _sd_cli_install() -> int:
-    """`flow libs --sd-cli`: baixa o sd-cli pré-compilado da stable-diffusion.cpp (sem git nem compilador) para a pasta de dados."""
-    from .canvas import sdcli
-    from .providers import ProviderError
-
-    last = [0.0]
-
-    def progress(done: int, total: int) -> None:
-        if total and time.time() - last[0] > 2:
-            last[0] = time.time()
-            print("  " + _("{p}% baixado", p=int(100 * done / total)), flush=True)
-
-    try:
-        exe = sdcli.install(progress, lambda: False, lambda m: print(m, flush=True))
-    except ProviderError as exc:
-        print("⚠  " + str(exc), file=sys.stderr)
-        return 1
-    print(_("sd-cli instalado em {p}. O OpenFlow o usa nos modelos que a biblioteca Python não reconhece.", p=exe))
-    return 0
-
-
 def _sd_cli_install(note=print, force_tools: bool = False) -> bool:
     """Baixa o `sd-cli` pronto ou, se nenhum roda neste Linux (glibc), o compila. Faltando git/compilador, no `flow update` os instala sozinho e tenta de novo. True se instalou."""
     from .canvas import sdcli
@@ -276,8 +255,8 @@ def _sd_cli_refresh(install_missing: bool = False) -> None:
 def _libs(args: argparse.Namespace) -> int:
     """Instala o que falta e atualiza (só se houver versão mais nova) as bibliotecas opcionais do OpenFlow. Uma que falhe não impede as outras.
     O que já está instalado não é instalado de novo: o pip só mexe nele se existir uma versão mais nova."""
-    if getattr(args, "sd_cli", False):
-        return _sd_cli_install()
+    if getattr(args, "sd_cli", False):   # `flow libs --sd-cli`: sai com 0 só se instalou (antes devolvia o True/False direto e um sucesso virava código 1)
+        return 0 if _sd_cli_install(force_tools=True) else 1
     chosen, unknown = _wanted_libs(getattr(args, "extras", "") or "")
     sd_force = bool(getattr(args, "sd_latest", False))
     if unknown:

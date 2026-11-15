@@ -946,7 +946,6 @@ class OpenRouterMedia(MediaProvider):
 
     def transcribe(self, data, filename, mime, *, language="", model=""):
         """Transcrição por um modelo de chat que ouve áudio (`input_audio` em base64): pede a fala palavra por palavra, sem comentários. Formatos fora da lista viram MP3 pelo ffmpeg."""
-        h = self._h()
         model = self.model_for("stt", model) or "google/gemini-2.5-flash"
         ext = (filename.rsplit(".", 1)[-1] if "." in (filename or "") else "").lower() or (mime or "").split("/")[-1].lower()
         fmt = _OR_AUDIO_FORMATS.get(ext) or _OR_AUDIO_FORMATS.get((mime or "").split("/")[-1].lower())
@@ -1303,11 +1302,22 @@ def _local_import(*names: str, extra: str = "media") -> List[Any]:
         raise ProviderError(f'Modelos locais precisam das bibliotecas opcionais ({exc.name}). Instale com:  pip install "openflow[' + extra + ']"  (ou rode: flow libs)') from None
 
 
+def _pick_cuda(torch: Any) -> None:
+    """Com várias placas: torna «cuda» a escolhida com mais memória livre (Configurações → Desempenho → GPUs). O torch numera as placas como o nvidia-smi quando CUDA_DEVICE_ORDER=PCI_BUS_ID."""
+    try:
+        i = _perf.primary_gpu()
+        if i is not None and torch.cuda.device_count() > 1 and i < torch.cuda.device_count():
+            torch.cuda.set_device(i)
+    except Exception:  # noqa: BLE001 — a escolha da placa nunca derruba a geração
+        pass
+
+
 def _device() -> Tuple[str, Any]:
     (torch,) = _local_import("torch")
     if _perf.device() == "cpu":   # Configurações → Desempenho → Rodar em: só CPU
         return "cpu", torch.float32
     if torch.cuda.is_available():
+        _pick_cuda(torch)
         return "cuda", torch.float16
     if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
         return "mps", torch.float16
@@ -1686,6 +1696,8 @@ class LocalHFMedia(MediaProvider):
         if not lm.downloaded_precision(ORPHEUS_CODEC):
             raise ProviderError(f'O Orpheus usa o decodificador "{ORPHEUS_CODEC}" (≈ 80 MB), que ainda não foi baixado. Baixe-o em Configuração → Mídia antes de usar.', status=424)
         dev = "cuda" if torch.cuda.is_available() and _perf.device() != "cpu" else "cpu"
+        if dev == "cuda":
+            _pick_cuda(torch)
 
         def load() -> Any:
             old = os.environ.get("HF_HUB_OFFLINE")
@@ -1724,6 +1736,8 @@ class LocalHFMedia(MediaProvider):
         (torch,) = _local_import("torch")
         ready = self._ready(model)
         dev = "cuda" if torch.cuda.is_available() and _perf.device() != "cpu" else "cpu"
+        if dev == "cuda":
+            _pick_cuda(torch)
 
         def load() -> Any:
             old = os.environ.get("HF_HUB_OFFLINE")
@@ -2017,7 +2031,7 @@ class _SDProxy:
         import subprocess
 
         root = str(Path(__file__).resolve().parents[2])
-        env = {**os.environ, "PYTHONPATH": root + os.pathsep + os.environ.get("PYTHONPATH", "")}
+        env = _perf.gpu_env({**os.environ, "PYTHONPATH": root + os.pathsep + os.environ.get("PYTHONPATH", "")})   # várias placas: o processo da stable-diffusion.cpp usa a escolhida
         return subprocess.Popen([sys.executable, "-m", "openflow.canvas.sd_worker"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, env=env)   # stderr herdado: o log da biblioteca aparece no terminal
 
     @staticmethod

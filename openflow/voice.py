@@ -41,17 +41,6 @@ def transcribe_bytes(settings: Dict[str, Any], data: bytes, filename: str, mime:
     return str(out.get("text", "")).strip()
 
 
-def transcriber(settings: Dict[str, Any]) -> Optional[Callable[[Path], str]]:
-    """Função usada para transcrever anexos de áudio/vídeo (ou None se não configurado)."""
-    if not stt_enabled(settings):
-        return None
-
-    def run(path: Path) -> str:
-        mime = "audio/mpeg" if path.suffix.lower() == ".mp3" else "application/octet-stream"
-        return transcribe_bytes(settings, path.read_bytes(), path.name, mime)
-
-    return run
-
 
 def synthesize(settings: Dict[str, Any], text: str, voice: str = "") -> Tuple[bytes, str]:
     cfg = (settings.get("voice") or {}).get("tts") or {}
