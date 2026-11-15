@@ -2,6 +2,23 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.28.0] — 2026-11-15
+
+### New — CPU Upgrade: faster local models on AMD/Intel processors (Rust core)
+- **OpenFlow now knows your processor** (`cpu.rs`, core interface 5): vendor, name, **performance (P) and efficiency (E) cores** on hybrid CPUs (Intel Alder Lake and newer; AMD Zen c and ARM big.LITTLE on Linux, by frequency), L2/L3 caches, best SIMD (AVX-512 › AVX2 › AVX › NEON) and extensions such as VNNI/AMX.
+- **It measures memory speed** (once, about 0.5 s, saved in `cpu_bench.json`): on the CPU every token reads the whole model from RAM, so **tokens/s ≈ bandwidth ÷ model size**. The planner then picks:
+  - **generation threads** only up to memory saturation (+1 spare, never beyond the performance cores; one core stays free for the system): more threads only hurt;
+  - **prompt-reading threads** = all performance cores (that stage is compute-bound);
+  - **smaller batches on weak CPUs** (≤ 4 cores, no AVX2, memory < 15 GB/s or < 6 GB free): batch 128 / micro-batch 64 (fit in the L2 cache), 8-bit attention cache and a context window of up to 4096 — before, a modest PC used batches of 256–512 and the full window.
+- **Hybrid CPUs on Linux:** the process is **pinned to the performance cores** (`sched_setaffinity`) so threads do not land on efficiency cores and hold the others back. Turn it off in Settings → Performance or with `OPENFLOW_CPU_PIN=0`.
+- **Settings → Performance → “Processor (CPU)”:** shows processor, cores, SIMD, L3, the **memory speed** (“Measure memory” button), **how many GB of model run at 5 and 10 tokens/s** and, for each downloaded text model, the expected speed (**Smooth / Usable / Slow**). New routes `GET /api/cpu` and `POST /api/cpu/bench`.
+- Everything has a Python equivalent (without the Rust core it falls back to it, just without the memory measurement); tests check Rust and Python give **exactly** the same plan across 300 combinations.
+
+### Not verified
+- Tested **only on this computer** (Linux, Intel Xeon, 4 cores, no E cores): **pinning on a hybrid CPU and P/E core detection have never run on a real hybrid CPU** (the logic is tested with simulated data). **AMD:** vendor detection and caches (cpuid `0x8000001D`) follow the documentation but I did not run on an AMD. **Windows and macOS:** P/E separation is not detected (treated as a regular CPU) and pinning is not done; the memory measurement and the planner apply.
+- The “≈ tok/s” speeds are **estimates** (bandwidth × 0.65 ÷ model size), not measured with a real model; the real gain on weak PCs was not timed. Not every MoE model follows the rule (only part of the weights is read per token).
+- The prompt-reading estimate (`est_pp`) is rough and not shown in the UI.
+
 ## [0.27.0] — 2026-11-15
 
 ### New — Library 2.0 (Google-Drive style)

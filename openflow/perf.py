@@ -22,7 +22,7 @@ os.environ.setdefault("CUDA_DEVICE_ORDER", "PCI_BUS_ID")   # o torch e o CUDA nu
 
 MODES = ("auto", "light", "balanced", "max")
 DEVICES = ("auto", "cpu", "gpu")   # `settings.performance.device`: onde os modelos rodam
-DEFAULTS = {"mode": "auto", "idle_unload_min": 10, "device": "auto", "gpus": []}   # gpus: índices das placas NVIDIA a usar ([] = todas)
+DEFAULTS = {"mode": "auto", "idle_unload_min": 10, "device": "auto", "gpus": [], "cpu_pin": True}   # gpus: índices das placas NVIDIA a usar ([] = todas)
 
 
 def resolve(mode: str, hw: Dict[str, Any]) -> str:
@@ -99,6 +99,57 @@ def device() -> str:
     """Onde rodar os modelos: ``auto`` (usa a placa de vídeo se houver), ``cpu`` (nunca usa a GPU) ou ``gpu`` (usa a placa de vídeo, mesmo que o OpenFlow não a detecte)."""
     v = str(CURRENT.get("device") or "auto").lower()
     return v if v in DEVICES else "auto"
+
+
+# --------------------------------------------------------------------------- CPU (v0.28)
+_PINNED: Dict[str, Any] = {"done": False, "cpus": []}
+
+
+def cpu_tuning(weights: int, ctx: int, mode: str) -> Dict[str, Any]:
+    """Como rodar um modelo de `weights` bytes só na CPU: threads de geração e de leitura do prompt, lotes, cache de atenção em 8 bits e velocidade esperada (núcleo Rust: native.plan_cpu, que usa a
+    largura de banda da memória medida uma vez neste computador). {} se não deu para planejar — quem chama segue com o comportamento de antes."""
+    try:
+        from . import native
+
+        info = native.cpu_info()
+        bench = native.cached_bench() or {}
+        mem = memory_state()
+        plan = native.plan_cpu(int(weights), int(ctx), float(bench.get("bw1") or 0), float(bench.get("bwn") or 0), int(info.get("p_physical") or 1), int(info.get("e_physical") or 0),
+                               int(info.get("p_logical") or 1) + int(info.get("e_logical") or 0), bool(info.get("hybrid")), int(info.get("simd") or 0), int(info.get("l2_kb") or 0),
+                               int(mem.get("ram_avail") or 0), MODE_NUM.get(mode, 1))
+        plan["info"], plan["bench"] = info, bench
+        return plan
+    except Exception:  # noqa: BLE001 — melhor esforço
+        return {}
+
+
+def pin_performance_cores(info: Dict[str, Any]) -> bool:
+    """CPU híbrida (Intel P+E, AMD Zen c): prende o processo aos núcleos de desempenho (Linux, `sched_setaffinity`). As threads de geração que caem nos núcleos de eficiência seguram as dos de desempenho;
+    com a afinidade, cada token sai mais rápido. Desligue em Configurações → Desempenho (ou OPENFLOW_CPU_PIN=0). Windows e macOS: o sistema já agenda sozinho; nada é feito."""
+    if _PINNED["done"]:
+        return bool(_PINNED["cpus"])
+    _PINNED["done"] = True
+    if os.environ.get("OPENFLOW_CPU_PIN", "") in ("0", "no", "false") or CURRENT.get("cpu_pin") is False:
+        return False
+    cpus = [int(c) for c in info.get("p_cpus") or []]
+    if not info.get("hybrid") or not cpus or not hasattr(os, "sched_setaffinity"):
+        return False
+    try:
+        os.sched_setaffinity(0, set(cpus))
+        _PINNED["cpus"] = cpus
+        return True
+    except (OSError, ValueError):
+        return False
+
+
+def unpin_cores() -> None:
+    """Desfaz a afinidade (para o usuário desligar a opção sem reiniciar o OpenFlow)."""
+    if _PINNED["cpus"] and hasattr(os, "sched_setaffinity"):
+        try:
+            os.sched_setaffinity(0, set(range(os.cpu_count() or 1)))
+        except (OSError, ValueError):
+            pass
+    _PINNED.update(done=False, cpus=[])
 
 
 # --------------------------------------------------------------------------- várias placas de vídeo (v0.26)

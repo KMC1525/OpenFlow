@@ -279,6 +279,31 @@ async function projectTab() {
     saveRow(() => saveSettings({ canvas: cv })));
 }
 
+// CPU (v0.28): o processador, a velocidade da memória (o que limita os modelos na CPU) e quanto cada modelo de texto baixado deve render, só na CPU
+function cpuCard(pf) {
+  const body = h('div', { id: 'cpu-body', 'aria-live': 'polite' }, h('span', { class: 'muted small' }, t('Lendo o processador…')));
+  const SIMD = ['SSE', 'AVX', 'AVX2', 'AVX-512', 'NEON'];
+  const paint = (r) => {
+    const i = r.info, b = r.bench || {}, cores = i.hybrid ? t('{p} núcleos de desempenho + {e} de eficiência', { p: i.p_physical, e: i.e_physical }) : t('{p} núcleos', { p: i.p_physical });
+    const verdict = { fast: [t('Fluido'), 'chip on'], ok: [t('Usável'), 'chip'], slow: [t('Lento'), 'chip warn'] };
+    body.replaceChildren(
+      h('dl', { class: 'kv', style: { margin: 0 } },
+        h('dt', null, t('Processador')), h('dd', { id: 'cpu-brand' }, (i.brand || i.vendor.toUpperCase()) + ' · ' + cores + ' · ' + SIMD[i.simd] + (i.l3_kb ? ' · L3 ' + Math.round(i.l3_kb / 1024) + ' MB' : '')),
+        h('dt', null, t('Velocidade da memória')), h('dd', { id: 'cpu-bw' }, b.bwn ? b.bwn.toFixed(1) + ' GB/s ' + t('(1 thread: {a} GB/s)', { a: b.bw1.toFixed(1) }) : t('ainda não medida')),
+        h('dt', null, t('Modelo que roda bem')), h('dd', null, b.bwn ? t('até ≈ {a} GB com 5 tokens/s · ≈ {b} GB com 10 tokens/s', { a: r.max_gb_5tps, b: r.max_gb_10tps }) : '—'),
+        r.info.hybrid ? h('dt', null, t('Núcleos fixados')) : null, r.info.hybrid ? h('dd', null, r.pinned ? t('sim (só os de desempenho)') : t('ainda não (fixa ao carregar um modelo na CPU)')) : null),
+      r.models.length ? h('div', { class: 'col', style: { marginTop: '10px', gap: '6px' }, id: 'cpu-models' }, r.models.map((m) => h('div', { class: 'row nw' }, h('span', { class: 'mono small grow', style: { overflowWrap: 'anywhere' } }, m.name),
+        h('span', { class: 'dim small' }, fmtBytes(m.size)), m.est_tps ? h('span', { class: 'small' }, '≈ ' + m.est_tps.toFixed(1) + ' tok/s') : null, m.verdict ? h('span', { class: verdict[m.verdict][1] }, verdict[m.verdict][0]) : null))) : null,
+      h('div', { class: 'row', style: { marginTop: '10px', flexWrap: 'wrap' } },
+        h('button', { class: 'btn sm', type: 'button', id: 'cpu-bench', onclick: async (e) => { e.target.disabled = true; try { paint(await api('/api/cpu/bench', { method: 'POST', body: {} })); toast(t('Memória medida'), 'ok'); } catch (er) { toast(er.message, 'err'); e.target.disabled = false; } } }, t('Medir a memória')),
+        i.hybrid ? checkbox(t('Fixar nos núcleos de desempenho (Linux)'), pf.cpu_pin !== false, async (v) => { pf.cpu_pin = v; await saveSettings({ performance: pf }); toast(t('Salvo. Vale a partir do próximo modelo carregado.'), 'ok'); }) : null),
+      r.weak ? h('p', { class: 'muted small', style: { marginBottom: 0 } }, t('Computador modesto: o OpenFlow usa lotes e janelas de contexto menores e o cache de atenção compacto. Prefira modelos pequenos (1–4 GB) ou quantizações Q4/Q3.')) : null,
+      !r.rust ? h('p', { class: 'muted small', style: { marginBottom: 0 } }, t('Sem o núcleo Rust a memória não é medida e as estimativas ficam em branco: rode  flow native setup.')) : null);
+  };
+  api('/api/cpu').then(paint).catch((e) => body.replaceChildren(h('span', { class: 'muted small' }, e.message)));
+  return cfgCard(t('Processador (CPU)'), h('p', { class: 'muted small', style: { marginTop: 0 } }, t('Na CPU, a velocidade de um modelo de texto depende sobretudo da memória: cada palavra lê o modelo inteiro. O OpenFlow mede a sua e ajusta threads e lotes sozinho.')), body);
+}
+
 // Várias placas de vídeo (v0.26): quais o OpenFlow pode usar. Texto (llama.cpp): camadas divididas entre as placas escolhidas; imagem/vídeo/som: a placa escolhida com mais memória livre.
 function gpuCard(pf, hw) {
   const gpus = hw.gpus || [];
@@ -313,6 +338,7 @@ async function performance() {
         field(t('Descarregar modelos ociosos após (min)'), h('input', { type: 'number', min: 0, max: 1440, value: pf.idle_unload_min, onchange: async (e) => { pf.idle_unload_min = Math.max(0, parseInt(e.target.value || '0', 10)); await saveSettings({ performance: pf }); toast(t('Salvo'), 'ok'); } }), t('0 = nunca. No modo leve o limite é de até 3 min.'))),
       h('p', { class: 'muted small', style: { marginBottom: 0 } }, t('Seu hardware: {t}', { t: hw.tier }) + ' · ' + hw.cpus + ' CPU · ' + (hw.ram_gb ? hw.ram_gb + ' GB RAM' : '—') + ' · ' + (hw.gpu || t('não detectada (NVIDIA)')))),
     gpuCard(pf, hw),
+    cpuCard(pf),
     cfgCard(t('Núcleo Rust'),
       h('dl', { class: 'kv', style: { margin: 0 } }, h('dt', null, t('Núcleo Rust')), h('dd', null, nat.active ? h('span', { class: 'chip on' }, t('ativo')) : h('span', { class: 'muted' }, t('inativo — usando Python puro'))),
         h('dt', null, 'Rust (cargo)'), h('dd', null, nat.cargo ? t('encontrado') : t('não encontrado (opcional)')),

@@ -7,6 +7,7 @@ que são suportados como provedores OpenAI-compatíveis.
 from __future__ import annotations
 
 import gc
+import os
 import threading
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Tuple
@@ -241,6 +242,18 @@ class LocalLlamaProvider(Provider):
                 ngl = int(plan["n_gpu_layers"]) if plan and use_gpu else (-1 if use_gpu else 0)
                 threads = int(plan["n_threads"]) if plan else max(1, hw["cpus"] - 1)
                 base = dict(model_path=path, n_ctx=ctx, n_threads=threads, n_gpu_layers=ngl, verbose=False)
+                if ngl == 0:   # só CPU (AMD/Intel/ARM, v0.28): threads, lotes e cache de atenção conforme o processador e a memória (núcleo Rust)
+                    tune = perf.cpu_tuning(int((plan.get("info") or {}).get("bytes") or 0) or os.path.getsize(path), ctx, prof["mode"]) if plan or os.path.exists(path) else {}
+                    if tune:
+                        base["n_threads"] = int(tune["n_threads"])
+                        prof = dict(prof, n_batch=min(int(prof["n_batch"]), int(tune["n_batch"])), n_ubatch=int(tune["n_ubatch"]), n_threads_batch=int(tune["n_threads_batch"]))
+                        if tune.get("kv_q8") and path not in _PLAIN:
+                            prof["kv_q8"], prof["flash"] = True, bool(tune.get("flash"))
+                        if tune.get("ctx_cap") and not self.n_ctx_cfg and base["n_ctx"] > int(tune["ctx_cap"]):
+                            base["n_ctx"] = max(2048, int(tune["ctx_cap"]))   # CPU fraca: janela menor (a atenção custa tempo e memória)
+                        if tune.get("pin"):
+                            perf.pin_performance_cores(tune["info"])
+                        native.LAST["cpu"] = {"model": os.path.basename(path), "threads": base["n_threads"], "est_tps": tune.get("est_tps"), "weak": tune.get("weak")}
                 if use_gpu and ngl != 0:
                     base.update(perf.llama_split())   # várias placas NVIDIA: camadas divididas em proporção à memória livre (ou só a placa escolhida)
                 handler = vision_handler(Path(path))   # modelo com mmproj ao lado: aceita imagens

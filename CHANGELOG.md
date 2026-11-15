@@ -2,6 +2,23 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.28.0] — 2026-11-15
+
+### Novo — CPU Upgrade: modelos locais mais rápidos em processadores AMD/Intel (núcleo Rust)
+- **O OpenFlow agora conhece o seu processador** (`cpu.rs`, interface 5 do núcleo): fabricante, nome, **núcleos de desempenho (P) e de eficiência (E)** em CPUs híbridas (Intel Alder Lake e mais novos; AMD Zen c e ARM big.LITTLE no Linux, por frequência), caches L2/L3, melhor SIMD (AVX-512 › AVX2 › AVX › NEON) e extensões como VNNI/AMX.
+- **Mede a velocidade da memória** (uma vez, uns 0,5 s, guardada em `cpu_bench.json`): na CPU cada token lê o modelo inteiro da RAM, então **tokens/s ≈ largura de banda ÷ tamanho do modelo**. Com isso o planejador escolhe:
+  - **threads de geração** só até saturar a memória (+1 de folga, sem passar dos núcleos de desempenho; um núcleo fica livre para o sistema): mais threads que isso só atrapalham;
+  - **threads de leitura do prompt** = todos os núcleos de desempenho (essa etapa é de cálculo);
+  - **lotes menores em CPUs fracas** (≤ 4 núcleos, sem AVX2, memória < 15 GB/s ou < 6 GB livres): lote 128 / micro-lote 64 (cabem no cache L2), cache de atenção em 8 bits e janela de contexto de até 4096 — antes um PC modesto usava lotes de 256–512 e a janela cheia.
+- **CPU híbrida no Linux:** o processo é **fixado nos núcleos de desempenho** (`sched_setaffinity`), para as threads não caírem nos de eficiência e segurarem as outras. Desligue em Configurações → Desempenho ou com `OPENFLOW_CPU_PIN=0`.
+- **Configurações → Desempenho → «Processador (CPU)»:** mostra processador, núcleos, SIMD, L3, a **velocidade da memória** (botão «Medir a memória»), **até quantos GB de modelo rodam a 5 e a 10 tokens/s** e, para cada modelo de texto baixado, a velocidade esperada (**Fluido / Usável / Lento**). Novas rotas `GET /api/cpu` e `POST /api/cpu/bench`.
+- Tudo tem equivalente em Python (sem o núcleo Rust cai nele, só sem a medida de memória); os testes conferem que Rust e Python dão **exatamente** o mesmo plano em 300 combinações.
+
+### Ainda não verificado
+- Testei só **neste computador** (Linux, Intel Xeon, 4 núcleos, sem núcleos E): **a fixação em CPU híbrida e a detecção de núcleos P/E nunca rodaram numa CPU híbrida de verdade** (a lógica é testada com dados simulados). **AMD:** o identificador de fabricante e as caches (cpuid `0x8000001D`) seguem a documentação, mas não rodei numa AMD. **Windows e macOS:** a separação P/E não é detectada (tratados como CPU comum) e a fixação não é feita; a medida de memória e o planejador valem.
+- As velocidades «≈ tok/s» são **estimativas** (largura de banda × 0,65 ÷ tamanho do modelo), não medidas com um modelo de verdade; o ganho real em PCs fracos ainda não foi cronometrado. Nem todo modelo MoE segue a regra (só parte dos pesos é lida por token).
+- A estimativa de leitura do prompt (`est_pp`) é grosseira e não aparece na interface.
+
 ## [0.27.0] — 2026-11-15
 
 ### Novo — Biblioteca 2.0 (no estilo do Google Drive)
