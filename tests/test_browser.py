@@ -91,6 +91,9 @@ class BrowserTests(unittest.TestCase):
     def test_15_library_models_generated_files_and_downloads_tabs(self):
         self.run_script("library_ui.js")
 
+    def test_16_big_screens_node_search_and_storage_panel(self):
+        self.run_script("screens_ui.js")
+
 
 if __name__ == "__main__":
     unittest.main()

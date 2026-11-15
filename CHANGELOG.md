@@ -2,6 +2,22 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.31.0] — 2026-11-15
+
+### Novo — Melhorias gerais 2.0
+- **Telas grandes e ultrawide:** acima de 1700 px a página, a barra lateral, a paleta de nós e o painel de arquivos do canvas crescem junto com a janela (antes o conteúdo ficava numa coluna de 1180 px no meio de um monitor de 3440 px); degraus em 1700, 2200 e 3000 px e um ajuste para telas 21:9 ou mais largas. A Biblioteca ganha colunas e cartões maiores. Nada rola para o lado em 1920, 3440 e no celular (testado).
+- **Busca de nós na paleta do canvas:** um campo no topo da aba dos nós filtra pelo nome, pela descrição e pelo grupo (sem diferenciar acentos nem maiúsculas); **Enter** adiciona o primeiro resultado ao fluxo e **Esc** limpa.
+- **Memória RAM dual/quad channel, DDR4/DDR5:** o planejador da v0.28 já usava a largura de banda medida para escolher as threads de geração (uma memória de 4 canais satura com mais threads que uma de 1); agora o OpenFlow também **lê os pentes** (Windows pelo SMBIOS/PowerShell; Linux pelo `dmidecode`, quando houver permissão): quantidade, DDR4/DDR5, velocidade, **canais** e a largura de banda teórica, mostrados em Desempenho → Processador. E **avisa o que ajuda**: um pente só (canal único: a velocidade dos modelos é metade), **XMP/EXPO desligado** (a memória roda abaixo do que o pente suporta) e velocidade medida bem abaixo da teórica. Em **servidores e Threadripper/EPYC com vários nós NUMA** o llama.cpp passa a distribuir threads e memória entre os nós.
+- **Armazenamento (HDD e SSD):** o OpenFlow detecta se os modelos estão num **HDD ou SSD**. Em **HDD** baixa por **uma conexão só** (gravação sequencial, sem fragmentar o arquivo) e pré-carrega o modelo com **uma thread** (leituras em paralelo viram buscas aleatórias e o disco fica mais lento); em SSD segue paralelo. Nova seção **Biblioteca → Armazenamento**: espaço livre/total, quanto ocupam os modelos (por tipo), projetos e envios, e **limpeza** de downloads incompletos abandonados há mais de 1 hora, temporários de gerações interrompidas e arquivos de projeto que nenhum projeto usa mais — nunca apaga modelos nem arquivos em uso (com um download rodando, os parciais ficam). Rotas `GET /api/storage` e `POST /api/storage/clean`.
+- **Rodar os modelos locais na CPU e na GPU ao mesmo tempo:** nova opção **«Híbrido: CPU e GPU juntas»** em Desempenho → Rodar em. **Texto:** a placa leva as camadas que couberem, a CPU o resto (com as threads certas para a parte dela) e ainda **propõe os próximos tokens** (decodificação especulativa por consulta ao prompt) que a placa confirma — sem mudar a resposta. **Imagem e vídeo:** o codificador de texto e o VAE rodam na **CPU** e a placa fica só com o modelo de difusão (cabem modelos e tamanhos maiores); no diffusers, cada parte só ocupa a placa enquanto trabalha.
+
+### Ainda não verificado
+- **Híbrido não faz um token sair mais rápido por si só:** a geração de texto passa pelas camadas em sequência, então o ganho é de **capacidade** (modelos que não cabem só na placa) e, quando o texto se repete, da decodificação especulativa. A decodificação especulativa depende da versão do llama-cpp-python (sem ela, só a divisão de camadas); nunca a cronometrei.
+- **Os pentes de memória só foram lidos em teste com dados simulados:** não rodei no Windows (PowerShell) nem num Linux com `dmidecode`; sem permissão (o normal no Linux) a leitura fica vazia e só aparece a velocidade medida. A conta de canais pelo nome da posição («ChannelA», «BANK 1») é **estimativa**.
+- **Detecção de HDD/SSD:** Linux (`/sys/block/.../rotational`) e macOS (`diskutil`) seguem a documentação; o Windows usa `Get-PhysicalDisk` e **não foi executado**. Discos USB, RAID e nuvem podem aparecer como «desconhecido» (tratados como SSD). Neste computador de teste o disco virtual aparece como HDD.
+- NUMA: `numa=1` (distribuir) é o valor da documentação do llama.cpp; não tenho uma máquina com vários nós para testar.
+- Telas grandes: conferi só pelo tamanho das caixas e a ausência de rolagem lateral num Chromium simulado de 3440×1440; não olhei num monitor real.
+
 ## [0.30.0] — 2026-11-15
 
 ### Novo — MiniMax H3 Image (imagem e edição) e o MiniMax H3 completo

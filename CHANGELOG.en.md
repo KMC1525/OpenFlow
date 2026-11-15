@@ -2,6 +2,22 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.31.0] — 2026-11-15
+
+### New — General improvements 2.0
+- **Large and ultrawide screens:** above 1700 px the page, sidebar, node palette and the canvas file panel grow with the window (before, content sat in a 1180 px column in the middle of a 3440 px monitor); steps at 1700, 2200 and 3000 px and a tweak for 21:9 or wider screens. The Library gets more columns and larger cards. Nothing scrolls sideways at 1920, 3440 and on a phone (tested).
+- **Node search in the canvas palette:** a field at the top of the nodes tab filters by name, description and group (accent- and case-insensitive); **Enter** adds the first result to the flow and **Esc** clears.
+- **Dual/quad-channel RAM, DDR4/DDR5:** the v0.28 planner already used the measured bandwidth to pick generation threads (a 4-channel memory saturates with more threads than a 1-channel one); OpenFlow now also **reads the memory sticks** (Windows through SMBIOS/PowerShell; Linux through `dmidecode` when permitted): count, DDR4/DDR5, speed, **channels** and theoretical bandwidth, shown in Performance → Processor. And it **tells you what helps**: a single stick (single channel: model speed is halved), **XMP/EXPO off** (memory runs below what the stick supports) and measured speed well below theoretical. On **servers and Threadripper/EPYC with several NUMA nodes** llama.cpp now spreads threads and memory across the nodes.
+- **Storage (HDD and SSD):** OpenFlow detects whether the models sit on an **HDD or SSD**. On an **HDD** it downloads over **a single connection** (sequential writing, no fragmentation) and preloads the model with **one thread** (parallel reads turn into random seeks and slow the disk); on an SSD it stays parallel. New **Library → Storage** section: free/total space, how much models (by type), projects and uploads take, and **cleanup** of incomplete downloads abandoned for over 1 hour, leftovers from interrupted generations and project files no project uses any more — it never deletes models or files in use (with a download running, partials stay). Routes `GET /api/storage` and `POST /api/storage/clean`.
+- **Run local models on the CPU and GPU at the same time:** new **“Hybrid: CPU and GPU together”** option in Performance → Run on. **Text:** the card takes the layers that fit, the CPU the rest (with the right threads for its share) and also **proposes the next tokens** (prompt-lookup speculative decoding) that the card confirms — without changing the answer. **Image and video:** the text encoder and VAE run on the **CPU** and the card keeps only the diffusion model (bigger models and sizes fit); in diffusers each part occupies the card only while it works.
+
+### Not verified
+- **Hybrid does not make a token faster by itself:** text generation goes through the layers in sequence, so the gain is **capacity** (models that do not fit on the card alone) and, when text repeats, speculative decoding. Speculative decoding depends on the llama-cpp-python version (without it, only the layer split); I never timed it.
+- **The memory sticks were only read in tests with simulated data:** I did not run on Windows (PowerShell) nor on a Linux with `dmidecode`; without permission (the norm on Linux) the reading is empty and only the measured speed shows. The channel count from the slot name (“ChannelA”, “BANK 1”) is an **estimate**.
+- **HDD/SSD detection:** Linux (`/sys/block/.../rotational`) and macOS (`diskutil`) follow the documentation; Windows uses `Get-PhysicalDisk` and **was not run**. USB disks, RAID and cloud drives may show as “unknown” (treated as SSD). On this test machine the virtual disk shows as HDD.
+- NUMA: `numa=1` (distribute) is the llama.cpp documentation value; I have no multi-node machine to test.
+- Large screens: I only checked box sizes and the absence of horizontal scroll in a simulated 3440×1440 Chromium; I did not look at a real monitor.
+
 ## [0.30.0] — 2026-11-15
 
 ### New — MiniMax H3 Image (image and editing) and the full MiniMax H3

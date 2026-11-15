@@ -19,7 +19,7 @@ run('library', async ({ api, open, check, base, expectError }) => {
   await page.route('**/api/jobs/j_a/cancel', (r) => { running = false; r.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' }); });
   await page.evaluate(() => { location.hash = '#/library'; }); await page.waitForSelector('#lib-tab-models', { timeout: 10000 });
   check('titulo-biblioteca', (await page.locator('.page-h h1').innerText()) === 'Library');
-  check('secoes-na-lateral', (await page.locator('.lib-sec').count()) === 3);
+  check('secoes-na-lateral', (await page.locator('.lib-sec').count()) === 4);
 
   await page.locator('#lib-tab-files').click(); await page.waitForSelector('#lib-folders .lib-card.folder', { timeout: 8000 });
   const rootItems = await page.locator('#lib-items').innerText();

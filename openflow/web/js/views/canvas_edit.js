@@ -140,11 +140,23 @@ export default async function render(root, ctx, cid) {
     dockText.value = '';
   }
 
-  const palette = h('div', { class: 'cv-pal' }, GROUPS.map(([g, list]) => h('div', null, h('h4', null, t(g)),
-    list.map((type) => h('button', { class: 'it', draggable: 'true', title: t(TYPE_HELP[type]), style: { '--c': OUT_COLOR[types[type].out] },
-      ondragstart: (e) => { e.dataTransfer.setData('text/flow-node', type); e.dataTransfer.effectAllowed = 'copy'; },
-      onclick: () => { const r = surface.getBoundingClientRect(); const p = toWorld(r.left + r.width / 2 - 140 + (Math.random() - .5) * 90, r.top + r.height / 2 - 100 + (Math.random() - .5) * 90); addNode(type, p.x, p.y); } },
-      icon(types[type].icon, 17), h('span', null, t(LABEL[type])))))));
+  // paleta de nós com busca (v0.31): filtra pelo nome, pela ajuda e pelo grupo; Enter adiciona o primeiro resultado
+  const fold = (x) => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const palItems = GROUPS.map(([g, list]) => ({ g, list: list.map((type) => ({ type, hay: fold(t(LABEL[type]) + ' ' + LABEL[type] + ' ' + t(TYPE_HELP[type]) + ' ' + t(g) + ' ' + type) })) }));
+  const addCenter = (type) => { const r = surface.getBoundingClientRect(); const p = toWorld(r.left + r.width / 2 - 140 + (Math.random() - .5) * 90, r.top + r.height / 2 - 100 + (Math.random() - .5) * 90); addNode(type, p.x, p.y); };
+  const palList = h('div', { class: 'cv-pal-list', id: 'cv-pal-list' });
+  const palSearch = h('input', { type: 'search', id: 'cv-pal-q', class: 'cv-pal-q', 'aria-label': t('Buscar nós'), placeholder: t('Buscar nós…'), autocomplete: 'off',
+    oninput: () => paintPalette(), onkeydown: (e) => { if (e.key === 'Enter') { const first = palList.querySelector('.it'); if (first) { e.preventDefault(); addCenter(first.dataset.type); } } else if (e.key === 'Escape') { palSearch.value = ''; paintPalette(); } } });
+  function paintPalette() {
+    const toks = fold(palSearch.value).split(/\s+/).filter(Boolean);
+    const groups = palItems.map(({ g, list }) => [g, list.filter((i) => toks.every((k) => i.hay.includes(k)))]).filter(([, l]) => l.length);
+    palList.replaceChildren(...(groups.length ? groups.map(([g, list]) => h('div', null, h('h4', null, t(g)),
+      list.map(({ type }) => h('button', { class: 'it', 'data-type': type, draggable: 'true', title: t(TYPE_HELP[type]), style: { '--c': OUT_COLOR[types[type].out] },
+        ondragstart: (e) => { e.dataTransfer.setData('text/flow-node', type); e.dataTransfer.effectAllowed = 'copy'; },
+        onclick: () => addCenter(type) }, icon(types[type].icon, 17), h('span', null, t(LABEL[type])))))) : [h('div', { class: 'dim small', style: { padding: '8px' } }, t('Nenhum nó encontrado.'))]));
+  }
+  const palette = h('div', { class: 'cv-pal' }, h('div', { class: 'cv-pal-search' }, icon('search', 14), palSearch), palList);
+  paintPalette();
 
   root.replaceChildren(h('div', { class: 'cv-root cv-pg' }, top, h('div', { class: 'cv-main' }, palette, surface, assetsPanel)));
   surface.appendChild(dock); setDock(ls(DOCK_KEY) !== '0');

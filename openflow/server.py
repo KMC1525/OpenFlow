@@ -339,7 +339,7 @@ class App:
         ref = native.plan_cpu(4 << 30, 4096, float(bench.get("bw1") or 0), float(bench.get("bwn") or 0), int(info.get("p_physical") or 1), int(info.get("e_physical") or 0),
                               int(info.get("p_logical") or 1) + int(info.get("e_logical") or 0), bool(info.get("hybrid")), int(info.get("simd") or 0), int(info.get("l2_kb") or 0), int(mem.get("ram_avail") or 0), mode)
         return {"info": {k: v for k, v in info.items() if k not in ("p_cpus", "e_cpus", "features")}, "features": info.get("features", []), "bench": {k: v for k, v in bench.items() if k != "key"}, "models": models,
-                "weak": bool(ref.get("weak")), "max_gb_5tps": ref.get("max_gb_5tps", 0), "max_gb_10tps": ref.get("max_gb_10tps", 0), "pinned": bool(perf._PINNED["cpus"]), "rust": native.status().get("active", False)}
+                "memory": native.memory_layout(), "advice": native.memory_advice(native.memory_layout(), bench), "numa_nodes": int(info.get("numa_nodes") or 1), "weak": bool(ref.get("weak")), "max_gb_5tps": ref.get("max_gb_5tps", 0), "max_gb_10tps": ref.get("max_gb_10tps", 0), "pinned": bool(perf._PINNED["cpus"]), "rust": native.status().get("active", False)}
 
     def r_gpu(self, req: "Request") -> None:
         """As placas de vídeo (NVIDIA/AMD/Intel), se o llama-cpp-python instalado consegue usá-las, o executável do sd-cli que será usado e a velocidade esperada de cada modelo de texto baixado na melhor placa.

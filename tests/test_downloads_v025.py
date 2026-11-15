@@ -161,7 +161,9 @@ class HfDownloadTests(unittest.TestCase):
             self.assertEqual(conns, 5)
             return 4
 
-        with mock.patch.object(dl, "fetch", fake):
+        from openflow import diskuse
+
+        with mock.patch.object(dl, "fetch", fake), mock.patch.object(diskuse, "kind_of", return_value="ssd"):
             hf.CONNECTIONS = 5
             try:
                 out = hf.download("acme/m", "m-Q4_K_M.gguf", tmp)

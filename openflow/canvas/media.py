@@ -1388,6 +1388,8 @@ def _slim(pipe: Any, dev: str) -> Any:
                     getattr(pipe, fn)()
                 except Exception:  # noqa: BLE001
                     pass
+    if dev == "cuda" and plan["strategy"] == "gpu" and _perf.device() == "hybrid":   # CPU + GPU juntas (v0.31): cada parte (texto, difusão, VAE) só ocupa a placa enquanto trabalha; o resto espera na RAM
+        plan = dict(plan, strategy="model_offload")
     if dev == "cuda" and plan["strategy"] in ("model_offload", "sequential_offload"):
         for fn in (("enable_sequential_cpu_offload", "enable_model_cpu_offload") if plan["strategy"] == "sequential_offload" else ("enable_model_cpu_offload",)):
             try:

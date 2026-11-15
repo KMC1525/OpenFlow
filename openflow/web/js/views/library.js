@@ -25,19 +25,19 @@ export default async function render(root, ctx) {
   async function go(next) { Object.assign(S, next); LS('scope', S.scope); await show(); }
 
   const search = h('input', { type: 'search', id: 'lib-q', 'aria-label': t('Buscar pastas e arquivos'), placeholder: t('Buscar pastas e arquivos…'), autocomplete: 'off',
-    oninput: debounce(() => { S.q = search.value.trim(); if (S.scope === 'downloads' || S.browse) { S.scope = 'files'; S.browse = false; show(); } else loadItems(); }, 250) });
+    oninput: debounce(() => { S.q = search.value.trim(); if (S.scope === 'downloads' || S.scope === 'storage' || S.browse) { S.scope = 'files'; S.browse = false; show(); } else loadItems(); }, 250) });
 
   function paintSide() {
-    const sec = [['models', 'Modelos de IA', 'layers'], ['files', 'Arquivos gerados', 'image'], ['downloads', 'Downloads', 'download']];
+    const sec = [['models', 'Modelos de IA', 'layers'], ['files', 'Arquivos gerados', 'image'], ['downloads', 'Downloads', 'download'], ['storage', 'Armazenamento', 'archive']];
     const nodes = [];
     for (const [k, label, ic] of sec) {
       const on = S.scope === k && !S.browse;
       nodes.push(h('button', { type: 'button', class: 'lib-sec' + (on && !S.folder ? ' on' : ''), id: 'lib-tab-' + k, 'data-scope': k, 'aria-current': on ? 'page' : null,
         onclick: () => { S.q = ''; search.value = ''; go({ scope: k, folder: '', browse: false }); },
-        ondragover: (e) => { if (k !== 'downloads' && e.dataTransfer.types.includes(DRAG)) { e.preventDefault(); e.currentTarget.classList.add('drop'); } },
+        ondragover: (e) => { if (k !== 'downloads' && k !== 'storage' && e.dataTransfer.types.includes(DRAG)) { e.preventDefault(); e.currentTarget.classList.add('drop'); } },
         ondragleave: (e) => e.currentTarget.classList.remove('drop'),
-        ondrop: (e) => { e.currentTarget.classList.remove('drop'); if (k !== 'downloads') dropOn(e, ''); } }, icon(ic, 16), h('span', null, t(label))));
-      if (k === S.scope && k !== 'downloads') nodes.push(treeNode('', 0));
+        ondrop: (e) => { e.currentTarget.classList.remove('drop'); if (k !== 'downloads' && k !== 'storage') dropOn(e, ''); } }, icon(ic, 16), h('span', null, t(label))));
+      if (k === S.scope && k !== 'downloads' && k !== 'storage') nodes.push(treeNode('', 0));
     }
     side.replaceChildren(...nodes);
   }
@@ -113,6 +113,7 @@ export default async function render(root, ctx) {
     const rootName = S.scope === 'models' ? t('Todos os modelos') : t('Todos os arquivos');
     crumbs.replaceChildren();
     if (S.scope === 'downloads') { crumbs.append(h('b', null, t('Downloads'))); }
+    else if (S.scope === 'storage') { crumbs.append(h('b', null, t('Armazenamento'))); }
     else if (S.browse) { crumbs.append(h('button', { type: 'button', class: 'lib-crumb', onclick: () => go({ browse: false }) }, '← ' + rootName), h('b', null, t('Baixar mais modelos'))); }
     else if (S.q) { crumbs.append(h('b', null, t('Resultados para «{q}»', { q: S.q }))); }
     else {
@@ -275,11 +276,45 @@ export default async function render(root, ctx) {
   }
 
 
+  // ---------------------------------------------------------------------------------------------- armazenamento (v0.31)
+  async function storageTab(box) {
+    const body = h('div', { id: 'lib-storage' });
+    box.append(body);
+    const paint = (r) => {
+      const used = Object.values(r.models).reduce((a, b) => a + b, 0) + r.projects + r.uploads;
+      const KIND = { ssd: t('SSD'), hdd: t('HDD'), unknown: t('tipo desconhecido') };
+      const cl = r.cleanable, total = cl.partials.bytes + cl.temp.bytes + cl.orphans.bytes;
+      const row = (label, bytes) => h('div', { class: 'row nw', style: { padding: '4px 0' } }, h('span', { class: 'grow' }, label), h('span', { class: 'dim' }, fmtBytes(bytes)));
+      const cleanRow = (id, what, label, hint) => cl[what].files ? h('div', { class: 'row nw', style: { padding: '6px 0' } }, h('div', { class: 'grow' }, h('div', null, label + ' · ' + fmtBytes(cl[what].bytes) + ' (' + t('{n} item(ns)', { n: cl[what].files }) + ')'), h('div', { class: 'dim small' }, hint)),
+        h('button', { class: 'btn sm', type: 'button', id: 'st-' + id, onclick: () => clean([what]) }, t('Limpar'))) : null;
+      body.replaceChildren(
+        h('div', { class: 'card', style: { marginBottom: '16px' } }, h('h3', null, t('Disco')),
+          h('p', { class: 'muted small', style: { marginTop: 0 } }, t('{k} · {f} livres de {t}', { k: KIND[r.disk.kind], f: fmtBytes(r.disk.free), t: fmtBytes(r.disk.total) }) + (r.disk.kind === 'hdd' ? ' · ' + t('Em HDD o OpenFlow baixa por uma conexão só e lê o modelo em sequência, para o disco não ficar procurando.') : '')),
+          h('div', { class: 'bar', role: 'img', 'aria-label': t('Espaço usado pelo OpenFlow') }, h('i', { style: { width: Math.min(100, Math.max(1, Math.round(100 * used / Math.max(1, r.disk.total)))) + '%' } })),
+          h('p', { class: 'muted small' }, t('O OpenFlow ocupa {n}.', { n: fmtBytes(used) }))),
+        h('div', { class: 'card', style: { marginBottom: '16px' } }, h('h3', null, t('O que ocupa espaço')),
+          row(t('Modelos de texto'), r.models.text || 0), row(t('Modelos de imagem'), r.models.image || 0), row(t('Modelos de vídeo'), r.models.video || 0), row(t('Modelos de som, voz e transcrição'), (r.models.sound || 0) + (r.models.voice || 0) + (r.models.stt || 0)),
+          row(t('Projetos (arquivos gerados e enviados)'), r.projects), row(t('Envios soltos'), r.uploads)),
+        h('div', { class: 'card' }, h('h3', null, t('Limpeza')),
+          total ? [cleanRow('partials', 'partials', t('Downloads incompletos'), t('Parciais abandonados há mais de 1 hora (baixar de novo recomeça do zero).')),
+            cleanRow('temp', 'temp', t('Temporários'), t('Sobras de gerações interrompidas.')), cleanRow('orphans', 'orphans', t('Arquivos sem projeto'), t('Arquivos na pasta de um projeto que nenhum nó nem a lista de arquivos usa mais.')),
+            h('div', { style: { marginTop: '8px' } }, h('button', { class: 'btn primary', type: 'button', id: 'st-all', onclick: () => clean(['partials', 'temp', 'orphans']) }, t('Limpar tudo ({n})', { n: fmtBytes(total) })))]
+            : h('div', { class: 'muted small' }, t('Nada para limpar. Os modelos e os arquivos dos seus projetos nunca são apagados por aqui.')),
+          r.downloading ? h('p', { class: 'muted small' }, t('Há um download em andamento: os incompletos ficam até ele terminar.')) : null));
+    };
+    async function load() { try { paint(await api('/api/storage')); } catch (e) { body.replaceChildren(h('div', { class: 'res err' }, e.message)); } }
+    async function clean(what) {
+      try { const r = await api('/api/storage/clean', { method: 'POST', body: { what } }); toast(t('{b} liberados ({n} item(ns))', { b: fmtBytes(r.freed), n: r.removed }), 'ok'); load(); } catch (e) { toast(e.message, 'err'); }
+    }
+    await load();
+  }
+
   // ---------------------------------------------------------------------------------------------- tela
   async function show() {
     stop(); stop = () => {};
     paintSide(); paintBar();
     if (S.scope === 'downloads') { const holder = h('div'); main.replaceChildren(bar, crumbs, holder); stop = await downloadsTab(holder); return; }
+    if (S.scope === 'storage') { const holder = h('div'); main.replaceChildren(bar, crumbs, holder); await storageTab(holder); return; }
     if (S.browse) return browseModels();
     main.replaceChildren(bar, crumbs, filters, content);
     await loadItems();
@@ -289,7 +324,7 @@ export default async function render(root, ctx) {
     h('p', null, t('Seus modelos de IA e arquivos gerados, organizados em pastas. Arraste para mover; no canvas, a aba «Biblioteca» leva os arquivos para o fluxo.')))),
   h('div', { class: 'lib-layout' }, side, main)));
   // a árvore de pastas é carregada junto da primeira listagem
-  try { S.tree = (await api('/api/library/folders?scope=' + (S.scope === 'downloads' ? 'files' : S.scope))).folders; } catch (e) { S.tree = []; }
+  try { S.tree = (await api('/api/library/folders?scope=' + (['downloads', 'storage'].includes(S.scope) ? 'files' : S.scope))).folders; } catch (e) { S.tree = []; }
   await show();
   const mo = new MutationObserver(() => { if (!root.isConnected || !document.getElementById('lib-body')) { stop(); mo.disconnect(); } });
   mo.observe(document.body, { childList: true, subtree: true });
