@@ -40,12 +40,12 @@ for _k, _v in nodes_ext.SPECS.items():  # v0.11: 5 nós novos por tipo (nodes_ex
 GENERATORS = ("llm", "image", "video", "sound", "voice", "transcribe")  # nós que chamam um modelo
 EXT_TYPES = tuple(nodes_ext.SPECS)  # nós novos: rodam ffmpeg/Python (só «Refinar com IA» usa o modelo de texto)
 # ordem e grupos da paleta: Texto, Imagem, Vídeo, Som, Input, Output
-PALETTE = [("Texto", ["text", "llm", "transcribe", "text_template", "text_join", "text_edit", "text_pick", "text_refine"]),
-           ("Imagem", ["image", "img_resize", "img_filter", "img_text", "img_collage", "img_frame"]),
-           ("Vídeo", ["video", "vid_trim", "vid_join", "vid_speed", "vid_look", "vid_slideshow"]),
-           ("Som", ["sound", "voice", "aud_trim", "aud_mix", "aud_fx", "aud_from_video", "aud_loop"]),
-           ("Input", ["upload", "style_prompt", "style_folder", "in_color", "in_silence", "in_url", "in_random", "in_vars"]),
-           ("Output", ["editor", "out_export", "out_gif", "out_audio", "out_image", "out_gallery"])]
+PALETTE = [("Texto", ["text", "llm", "transcribe", "text_template", "text_join", "text_edit", "text_pick", "text_refine", "text_extract", "text_count"]),
+           ("Imagem", ["image", "img_resize", "img_filter", "img_text", "img_collage", "img_frame", "img_crop", "img_watermark"]),
+           ("Vídeo", ["video", "vid_trim", "vid_join", "vid_speed", "vid_look", "vid_slideshow", "vid_reframe", "vid_loop", "vid_audio"]),
+           ("Som", ["sound", "voice", "aud_trim", "aud_mix", "aud_fx", "aud_from_video", "aud_loop", "aud_silence_cut"]),
+           ("Input", ["upload", "style_prompt", "style_folder", "in_color", "in_silence", "in_url", "in_random", "in_vars", "in_pattern"]),
+           ("Output", ["editor", "out_export", "out_gif", "out_audio", "out_image", "out_thumbnail", "out_gallery"])]
 
 
 def compatible(out_type: str, accepts: List[str]) -> bool:
@@ -234,7 +234,7 @@ def normalize_params(ntype: str, p: Any) -> Dict[str, Any]:
     if ntype == "style_prompt":
         return {"text": text(p.get("text"), "", 6000), "global": p.get("global", True) is not False}
     if ntype == "style_folder":
-        return {"files": _files(p.get("files")), "folders": normalize_folders(p.get("folders")), "global": p.get("global", True) is not False}
+        return {"files": _files(p.get("files")), "folders": normalize_folders(p.get("folders")), "notes": text(p.get("notes"), "", 4000), "global": p.get("global", True) is not False}
     if ntype in nodes_ext.SPECS:
         return nodes_ext.normalize(ntype, p)
     if ntype == "editor":
@@ -247,7 +247,7 @@ def normalize_result(r: Any) -> Dict[str, Any]:
     r = r if isinstance(r, dict) else {}
     state = r.get("state") if r.get("state") in ("idle", "running", "done", "error") else "idle"
     return {"state": state, "assets": _files(r.get("assets")), "text": text(r.get("text"), "", 40000), "error": text(r.get("error"), "", 1600), "hash": text(r.get("hash"), "", 64),
-            "ts": text(r.get("ts"), "", 40), "digest": text(r.get("digest"), "", 4000), "digest_key": text(r.get("digest_key"), "", 64)}
+            "ts": text(r.get("ts"), "", 40), "digest": text(r.get("digest"), "", 8000), "digest_key": text(r.get("digest_key"), "", 64)}
 
 
 def normalize_node(n: Any, keep_result: bool = True) -> Optional[Dict[str, Any]]:

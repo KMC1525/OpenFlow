@@ -2,6 +2,31 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.34.0] — 2026-11-15
+
+### New — 10 new canvas nodes (the current ones stay; all tested by really running them)
+- **Text:** **Extract from text** (links, e-mails, hashtags, numbers, quoted phrases, WORDS IN CAPITALS or a pattern/regex — protected against patterns that hang) · **Count text** (words, characters, lines).
+- **Image:** **Crop image** (by ratio 1:1, 16:9, 9:16, 4:3, 3:2, 21:9 keeping the center/top/bottom/side, or by area in %) · **Watermark** (logo in a corner, with size, margin and opacity).
+- **Video:** **Change aspect ratio** (9:16 vertical, 1:1, 4:5…: blurred background — the Reels/Shorts format —, fill and crop, or borders; keeps sound and frame rate) · **Loop video** (N times or to a duration) · **Audio in video** (replace, mix or remove the sound; end at the video or the audio).
+- **Sound:** **Remove silences** (dB threshold, minimum silence and kept breathing room).
+- **Input:** **Pattern and texture** (checkerboard, stripes, grid, dots and noise, in two colors).
+- **Output:** **Thumbnail with title** (image cropped to 16:9 with the title on top, dark band and 3 positions; JPG or PNG).
+- Each node has an icon, help, ports, form and translation; the palette (now with **search**, v0.31) lists them in the usual groups.
+
+### Improved — Style Prompt and Style Folder understand characters, scenery and objects
+- **Roles from folders:** the folder name says what it shows — “Characters”, “Scenery”, “Objects”, “Style”/“Light”… (Portuguese too). **A subfolder is an entity** (`Characters/Maria/front.png`, `side.png`); without subfolders, files starting with the same name become the same one (`maria_front.png` + `maria_side_v2.png` → Maria). A **`.txt`/`.md` with the entity's name is its description**.
+- **Structured description, one line per item:** `ESTILO GERAL`, `TRAÇOS COMUNS DOS PERSONAGENS`, `PERSONAGEM — Maria: …` (apparent age, hair, eyes, skin, clothes, accessories, marks, posture), `CENÁRIO — Floresta: …`, `OBJETO — Espada: …`, `CONSISTÊNCIA: …` (what never changes between images). A vision AI receives **each image captioned with the name of who appears** (up to 10 for entities + style) and answers in that format; **every entity appears**, even if the AI forgets one (it enters with what is known: neighbouring text, colors, number of images), and without AI OpenFlow builds the same format from what it has.
+- **General traits:** a new Style Folder field (“all characters wear a blue uniform; fine line…”) enters every description. The Style Prompt recognises `Personagem: Ana — ruiva` (and the other sections) and drops repeated lines.
+- **Only what the prompt needs:** a Style Folder with 30 characters does not dump all 30 into each generation. The prompt “Maria walks through the forest” gets the general style, the sheet of **Maria** and of the **Forest** scenery, the common traits and the consistency; the others become one “Project cast” line. (Up to 3 entities all enter.) Applies to Image, Video, Sound, Voice, AI Text and Refine with AI.
+- **The right reference images:** the images sent to the model are now those of the entities **cited** in the prompt (one each, then the second…, in the order they appear), then the general-style ones — before, they were always the node's first 3.
+- The description shows in the node line by line, with the role highlighted.
+
+### Not verified
+- I tested AI description with a **simulated** model (the requested format, reading the answer, captioned images and the forgotten entity); **I did not test with a real vision model**, so the quality of character sheets depends on the model.
+- Roles from folders depend on the names (common Portuguese and English words); folders with other names become general style. File names like “IMG_0034.png” create no entity.
+- Relevance recognises the entity's name in the prompt (accent- and case-insensitive; the first name is enough). A nickname or pronoun (“she”) is not followed.
+- The new nodes were tested with synthetic ffmpeg videos and images; “Watermark” and “Thumbnail” depend on ffmpeg having the text filter/font (like the text nodes that already existed).
+
 ## [0.33.0] — 2026-11-15
 
 ### New — Library in other folders (external HDD/SSD, pen drive, another disk)

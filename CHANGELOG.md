@@ -2,6 +2,31 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.34.0] — 2026-11-15
+
+### Novo — 10 nós novos no canvas (os atuais continuam; todos testados rodando de verdade)
+- **Texto:** **Extrair do texto** (links, e-mails, hashtags, números, frases entre aspas, PALAVRAS EM MAIÚSCULAS ou um padrão/regex — com proteção contra padrões que travam) · **Contar texto** (palavras, caracteres, linhas).
+- **Imagem:** **Recortar imagem** (por proporção 1:1, 16:9, 9:16, 4:3, 3:2, 21:9 mantendo o centro/topo/base/lado, ou por área em %) · **Marca d'água** (logo no canto, com tamanho, margem e opacidade).
+- **Vídeo:** **Mudar a proporção** (9:16 vertical, 1:1, 4:5…: fundo desfocado — o formato de Reels/Shorts —, preencher e cortar, ou bordas; mantém o som e a taxa de quadros) · **Repetir vídeo** (N vezes ou até uma duração) · **Áudio no vídeo** (trocar, misturar ou tirar o som; terminar no vídeo ou no áudio).
+- **Som:** **Tirar silêncios** (limite em dB, silêncio mínimo e respiro mantido).
+- **Input:** **Padrão e textura** (xadrez, listras, grade, bolinhas e ruído, em duas cores).
+- **Output:** **Miniatura com título** (imagem recortada em 16:9 com o título por cima, faixa escura e 3 posições; JPG ou PNG).
+- Cada nó tem ícone, ajuda, portas, formulário e tradução; a paleta (agora com **busca**, v0.31) os lista nos grupos de sempre.
+
+### Melhorado — Style Prompt e Style Folder entendem personagens, cenários e objetos
+- **Papéis pelas pastas:** o nome da pasta diz o que ela mostra — «Personagens», «Cenários», «Objetos», «Estilo»/«Luz»… (também em inglês). **Uma subpasta é uma entidade** (`Personagens/Maria/frente.png`, `perfil.png`); sem subpastas, arquivos com o mesmo começo de nome viram a mesma (`maria_frente.png` + `maria_perfil_v2.png` → Maria). Um **`.txt`/`.md` com o nome da entidade é a descrição dela**.
+- **Descrição estruturada, uma linha por item:** `ESTILO GERAL`, `TRAÇOS COMUNS DOS PERSONAGENS`, `PERSONAGEM — Maria: …` (idade aparente, cabelo, olhos, pele, roupas, acessórios, marcas, postura), `CENÁRIO — Floresta: …`, `OBJETO — Espada: …`, `CONSISTÊNCIA: …` (o que nunca muda entre imagens). A IA com visão recebe **cada imagem legendada com o nome de quem aparece** (até 10 por entidade+estilo) e responde nesse formato; **toda entidade aparece**, mesmo que a IA esqueça uma (entra com o que se sabe: texto ao lado, cores, nº de imagens), e sem IA o OpenFlow monta o mesmo formato com o que tem.
+- **Características gerais:** novo campo no Style Folder («todos os personagens usam uniforme azul; traço fino…») entra em todas as descrições. O Style Prompt reconhece `Personagem: Ana — ruiva` (e as outras seções) e tira linhas repetidas.
+- **Só o que o prompt precisa:** um Style Folder com 30 personagens não despeja os 30 em cada geração. O prompt «Maria anda pela floresta» recebe o estilo geral, a ficha da **Maria** e do cenário **Floresta**, os traços comuns e a consistência; os outros viram uma linha «Elenco do projeto». (Até 3 entidades entram todas.) Vale para Imagem, Vídeo, Som, Voz, Texto IA e Refinar com IA.
+- **Imagens de referência certas:** as imagens mandadas ao modelo agora são as das entidades **citadas** no prompt (uma de cada, depois a segunda…, na ordem em que aparecem), depois as de estilo geral — antes eram sempre as 3 primeiras do nó.
+- A descrição aparece no nó linha a linha, com o papel em destaque.
+
+### Ainda não verificado
+- Testei a descrição por IA com um modelo **simulado** (o formato pedido, a leitura da resposta, as imagens legendadas e a entidade esquecida); **não testei com um modelo de visão de verdade**, então a qualidade das fichas de personagem depende do modelo.
+- Papéis pelas pastas dependem dos nomes (palavras comuns em português e inglês); pastas com outros nomes viram estilo geral. Nomes de arquivo como «IMG_0034.png» não geram entidade.
+- A relevância reconhece o nome da entidade no prompt (sem acento e maiúsculas; o primeiro nome basta). Um apelido ou pronome («ela») não é seguido.
+- Os nós novos foram testados com vídeos e imagens sintéticos do ffmpeg; «Marca d'água» e «Miniatura» dependem do ffmpeg ter o filtro de texto/fonte (como os nós de texto que já existiam).
+
 ## [0.33.0] — 2026-11-15
 
 ### Novo — Biblioteca em outras pastas (HD/SSD externo, pendrive, outro disco)
