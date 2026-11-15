@@ -18,9 +18,11 @@ import threading
 import time
 from typing import Any, Callable, Dict, Optional
 
+os.environ.setdefault("CUDA_DEVICE_ORDER", "PCI_BUS_ID")   # o torch e o CUDA numeram as placas como o nvidia-smi (senão «placa 1» podia ser outra)
+
 MODES = ("auto", "light", "balanced", "max")
 DEVICES = ("auto", "cpu", "gpu")   # `settings.performance.device`: onde os modelos rodam
-DEFAULTS = {"mode": "auto", "idle_unload_min": 10, "device": "auto"}
+DEFAULTS = {"mode": "auto", "idle_unload_min": 10, "device": "auto", "gpus": []}   # gpus: índices das placas NVIDIA a usar ([] = todas)
 
 
 def resolve(mode: str, hw: Dict[str, Any]) -> str:
@@ -97,6 +99,75 @@ def device() -> str:
     """Onde rodar os modelos: ``auto`` (usa a placa de vídeo se houver), ``cpu`` (nunca usa a GPU) ou ``gpu`` (usa a placa de vídeo, mesmo que o OpenFlow não a detecte)."""
     v = str(CURRENT.get("device") or "auto").lower()
     return v if v in DEVICES else "auto"
+
+
+# --------------------------------------------------------------------------- várias placas de vídeo (v0.26)
+def gpu_status() -> list:
+    """[{index, name, total, free}] (bytes) das placas NVIDIA agora, com a memória livre de cada uma (cache de 3 s). Vazio sem NVIDIA."""
+    now = time.time()
+    c = _GPU_STATUS
+    if now - c["t"] < 3.0:
+        return c["v"]
+    out: list = []
+    smi = shutil.which("nvidia-smi")
+    if smi:
+        try:
+            raw = subprocess.run([smi, "--query-gpu=index,name,memory.total,memory.free", "--format=csv,noheader,nounits"], capture_output=True, text=True, timeout=5).stdout.strip().splitlines()
+            for line in raw:
+                p = [x.strip() for x in line.split(",")]
+                if len(p) >= 4 and p[0].isdigit():
+                    out.append({"index": int(p[0]), "name": ", ".join(p[1:-2]), "total": int(float(p[-2])) * 1048576, "free": int(float(p[-1])) * 1048576})
+        except (OSError, subprocess.SubprocessError, ValueError):
+            out = []
+    c.update(t=now, v=out)
+    return out
+
+
+_GPU_STATUS: Dict[str, Any] = {"t": 0.0, "v": []}
+
+
+def selected_gpus() -> list:
+    """Os índices das placas NVIDIA que o OpenFlow pode usar: as escolhidas em Configurações → Desempenho → GPUs (as que existem) ou todas, se nada foi escolhido."""
+    present = [g["index"] for g in gpu_status()]
+    raw = CURRENT.get("gpus")
+    want = []
+    for x in raw if isinstance(raw, list) else []:
+        try:
+            want.append(int(x))
+        except (TypeError, ValueError):
+            pass
+    chosen = [i for i in present if i in want]
+    return chosen or present
+
+
+def primary_gpu() -> Optional[int]:
+    """A placa para modelos que usam uma só (imagem, vídeo, som, sd-cli): a escolhida com mais memória livre agora. None sem NVIDIA."""
+    sel = set(selected_gpus())
+    st = [g for g in gpu_status() if g["index"] in sel]
+    return max(st, key=lambda g: g["free"])["index"] if st else None
+
+
+def llama_split() -> Dict[str, Any]:
+    """Parâmetros do llama.cpp para várias placas: `tensor_split` (a camada de cada placa em proporção à memória livre; as não escolhidas recebem 0) e `main_gpu`. Com uma placa só (ou sem NVIDIA): {}."""
+    st = gpu_status()
+    sel = selected_gpus()
+    if len(st) < 2:
+        return {}
+    free = {g["index"]: g["free"] for g in st}
+    if len(sel) < 2:   # uma placa escolhida entre várias: o modelo inteiro nela
+        return {"main_gpu": sel[0], "tensor_split": [1.0 if g["index"] == sel[0] else 0.0 for g in st]}
+    tot = float(sum(free[i] for i in sel)) or 1.0
+    return {"main_gpu": primary_gpu() or sel[0], "tensor_split": [round(free[g["index"]] / tot, 4) if g["index"] in sel else 0.0 for g in st]}
+
+
+def gpu_env(env: Dict[str, str]) -> Dict[str, str]:
+    """Para processos à parte (sd-cli): `CUDA_VISIBLE_DEVICES` com a placa certa — a de mais memória livre entre as escolhidas — quando há mais de uma placa. Uma variável já definida pelo usuário manda."""
+    if env.get("CUDA_VISIBLE_DEVICES") or device() == "cpu" or len(gpu_status()) < 2:
+        return env
+    i = primary_gpu()
+    if i is not None:
+        env = dict(env, CUDA_VISIBLE_DEVICES=str(i))
+    return env
 
 
 def run(cmd: list, **kw: Any) -> "subprocess.CompletedProcess":

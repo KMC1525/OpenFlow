@@ -241,6 +241,8 @@ class LocalLlamaProvider(Provider):
                 ngl = int(plan["n_gpu_layers"]) if plan and use_gpu else (-1 if use_gpu else 0)
                 threads = int(plan["n_threads"]) if plan else max(1, hw["cpus"] - 1)
                 base = dict(model_path=path, n_ctx=ctx, n_threads=threads, n_gpu_layers=ngl, verbose=False)
+                if use_gpu and ngl != 0:
+                    base.update(perf.llama_split())   # várias placas NVIDIA: camadas divididas em proporção à memória livre (ou só a placa escolhida)
                 handler = vision_handler(Path(path))   # modelo com mmproj ao lado: aceita imagens
                 if handler is not None:
                     base["chat_handler"] = handler

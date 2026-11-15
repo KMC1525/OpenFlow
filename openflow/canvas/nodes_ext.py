@@ -754,7 +754,7 @@ EXT_OF = {"image/png": ("png", "image"), "image/jpeg": ("jpg", "image"), "image/
 
 
 def run_in_url(eng, canvas, node):
-    from .. import websearch as ws
+    from .. import safeurl as ws
     from .media import sniff_mime
 
     url = node["params"]["url"].strip()
@@ -763,7 +763,7 @@ def run_in_url(eng, canvas, node):
     if not ws.safe_url(url):
         raise ValueError("Só links públicos http(s) são aceitos (nada de localhost ou redes privadas).")
     try:
-        with ws._OPENER.open(urllib.request.Request(url, headers=ws._UA), timeout=30) as resp:
+        with ws.OPENER.open(urllib.request.Request(url, headers=ws.UA), timeout=30) as resp:
             ctype = resp.headers.get("Content-Type", "").split(";")[0].strip().lower()
             data = resp.read(MAX_URL_BYTES + 1)
     except (urllib.error.URLError, OSError, ValueError) as exc:

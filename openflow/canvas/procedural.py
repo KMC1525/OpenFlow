@@ -176,9 +176,6 @@ def image(prompt: str, size: str = "768x768", seed: int = 0, style: str = "") ->
     return _png(w, h, img.buf)
 
 
-def png_of(prompt: str, size: str = "512x512") -> bytes:
-    return image(prompt, size)
-
 
 # --------------------------------------------------------------------------- áudio
 

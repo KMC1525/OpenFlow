@@ -215,7 +215,7 @@ class RunTests(TmpCase):
                 return False
         png = (self.m / "p1.png").read_bytes()
         self.build("in_url", {"url": "https://exemplo.test/foto.png"}, {})
-        with mock.patch("openflow.websearch.safe_url", return_value=True), mock.patch("openflow.websearch._OPENER.open", return_value=Resp(png)):
+        with mock.patch("openflow.safeurl.safe_url", return_value=True), mock.patch("openflow.safeurl.OPENER.open", return_value=Resp(png)):
             stats = CanvasEngine(self.store, self.cid, lambda e: None).run(["sut"], True)
         self.assertEqual(stats["errors"], 0)
         cur = self.cs.get(self.cid)

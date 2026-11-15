@@ -584,10 +584,6 @@ def _under(target: Path, root: Path) -> bool:
     return target == root or root in target.parents
 
 
-def _as_list(v):
-    """Lista vinda do JSON do navegador/API: qualquer outra coisa vira lista vazia (em vez de um erro 500)."""
-    return v if isinstance(v, list) else []
-
 
 class Request:
     def __init__(self, handler: "Handler", method: str):

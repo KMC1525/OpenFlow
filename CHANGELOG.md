@@ -2,6 +2,28 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.26.0] — 2026-11-15
+
+### Novo — várias placas de vídeo (multi-GPU)
+- **Todas as placas NVIDIA aparecem** (antes só a primeira era listada) em Configurações → Desempenho → **Placas de vídeo (GPUs)**, onde você marca quais o OpenFlow pode usar (nenhuma marcada = todas).
+- **Texto (llama.cpp):** as camadas do modelo são **divididas entre as placas marcadas**, em proporção à memória livre de cada uma (`tensor_split`), o que deixa rodar modelos maiores que a VRAM de uma placa só. Com uma única placa marcada, o modelo inteiro fica nela (`main_gpu`).
+- **Imagem, vídeo e som** (sd-cli, a stable-diffusion.cpp em processo à parte e o PyTorch): usam **uma placa por vez — a marcada com mais memória livre na hora** (`CUDA_VISIBLE_DEVICES`/`cuda.set_device`; a numeração segue a do `nvidia-smi`). Uma `CUDA_VISIBLE_DEVICES` definida por você continua mandando.
+- Vale a partir do próximo modelo carregado.
+
+### Corrigido
+- **`flow libs --sd-cli` saía com código 1 mesmo funcionando** (a função estava definida duas vezes e a segunda devolvia `True`): agora sai com 0 se instalou e 1 se falhou.
+- O nome da GPU no Sistema/Desempenho mostrava só a primeira placa quando havia mais de uma.
+- Uma variável sobrando no transcrever do OpenRouter (`h` nunca usada) foi removida.
+
+### Removido (legado do ASTA que não se aplica ao OpenFlow)
+- **`websearch.py` (766 linhas):** a busca na web do Chat do ASTA — OpenFlow não tem Chat. Só restava, usado pelo nó «Link», a checagem de endereço público; ela foi para um módulo pequeno (`safeurl.py`), com a mesma proteção contra SSRF (localhost, redes privadas e redirecionamentos para elas).
+- Funções sem nenhum uso: `lang_name`, `png_of`, `_as_list`, `transcriber` e os atalhos `scan_dir`/`dup_groups` do núcleo; **29 ícones** da interface de recursos que não existem aqui (mundos, avatares, jogos, scriber…).
+
+### Ainda não verificado
+- **Não tenho várias placas de vídeo aqui:** a divisão entre placas foi testada com a saída do `nvidia-smi` e a memória simulados; o carregamento real com `tensor_split` em duas GPUs, e a escolha da placa no PyTorch e no sd-cli, **não foram executados**. AMD/Intel (Vulkan) e Apple continuam como antes: sem escolha de placa.
+- Um modelo de imagem/vídeo **não** é dividido entre placas (só o texto é); duas gerações ao mesmo tempo também não usam placas diferentes.
+- A busca por bugs nos nós foi: rodar cada tipo de nó vazio e em cadeias com o provedor Demo (todos respondem com avisos claros, sem exceções) e uma varredura estática (pyflakes/vulture). Não achei outros bugs nos nós; isso não prova que não há.
+
 ## [0.25.0] — 2026-11-15
 
 ### Melhorado — downloads mais rápidos e que não se perdem
