@@ -82,6 +82,9 @@ class BrowserTests(unittest.TestCase):
     def test_12_model_search_bar_quantizations_download_and_use(self):
         self.run_script("canvas_hub_ui.js")
 
+    def test_13_text_node_linked_to_image_and_video_shows_the_linked_text(self):
+        self.run_script("canvas_text_link_ui.js")
+
 
 if __name__ == "__main__":
     unittest.main()

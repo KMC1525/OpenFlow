@@ -2,6 +2,16 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.19.0] — 2026-11-15
+
+### Corrigido (nó Texto ligado aos nós Imagem e Vídeo)
+- **Não dava para ver que texto o nó Imagem/Vídeo ia usar:** com um nó Texto ligado à entrada «Prompt», o campo do nó ficava vazio (com o aviso «Descreva a imagem…») e só o número «1» ao lado da porta mostrava que havia uma ligação. Agora o texto ligado aparece sob o campo («Texto ligado · Texto: “Uma floresta ao amanhecer…”»), **acompanha o que você digita** no nó Texto, e o campo do nó passa a dizer «Opcional: acrescente detalhes ao texto ligado (ele vem primeiro)» — o que reflete o que o motor faz (texto ligado primeiro, depois o do campo). Vale para qualquer nó que entregue texto (Texto IA, Transcrever…): se ele ainda não rodou, o aviso diz «Aguardando o nó … rodar».
+- **«Precisa de um prompt: ligue um nó de texto» com o nó de texto já ligado:** quando o nó ligado estava vazio, o erro mandava ligar um nó que já estava ligado. Agora diz qual nó está vazio («O texto ligado ao nó está vazio: Texto (texto vazio)…») e, no Vídeo, lembra que dá para ligar uma imagem inicial.
+- **O botão de ação do erro saía do nó:** o rótulo comprido («Abrir leejet/flux-3-image-klein-GGUF em Modelos») ficava numa linha só e passava da borda direita do nó. Agora quebra a linha e cabe dentro do nó.
+
+### Ainda não verificado
+- Vi o fluxo no navegador com o provedor Demo (ligar por arrastar, rodar, editar o texto, apagar o nó); não consegui reproduzir com os modelos reais e provedores de nuvem. Se ainda houver algo estranho com o Texto ligado ao Imagem/Vídeo, descreva o que aconteceu (ou mande o erro do nó).
+
 ## [0.18.0] — 2026-11-14
 
 ### Corrigido

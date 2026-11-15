@@ -168,5 +168,33 @@ class EditModeTests(TmpCase):
         self.assertIsNone(M.image_difference(b"nao e imagem", a))
 
 
+class LinkedEmptyTextTests(TmpCase):
+    def run_graph(self, nodes, edges):
+        from openflow.canvas import engine as E
+        from openflow.storage import Store
+
+        store = Store(self.tmp / "home")
+        c = store.projects.create("t")
+        store.projects.save_layout(c["id"], {"nodes": nodes, "edges": edges})
+        events = []
+        E.CanvasEngine(store, c["id"], events.append).run(None, False)
+        return [e for e in events if e.get("type") == "node" and e.get("state") == "error"]
+
+    def test_an_empty_linked_text_node_is_named_instead_of_asking_to_connect_one(self):
+        from tests.test_canvas import edge, node
+
+        errs = self.run_graph([node("text", nid="t", text="   "), node("image", nid="i")], [edge("t", "i", "prompt")])
+        self.assertEqual(len(errs), 1, errs)
+        self.assertIn("texto ligado ao nó está vazio", errs[0]["message"])
+        self.assertIn("(texto vazio)", errs[0]["message"])
+        self.assertNotIn("ligue um nó de texto", errs[0]["message"])
+        errs = self.run_graph([node("text", nid="t", text=""), node("video", nid="v")], [edge("t", "v", "prompt")])
+        self.assertIn("ou ligue uma imagem inicial", errs[0]["message"])
+        errs = self.run_graph([node("image", nid="i")], [])                                      # sem ligação: a mensagem de sempre
+        self.assertIn("ligue um nó de texto", errs[0]["message"])
+        errs = self.run_graph([node("text", nid="t", text="Um farol"), node("image", nid="i")], [edge("t", "i", "prompt")])
+        self.assertEqual(errs, [])                                                               # com texto: roda
+
+
 if __name__ == "__main__":
     unittest.main()

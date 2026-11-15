@@ -228,3 +228,8 @@
 @media (pointer:coarse){.cv-node .thumb .mv,.cv-node .thumb .x{opacity:1;width:24px;height:24px}.cv-node .sf-b,.cv-node .sf-tog{width:34px;height:34px}}
 
 a.btn{text-decoration:none}
+.cv-node .res .btn{white-space:normal;text-align:left;max-width:100%;height:auto;line-height:1.3;justify-content:flex-start}   /* o botão do erro cabe no nó e quebra a linha (antes o rótulo comprido saía do nó) */
+.cv-node .linked-list{display:flex;flex-direction:column;gap:4px;margin-top:6px}
+.cv-node .linked{font-size:12px;line-height:1.4;color:var(--muted);background:var(--bg2);border-radius:10px;padding:6px 9px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow-wrap:anywhere}
+.cv-node .linked b{color:var(--text);font-weight:600}
+.cv-node .linked.warn{color:var(--err)}
