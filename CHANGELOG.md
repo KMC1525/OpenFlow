@@ -2,6 +2,16 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.36.0] — 2026-11-15
+
+### Novo — 2 nós no grupo Imagem para facilitar prompts difíceis
+- **Ficha de personagem:** nome, descrição, vistas (frente, lado, costas, três quartos, rosto, corpo inteiro), extras (expressões, paleta de cores, roupa, objetos, poses, comparação de altura), disposição (fileira, turnaround ou grade), pose, fundo, rótulos. Entradas: «Descrição» (textos) e «Estilo». Pede consistência do personagem em todas as vistas.
+- **Página de quadrinhos:** formato (página, tirinha, webtoon, yonkoma, splash), cenas em linhas `cena | fala`, personagens ligados, disposição, estilo (americano, mangá, franco-belga, webtoon, cartoon, indie), cor/P&B/retícula, balões (com falas, vazios, sem), sentido de leitura (mangá), título. Cenas além do que o formato comporta geram um aviso.
+- Os dois entregam **texto** (o prompt): ligue no nó Imagem. Prompt em inglês (recomendado para os modelos) ou português; um Style Prompt/Folder ligado entra no final. Paleta agora com 53 nós.
+
+### Ainda não verificado
+- O prompt é montado de forma determinística; quão bem cada modelo local desenha fichas e quadros (e o texto dentro dos balões) depende do modelo e não foi medido aqui sem os pesos.
+
 ## [0.35.0] — 2026-11-15
 
 ### Mudou — sem nuvem (por enquanto): só modelos locais do Hugging Face

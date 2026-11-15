@@ -8,7 +8,7 @@ Inspired by ElevenLabs Flow and much lighter than ComfyUI: connect a few nodes, 
 
 [Install](#install) · [The `flow` command](#the-flow-command) · [Projects](#projects--the-home-screen) · [Nodes](#the-nodes) · [Style Folder](#style-folder--folders-and-subfolders) · [Models](#models--support-files-install-themselves) · [Providers](#ai-providers) · [Rust core](#rust-core) · [Development](#development) · [Changelog](CHANGELOG.en.md) · [Português](README.pt-BR.md)
 
-`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Rust core` · `no required dependencies` · `v0.35.0`
+`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Rust core` · `no required dependencies` · `v0.36.0`
 
 </div>
 
@@ -93,7 +93,7 @@ Every node has **one output**, **typed inputs** and a **result you can see on th
 | Group | Nodes |
 |---|---|
 | **Text** | Text · AI text · Transcribe · Text template · Join texts · Edit text · Pick a piece · Refine with AI |
-| **Image** | Image (generate or **edit**, with several references) · Resize · Filters and color · Text on image · Collage · Video frame |
+| **Image** | Image (generate or **edit**, with several references) · Resize · Filters and color · Text on image · Collage · Video frame · **Character sheet** · **Comic page** |
 | **Video** | Video (from text or a start image) · Cut · Join clips · Speed · Video look · Images to video |
 | **Sound** | Sound (effects or music) · Voice (text to speech) · Cut · Mix · Effects · Audio from video · Repeat |
 | **Input** | Media · Style Prompt · **Style Folder** · Color/gradient · Silence · Link (URL) · Random text · Date and project |
@@ -184,7 +184,7 @@ node tests/js/i18n_check.mjs                     # every UI phrase has an Englis
 
 Browser tests need Node, Playwright and Chromium (`NODE_PATH` pointing at your `playwright` install). Python 3.9 compatible code (no `match`, no runtime `X | Y`). Every UI and terminal string is Portuguese-first with an English translation (`openflow/web/js/en.js`, `openflow/term_en.py`); tests enforce it.
 
-## Honest limits (v0.35.0)
+## Honest limits (v0.36.0)
 
 Verified here (Linux, Python 3.13): the full Python test suite (the full suite), the Chromium browser tests, the Rust tests, and `install.sh` end to end against a local checkout. **Not verified:** `install.ps1` on a real Windows machine and `install.sh` on macOS (CI jobs are written but were not run); Rust core builds for macOS/Windows/ARM; real downloads of VAEs, text encoders and `mmproj` from Hugging Face (tests simulate the downloads — file names of the curated and example repositories were checked against Hugging Face listings); inference with real GGUF models and GPUs; vision input through `mmproj` with a real model; cloud providers with real keys (tests use fake servers). Performance numbers are not benchmarked.
 

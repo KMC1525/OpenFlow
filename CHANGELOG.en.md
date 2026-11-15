@@ -2,6 +2,16 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.36.0] — 2026-11-15
+
+### New — 2 nodes in the Image group to make hard prompts easy
+- **Character sheet:** name, description, views (front, side, back, three-quarter, face, full body), extras (expressions, color palette, outfit, props, poses, height comparison), layout (row, turnaround or grid), pose, background, labels. Inputs: "Description" (texts) and "Style". Asks for character consistency across views.
+- **Comic page:** format (page, strip, webtoon, yonkoma, splash), scenes as `scene | line` rows, linked characters, layout, style (American, manga, Franco-Belgian, webtoon, cartoon, indie), color/B&W/halftone, balloons (with lines, empty, none), reading direction (manga), title. Scenes beyond what the format holds produce a warning.
+- Both deliver **text** (the prompt): connect it to an Image node. Prompt in English (recommended for models) or Portuguese; a linked Style Prompt/Folder is appended. The palette now has 53 nodes.
+
+### Not verified yet
+- The prompt is built deterministically; how well each local model draws sheets and panels (and the text inside balloons) depends on the model and was not measured here without weights.
+
 ## [0.35.0] — 2026-11-15
 
 ### Changed — no cloud (for now): only local Hugging Face models
