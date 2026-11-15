@@ -142,7 +142,7 @@ FAMILIES: List[Dict[str, Any]] = [
                    "llm_path": {"repo": "unsloth/Qwen3-4B-GGUF", "file": "Qwen3-4B-Q4_K_M.gguf", "label": "Codificador de texto Qwen3-4B (Q4_K_M)", "approx": 2.5}}},
     {"id": "flux3-klein", "name": r"flux[-_. ]?3(?!.*pup)", "label": "FLUX.3 Image Klein",   # «pup» = o expansor de prompt (um modelo de texto), não é de imagem
      "load": {"vae_path": r"flux2[-_]?(ae|vae)", "llm_path": r"^qwen[-_]?3[-_]?vl[-_]?4b[-_]?instruct(?!.*mmproj)[^/]*\.gguf$"},
-     "run": {"cfg_scale": 1.0, "sample_steps": 16}, "run_base": {"cfg_scale": 3.5, "sample_steps": 50},   # destilado: 16 passos, sem guidance; «base»: 50 passos, guidance 3,5 (cartão do modelo)
+     "run": {"cfg_scale": 1.0, "sample_steps": 16, "sample_method": "euler"}, "run_base": {"cfg_scale": 3.5, "sample_steps": 20, "sample_method": "euler"},   # receita do docs/models/flux3.md da stable-diffusion.cpp: destilado 16 passos e CFG 1; «base» 20 passos e CFG 3,5; ambos com euler
      "options": {"offload_params_to_cpu": True, "diffusion_flash_attn": True},
      "need": "o VAE do FLUX.2/3 (flux2-vae.safetensors, em Comfy-Org/flux2-dev) e o codificador de texto Qwen3-VL-4B-Instruct (um .gguf, ex.: unsloth/Qwen3-VL-4B-Instruct-GGUF)",
      "downloads": {"vae_path": {"repo": "Comfy-Org/flux2-dev", "file": "split_files/vae/flux2-vae.safetensors", "label": "VAE do FLUX.2/3", "approx": 0.34},
@@ -199,6 +199,7 @@ def download_spec(fam: Dict[str, Any], key: str, filename: str) -> Dict[str, Any
 #: Famílias cujo GGUF «certo» para a stable-diffusion.cpp vem de um repositório específico (convertido por ela, com os nomes de tensores que ela conhece). Os GGUF feitos para o ComfyUI/diffusers
 #: (ex.: unsloth/flux-3-image-klein-GGUF, com os nomes do checkpoint original) fazem o sd-cli parar em «get sd version from file failed».
 SD_NATIVE = [
+    {"name": r"flux[-_. ]?3(?!.*pup).*base", "repo": "leejet/flux-3-image-klein-base-GGUF", "example": "flux3-image-klein-base-Q4_K.gguf", "label": "FLUX.3 Image Klein Base"},   # a versão «base» tem repositório próprio
     {"name": r"flux[-_. ]?3(?!.*pup)", "repo": "leejet/flux-3-image-klein-GGUF", "example": "flux3-image-klein-Q4_K.gguf", "label": "FLUX.3 Image Klein"},
 ]
 

@@ -2,6 +2,19 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.24.0] — 2026-11-15
+
+### Improved — FLUX.3 Image Klein
+- **The "base" version has its own repository:** the "Download the compatible version" button (and the warning when opening a repository in search) now points FLUX.3 **base** users to `leejet/flux-3-image-klein-base-GGUF` instead of pushing them to the distilled repository. The button picks the equivalent file by itself (e.g. `flux3-image-klein-base-Q4_K.gguf`).
+- **Recipe checked against stable-diffusion.cpp's `docs/models/flux3.md`:** distilled = 16 steps, CFG 1.0, `euler`; **base = 20 steps, CFG 3.5, `euler`** (OpenFlow used 50 steps for base through sd-cli, more than needed — the stable-diffusion.cpp recipe is 20) and `euler` is now passed explicitly for both. Up to 10 reference images (`-r`) still work.
+- **Unsloth quantisations (`UD-Q4_K_XL`, `Q5_K_XL`…) now match `leejet`'s K family** (Q4_K, Q5_K…) when choosing the equivalent file; before they fell to "closest by bits", which could be Q4_0.
+- The local Hugging Face provider suggestions include `black-forest-labs/flux-3-image-klein-base`; the Unsloth catalogue hint mentions the base repository.
+
+### Not verified
+- I generated no images with FLUX.3 here (no GPU/network/sd-cli): the recipe comes from the stable-diffusion.cpp docs and file names listed on Hugging Face; tests cover family, compatible repository, quantisation choice and `sd-cli` arguments.
+- The diffusers path (`LocalHF`) still uses 50 steps/guidance 3.5 for base (Black Forest Labs card value); I did not compare with 20 steps.
+- FLUX.3 Action (robotics) and the `pup` prompt upsampler are not image models and were not included.
+
 ## [0.23.0] — 2026-11-15
 
 ### New — Library
