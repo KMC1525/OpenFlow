@@ -40,6 +40,8 @@ SPECS: Dict[str, Dict[str, Any]] = {
     "img_frame": {"label": "Quadro do vídeo", "icon": "video", "out": "image", "group": "Imagem", "ins": [("video", "Vídeo", VID, False)]},
     "img_crop": {"label": "Recortar imagem", "icon": "scissors", "out": "image", "group": "Imagem", "ins": [("image", "Imagem", IMG, False)]},
     "img_watermark": {"label": "Marca d'água", "icon": "image", "out": "image", "group": "Imagem", "ins": [("image", "Imagem", IMG, False), ("logo", "Marca", ["image"], False)]},
+    "char_sheet": {"label": "Ficha de personagem", "icon": "image", "out": "text", "group": "Imagem", "ins": [("text", "Descrição", ["text"], True), ("style", "Estilo", ["style"], True)]},
+    "comic_page": {"label": "Página de quadrinhos", "icon": "image", "out": "text", "group": "Imagem", "ins": [("story", "Roteiro", ["text"], True), ("characters", "Personagens", ["text"], True), ("style", "Estilo", ["style"], True)]},
     # ---- Vídeo
     "vid_trim": {"label": "Cortar vídeo", "icon": "film", "out": "video", "group": "Vídeo", "ins": [("video", "Vídeo", VID, False)]},
     "vid_join": {"label": "Juntar clipes", "icon": "film", "out": "video", "group": "Vídeo", "ins": [("clips", "Clipes", ["video", "image"], True)]},
@@ -81,6 +83,29 @@ TEXT_OPS = ("upper", "lower", "title", "trim", "dedupe", "sort", "reverse", "num
 PICK_MODES = ("lines", "sentences", "paragraphs", "words")
 REFINE_MODES = ("improve", "translate", "summarize", "expand", "fix", "scenes", "captions")
 EXTRACT_WHAT = ("links", "emails", "hashtags", "numbers", "quotes", "words_caps", "regex")
+SHEET_VIEWS = ("front", "side", "back", "three_quarter", "face", "full_body")
+SHEET_EXTRAS = ("expressions", "palette", "outfit", "props", "poses", "scale")
+SHEET_POSES = {"neutral": ("neutral standing pose", "pose neutra em pé"), "tpose": ("T-pose / A-pose", "pose em T ou A"), "action": ("dynamic action pose", "pose de ação dinâmica"), "relaxed": ("relaxed casual pose", "pose descontraída")}
+SHEET_BG = {"white": ("plain white background", "fundo branco liso"), "gray": ("neutral light gray background", "fundo cinza claro neutro"), "paper": ("off-white drawing-paper background", "fundo de papel de desenho"), "dark": ("dark neutral background", "fundo escuro neutro")}
+COMIC_FORMATS = {"page": ("a full comic book page", "uma página inteira de quadrinhos", "portrait 2:3"), "strip": ("a horizontal comic strip", "uma tirinha horizontal", "wide 3:1"),
+                 "webtoon": ("a vertical webtoon scroll", "um episódio vertical estilo webtoon", "tall 1:3"), "koma": ("a four-panel vertical strip (yonkoma)", "uma tira vertical de quatro quadros (yonkoma)", "tall 1:2"),
+                 "splash": ("a single splash panel", "um único quadro de página inteira (splash)", "portrait 2:3")}
+COMIC_STYLES = {"comic": ("American comic book, bold inks and dynamic shading", "quadrinho americano, traço forte e sombras dinâmicas"), "manga": ("Japanese manga, clean linework and screentones", "mangá japonês, traço limpo e retículas"),
+                "franco": ("Franco-Belgian bande dessinée, ligne claire", "quadrinho franco-belga, ligne claire"), "webtoon": ("modern digital webtoon, soft colors", "webtoon digital moderno, cores suaves"),
+                "cartoon": ("simple humorous cartoon strip", "tirinha de humor com desenho simples"), "indie": ("indie hand-drawn comic, sketchy lines", "quadrinho independente desenhado à mão, traço rabiscado")}
+SHEET_LABELS = {
+    "front": ("front view", "vista frontal"), "side": ("side view", "vista lateral"), "back": ("back view", "vista de costas"), "three_quarter": ("three-quarter view", "vista de três quartos"),
+    "face": ("close-up of the face", "close do rosto"), "full_body": ("full body", "corpo inteiro"), "expressions": ("a set of facial expressions (happy, sad, angry, surprised)", "uma série de expressões faciais (feliz, triste, bravo, surpreso)"),
+    "palette": ("the color palette as swatches", "a paleta de cores em amostras"), "outfit": ("outfit and clothing detail callouts", "detalhes da roupa e dos acessórios"),
+    "props": ("the character's props and items", "os objetos e itens do personagem"), "poses": ("a few extra action poses", "algumas poses de ação extras"), "scale": ("a height/scale comparison chart", "uma comparação de altura e escala")}
+
+
+def _multi(v: Any, allowed: Tuple[str, ...], default: Tuple[str, ...]) -> List[str]:
+    if not isinstance(v, list):
+        return list(default)
+    return [x for x in allowed if x in v]
+
+
 AUD_FX = ("none", "louder", "quieter", "faster", "slower", "reverse", "echo", "telephone", "bass", "normalize")
 
 
@@ -125,6 +150,14 @@ def normalize(t: str, p: Dict[str, Any]) -> Dict[str, Any]:
         return {"mode": _pick(p.get("mode"), ("replace", "mix", "mute"), "replace"), "volume": round(n("volume", 1, 0, 2), 2), "fit": _pick(p.get("fit"), ("video", "audio"), "video")}
     if t == "aud_silence_cut":
         return {"threshold": int(n("threshold", -40, -70, -15)), "min_silence": round(n("min_silence", 0.4, 0.1, 5), 2), "keep": round(n("keep", 0.15, 0, 1), 2)}
+    if t == "char_sheet":
+        return {"name": text(p.get("name"), "", 120), "description": text(p.get("description"), "", 3000), "views": _multi(p.get("views"), SHEET_VIEWS, ("front", "side", "back")),
+                "extras": _multi(p.get("extras"), SHEET_EXTRAS, ("expressions", "palette")), "pose": _pick(p.get("pose"), tuple(SHEET_POSES), "neutral"), "layout": _pick(p.get("layout"), ("row", "grid", "turnaround"), "row"),
+                "background": _pick(p.get("background"), tuple(SHEET_BG), "white"), "labels": p.get("labels", True) is not False, "language": _pick(p.get("language"), ("en", "pt"), "en")}
+    if t == "comic_page":
+        return {"format": _pick(p.get("format"), tuple(COMIC_FORMATS), "page"), "panels": int(n("panels", 6, 1, 12)), "scenes": text(p.get("scenes"), "", 4000), "layout": _pick(p.get("layout"), ("grid", "dynamic", "stacked"), "grid"),
+                "style": _pick(p.get("style"), tuple(COMIC_STYLES), "comic"), "color": _pick(p.get("color"), ("color", "bw", "halftone"), "color"), "balloons": _pick(p.get("balloons"), ("text", "empty", "none"), "text"),
+                "direction": _pick(p.get("direction"), ("ltr", "rtl"), "ltr"), "title": text(p.get("title"), "", 160), "language": _pick(p.get("language"), ("en", "pt"), "en")}
     if t == "in_pattern":
         return {"kind": _pick(p.get("kind"), ("checker", "stripes", "noise", "grid", "dots"), "checker"), "color": _color(p.get("color"), "#202530"), "color2": _color(p.get("color2"), "#f2f2f2"),
                 "size": int(n("size", 64, 4, 512)), "width": int(n("width", 1024, 64, 4096)), "height": int(n("height", 1024, 64, 4096))}
@@ -408,6 +441,82 @@ def run_text_refine(eng, canvas, node):
     eng._check()
     out = eng.team_chat(provider, pid, [{"role": "user", "content": f"{instruction}\n\nTexto de entrada:\n{src}"}], system, 0.5, 1500)
     return {"assets": [], "text": out, "warnings": warnings}
+
+
+# --------------------------------------------------------------------------- Imagem: fichas de personagem e quadrinhos (v0.36)
+def _style_text(eng, canvas, node, seed: str) -> str:
+    st = eng.styles_for(canvas, node, need_digest=False)
+    return st.render(seed) if st.text else ""
+
+
+def run_char_sheet(eng, canvas, node):
+    p = node["params"]
+    pt = p["language"] == "pt"
+    k = 1 if pt else 0
+    src = "\n".join(_texts(eng, canvas, node, "text"))
+    desc = "\n".join(x for x in (p["description"].strip(), src) if x)
+    if not (p["name"] or desc):
+        raise ValueError("Escreva o nome ou a descrição do personagem (ou ligue um texto).")
+    views = p["views"] or ["front"]
+    shown = [SHEET_LABELS[v][k] for v in views] + [SHEET_LABELS[e][k] for e in p["extras"]]
+    who = p["name"] or ("o personagem" if pt else "the character")
+    head = (f"Ficha de personagem (character sheet) de {who}, " if pt else f"Character design sheet of {who}, ")
+    head += "uma única folha organizada, mostrando: " if pt else "a single organized sheet showing: "
+    layout = {"row": ("as vistas lado a lado em uma fileira", "the views side by side in one row"), "grid": ("tudo em uma grade organizada", "everything in a tidy grid"),
+              "turnaround": ("as vistas como uma volta completa (turnaround) na mesma altura e escala", "the views as a turnaround lined up at the same height and scale")}[p["layout"]][1 - k]
+    parts = [head + "; ".join(shown) + ".", ("Disposição: " if pt else "Layout: ") + layout + "."]
+    if desc:
+        parts.append(("Personagem: " if pt else "Character: ") + desc)
+    parts.append((("Pose: " if pt else "Pose: ") + SHEET_POSES[p["pose"]][k]) + "; " + SHEET_BG[p["background"]][k] + ".")
+    parts.append(("As mesmas feições, proporções, roupas e cores em todas as vistas (consistência do personagem). " if pt else "Identical face, proportions, outfit and colors in every view (character consistency). ")
+                 + (("Com rótulos curtos e limpos em cada vista, estilo folha de produção." if pt else "Short clean labels under each view, production-sheet look.") if p["labels"] else ("Sem texto nem rótulos." if pt else "No text or labels.")))
+    st = _style_text(eng, canvas, node, desc)
+    if st:
+        parts.append(("Estilo: " if pt else "Style: ") + st)
+    return {"assets": [], "text": "\n".join(parts), "warnings": []}
+
+
+def run_comic_page(eng, canvas, node):
+    p = node["params"]
+    pt = p["language"] == "pt"
+    k = 1 if pt else 0
+    story = "\n".join(_texts(eng, canvas, node, "story"))
+    raw = [ln.strip() for ln in "\n".join(x for x in (p["scenes"], story) if x.strip()).splitlines() if ln.strip()]
+    if not raw:
+        raise ValueError("Escreva as cenas (uma por linha) ou ligue um roteiro.")
+    fmt = COMIC_FORMATS[p["format"]]
+    count = 1 if p["format"] == "splash" else (4 if p["format"] == "koma" else (len(raw) if len(raw) > 1 else p["panels"]))
+    count = max(1, min(12, count))
+    scenes = raw[:count]
+    chars = "\n".join(_texts(eng, canvas, node, "characters"))
+    warnings: List[str] = []
+    if len(raw) > count:
+        warnings.append(f"O formato comporta {count} quadros: usei só as {count} primeiras cenas de {len(raw)}.")
+    parts = [(f"Desenho de {fmt[1]}" if pt else f"Illustration of {fmt[0]}") + (f", {count} quadros" if pt else f", {count} panel{'s' if count > 1 else ''}") + f" ({fmt[2]})."]
+    if p["title"]:
+        parts.append(("Título: " if pt else "Title: ") + f"«{p['title']}»")
+    lay = {"grid": ("quadros retangulares alinhados em uma grade com calhas brancas", "rectangular panels in an aligned grid with white gutters"),
+           "dynamic": ("quadros de tamanhos e ângulos variados, alguns diagonais", "panels of varied sizes and angles, some diagonal"), "stacked": ("quadros empilhados um abaixo do outro, todos da largura da folha", "panels stacked one under another, each full width")}[p["layout"]][1 - k]
+    if count > 1:
+        parts.append(("Disposição: " if pt else "Layout: ") + lay + ". " + (("Leitura da direita para a esquerda (mangá)." if pt else "Read right to left (manga order).") if p["direction"] == "rtl" else ("Leitura da esquerda para a direita." if pt else "Read left to right.")))
+    parts.append(("Arte: " if pt else "Art: ") + COMIC_STYLES[p["style"]][k] + ", " + {"color": ("cores cheias", "full color"), "bw": ("preto e branco", "black and white"), "halftone": ("cores com retícula (halftone)", "colors with halftone dots")}[p["color"]][1 - k] + ".")
+    if chars:
+        parts.append(("Personagens (manter o mesmo visual em todos os quadros): " if pt else "Characters (keep the same look in every panel): ") + chars)
+    for i, ln in enumerate(scenes, 1):
+        scene, _, line = ln.partition("|")
+        scene, line = scene.strip(), line.strip().strip('"“”')
+        row = ("Quadro " if pt else "Panel ") + f"{i}: {scene}"
+        if line and p["balloons"] == "text":
+            row += (f'. Balão de fala com o texto exato: "{line}"' if pt else f'. Speech balloon with the exact text: "{line}"')
+        parts.append(row)
+    if p["balloons"] == "empty":
+        parts.append("Balões de fala vazios (sem texto)." if pt else "Empty speech balloons (no text).")
+    elif p["balloons"] == "none":
+        parts.append("Sem balões nem texto." if pt else "No speech balloons and no text.")
+    st = _style_text(eng, canvas, node, chars + " " + " ".join(scenes))
+    if st:
+        parts.append(("Estilo: " if pt else "Style: ") + st)
+    return {"assets": [], "text": "\n".join(parts), "warnings": warnings}
 
 
 # --------------------------------------------------------------------------- Imagem

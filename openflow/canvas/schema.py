@@ -42,7 +42,7 @@ GENERATORS = ("llm", "image", "video", "sound", "voice", "transcribe")  # nós q
 EXT_TYPES = tuple(nodes_ext.SPECS)  # nós novos: rodam ffmpeg/Python (só «Refinar com IA» usa o modelo de texto)
 # ordem e grupos da paleta: Texto, Imagem, Vídeo, Som, Input, Output
 PALETTE = [("Texto", ["text", "llm", "transcribe", "text_template", "text_join", "text_edit", "text_pick", "text_refine", "text_extract", "text_count"]),
-           ("Imagem", ["image", "img_resize", "img_filter", "img_text", "img_collage", "img_frame", "img_crop", "img_watermark"]),
+           ("Imagem", ["image", "img_resize", "img_filter", "img_text", "img_collage", "img_frame", "img_crop", "img_watermark", "char_sheet", "comic_page"]),
            ("Vídeo", ["video", "vid_trim", "vid_join", "vid_speed", "vid_look", "vid_slideshow", "vid_reframe", "vid_loop", "vid_audio"]),
            ("Som", ["sound", "voice", "aud_trim", "aud_mix", "aud_fx", "aud_from_video", "aud_loop", "aud_silence_cut"]),
            ("Input", ["upload", "style_prompt", "style_folder", "in_color", "in_silence", "in_url", "in_random", "in_vars", "in_pattern"]),
