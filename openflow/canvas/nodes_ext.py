@@ -506,8 +506,20 @@ def run_img_frame(eng, canvas, node):
 
 
 # --------------------------------------------------------------------------- Vídeo
-def _mp4_args(fps: int = 30) -> List[str]:
-    return ["-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-pix_fmt", "yuv420p", "-r", str(fps), "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart"]
+#: o libx264 em yuv420p exige largura e altura pares: um vídeo de 853×481 (enviado ou de um modelo) falhava no corte, na velocidade e no visual — este filtro arredonda para baixo ao par mais próximo
+EVEN = "scale=trunc(iw/2)*2:trunc(ih/2)*2"
+
+
+def _src_fps(path: Path, default: float = 30.0) -> float:
+    """Quadros por segundo do vídeo de origem (entre 5 e 120), para o corte, a velocidade e o visual não reamostrarem para 30 fps (um vídeo de 16 ou 24 fps ganhava quadros repetidos e tremia)."""
+    from .. import attachments as att
+
+    fps = float(att.video_info(path).get("fps") or 0)
+    return round(fps, 3) if 5 <= fps <= 120 else default
+
+
+def _mp4_args(fps: float = 30) -> List[str]:
+    return ["-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-pix_fmt", "yuv420p", "-r", f"{fps:g}", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart"]
 
 
 def _vid_out(eng, node, out: Path, name: str, **meta: Any) -> Dict[str, Any]:
@@ -521,7 +533,8 @@ def run_vid_trim(eng, canvas, node):
         raise ValueError("O início do corte passa do fim do vídeo.")
     with tempfile.TemporaryDirectory() as td:
         out = Path(td) / "o.mp4"
-        _ff(eng, ["-ss", f"{p['start']:.2f}", "-i", str(_path(eng, a)), *(["-t", f"{p['duration']:.2f}"] if p["duration"] > 0 else []), *_mp4_args(), str(out)])
+        src = _path(eng, a)
+        _ff(eng, ["-ss", f"{p['start']:.2f}", "-i", str(src), *(["-t", f"{p['duration']:.2f}"] if p["duration"] > 0 else []), "-vf", EVEN, *_mp4_args(_src_fps(src)), str(out)])
         return _vid_out(eng, node, out, _title(node, "Vídeo cortado"))
 
 
@@ -567,13 +580,14 @@ def run_vid_speed(eng, canvas, node):
     p = node["params"]
     a = _first(eng, canvas, node, "video", ("video",), "um vídeo")
     src = _path(eng, a)
-    vf = [f"setpts=PTS/{p['factor']}"] + (["reverse"] if p["reverse"] else [])
+    fps = _src_fps(src)
+    vf = [EVEN, f"setpts=PTS/{p['factor']}"] + (["reverse"] if p["reverse"] else []) + [f"fps={fps:g}"]   # fps depois do setpts: a duração sai exata (sem ele, 3 s a 2× davam 1,67 s em vez de 1,5 s e o som terminava antes da imagem)
     with tempfile.TemporaryDirectory() as td:
         out = Path(td) / "o.mp4"
         af = ",".join(([_tempo(p["factor"])] if abs(p["factor"] - 1) > 0.001 else []) + (["areverse"] if p["reverse"] else []))
         has_a = has_audio(src)
         # (vf antes de af: a ordem dos -filter não importa, cada um vale para o seu fluxo)
-        args = ["-i", str(src), "-vf", ",".join(vf), *(["-af", af] if af and has_a else []), *([] if has_a else ["-an"]), *_mp4_args()]
+        args = ["-i", str(src), "-vf", ",".join(vf), *(["-af", af] if af and has_a else []), *([] if has_a else ["-an"]), *_mp4_args(fps)]
         _ff(eng, [*args, str(out)])
         return _vid_out(eng, node, out, _title(node, "Vídeo em outra velocidade"))
 
@@ -587,10 +601,11 @@ def run_vid_look(eng, canvas, node):
         fx.append(f"fade=t=in:st=0:d={p['fade_in']}")
     if p["fade_out"] > 0 and dur > p["fade_out"]:
         fx.append(f"fade=t=out:st={max(0.0, dur - p['fade_out']):.2f}:d={p['fade_out']}")
-    vf = _vf_for(p["preset"], fx) or "null"
+    vf = ",".join([EVEN, *([_vf_for(p["preset"], fx)] if _vf_for(p["preset"], fx) else [])])
     with tempfile.TemporaryDirectory() as td:
         out = Path(td) / "o.mp4"
-        _ff(eng, ["-i", str(_path(eng, a)), "-vf", vf, *_mp4_args(), str(out)])
+        src = _path(eng, a)
+        _ff(eng, ["-i", str(src), "-vf", vf, *_mp4_args(_src_fps(src)), str(out)])
         return _vid_out(eng, node, out, _title(node, "Vídeo com visual novo"))
 
 

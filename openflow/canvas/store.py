@@ -276,6 +276,10 @@ class ProjectStore:
                 dims = att.image_size(data)
                 if dims:
                     rec["w"], rec["h"] = int(dims[0]), int(dims[1])
+            if kind == "video" and not rec.get("w"):   # largura e altura do vídeo (o arquivo enviado ou gerado não as traz anotadas)
+                vi = att.video_info(ad / fname)
+                if vi.get("w"):
+                    rec["w"], rec["h"] = vi["w"], vi["h"]
             if kind in ("audio", "video") and not rec.get("duration"):
                 dur = att._duration(ad / fname)
                 if dur:

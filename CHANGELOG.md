@@ -2,6 +2,21 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.32.0] — 2026-11-15
+
+### Corrigido — bugs ao editar vídeos (e imagens) gerados
+Procurei rodando cada nó de edição (cortar, velocidade, visual, quadro, GIF, exportar, juntar, apresentação; redimensionar, filtro, texto, colagem) com vídeos e imagens de tamanhos, taxas de quadros e trilhas diferentes (largura/altura ímpares, retrato, muito curto, sem áudio, 12/16/24 fps, imagem de 1×1 e de 3000×200 px). Os bugs achados:
+- **Vídeo com largura ou altura ímpar (ex.: 853×481) não podia ser cortado, acelerado nem receber «Visual»:** o ffmpeg recusava («Nothing was written into output file»). Agora o tamanho é arredondado para o par mais próximo (852×480) antes de codificar.
+- **Corte, velocidade e visual convertiam tudo para 30 fps:** um vídeo de 16 ou 24 fps (o normal dos modelos) ganhava quadros repetidos e tremia, e um de 12 fps virava 30. Agora a **taxa de quadros de origem é mantida**.
+- **Velocidade: a duração saía errada e o som terminava antes da imagem** (3 s a 2× davam 1,67 s de vídeo para 1,51 s de som em vez de 1,5 s nos dois). Agora o vídeo sai com a duração exata (1,50 s a 2×, 0,75 s a 4×), em sincronia com o áudio.
+- **Vídeos enviados ou gerados ficavam sem largura e altura anotadas** (só as imagens tinham): agora elas são lidas com o `ffprobe` ao salvar.
+- O restante passou sem erros: imagens de 1×1 e 3000×200, texto com `%`, aspas e barra, vídeo sem áudio, vídeo muito curto, juntar vídeos de tamanhos e proporções diferentes, e a edição de imagem pelo motor (uma ou várias referências, vídeo como referência, limite de referências do modelo).
+
+### Ainda não verificado
+- Testei com vídeos sintéticos do ffmpeg (`testsrc`), não com saídas reais de modelos de vídeo nem com vídeos de celular (rotação por metadados, VFR de verdade).
+- Não achei bugs no modo «Editar» das imagens além do que já estava corrigido; a qualidade de uma edição depende do modelo (não é verificável aqui). Um resultado «quase igual» continua só avisando.
+- `reverse` na velocidade carrega o vídeo inteiro na memória (limite do filtro do ffmpeg): vídeos longos em resolução alta podem pesar.
+
 ## [0.31.0] — 2026-11-15
 
 ### Novo — Melhorias gerais 2.0
