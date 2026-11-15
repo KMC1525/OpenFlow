@@ -1896,7 +1896,7 @@ def _lib_unsupported(name: str) -> bool:
         return False
 
 
-_NEWER_THAN_LIB = re.compile(r"flux[-_. ]?3", re.I)
+_NEWER_THAN_LIB = re.compile(r"flux[-_. ]?3|moss[-_ ]?image", re.I)
 
 
 def _lib_is_stale() -> bool:

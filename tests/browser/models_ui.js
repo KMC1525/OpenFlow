@@ -54,4 +54,14 @@ run('models', async ({ api, open, check }) => {
   await page.waitForFunction(() => !document.querySelector('#md-support'), null, { timeout: 10000 });
   check('reparo:pedido-para-o-tipo-certo', seen.repair.length === 1 && seen.repair[0].kind === 'image');
   check('reparo:tudo-ok-depois', (await page.locator('.mdrow .chip.warn').count()) === 0 && (await page.locator('.mdrow .chip.on').count()) >= 2);
+
+  // v0.21 — modelos da Unsloth (imagem e vídeo): o que funciona, o que tem outro repositório e o que ainda não roda
+  const un = page.locator('#md-unsloth');
+  check('unsloth:cartao-lista-imagem-com-estado', (await un.locator('.unrow').count()) > 10 && /MOSS-Image SFT/.test(await un.innerText()) && (await un.locator('.chip.on').count()) > 10);
+  const flux3 = un.locator('.unrow', { hasText: 'FLUX.3 Image Klein' });
+  check('unsloth:flux3-aponta-o-leejet', /leejet\/flux-3-image-klein-GGUF/.test(await flux3.innerText()) && (await flux3.locator('button.primary').count()) === 1);
+  await page.locator('[role="tab"]', { hasText: /Vídeo|Video/ }).first().click();
+  await page.waitForTimeout(400);
+  const vtxt = await un.innerText();
+  check('unsloth:video-mostra-wan-e-explica-o-que-ainda-nao', /Wan2\.2 TI2V 5B/.test(vtxt) && /MiniMax H3/.test(vtxt) && /LTX-2\.5/.test(vtxt) && !/MOSS-Image/.test(vtxt));
 });

@@ -15,6 +15,8 @@ export default async function render(root, ctx) {
   const installed = h('div', { class: 'col', 'aria-live': 'polite' }), preBox = h('div', { class: 'col', style: { gap: '10px' } });
   const results = h('div', { class: 'col' }), files = h('div', { class: 'col', style: { marginTop: '14px' } }), prog = h('div', { 'aria-live': 'polite' });
   const kindHint = h('p', { class: 'muted small', style: { margin: '10px 0 0' } });
+  const unslothBox = h('div', { class: 'col', style: { gap: '8px' } });
+  let unslothAll = null;
   const q = h('input', { type: 'search', id: 'md-q', 'aria-label': t('Buscar modelos'), autocomplete: 'off', spellcheck: 'false',
     oninput: debounce(() => { if (q.value.trim().length >= 3) search(); }, 500),   // pesquisa enquanto digita (depois de uma pausa); Enter pesquisa na hora
     onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); search(); } } });
@@ -151,11 +153,27 @@ export default async function render(root, ctx) {
     track(jid, f.name, prog, () => paintInstalled());
   }
 
+
+  // ---------------------------------------------------------------------------------------------- modelos da Unsloth
+  async function paintUnsloth() {
+    if (kind !== 'image' && kind !== 'video') return unslothBox.replaceChildren(h('p', { class: 'muted small', style: { margin: 0 } }, t('Escolha a aba Imagem ou Vídeo para ver os modelos da Unsloth.')));
+    if (!unslothAll) { try { unslothAll = (await api('/api/unsloth/catalog')).models; } catch (e) { unslothAll = []; } }
+    const mine = unslothAll.filter((m) => m.kind === kind);
+    const open = (repo) => { q.value = repo; search(); openRepo(repo); };
+    const chip = { ready: [t('Funciona'), 'chip on'], alt: [t('Use outro repositório'), 'chip'], soon: [t('Ainda não'), 'chip'] };
+    unslothBox.replaceChildren(...mine.map((m) => h('div', { class: 'unrow' }, h('div', { class: 'row nw' }, h('div', { class: 'grow', style: { minWidth: 0 } },
+      h('div', { class: 'row', style: { gap: '8px', flexWrap: 'wrap' } }, h('b', null, m.label), h('span', { class: chip[m.status][1] }, chip[m.status][0]), h('span', { class: 'chip' }, m.size)),
+      h('div', { class: 'dim small' }, m.status === 'soon' ? t(m.why) : t(m.hint)), h('div', { class: 'mono dim', style: { fontSize: '11px' } }, m.repo)),
+      m.status === 'ready' ? h('button', { class: 'btn sm', type: 'button', onclick: () => open(m.repo) }, t('Ver quantizações'))
+        : m.status === 'alt' ? h('button', { class: 'btn sm primary', type: 'button', onclick: () => open(m.use) }, t('Abrir {r}', { r: m.use })) : null))));
+  }
+
   // ---------------------------------------------------------------------------------------------- tipos e página
   const kindSeg = h('div', { class: 'seg', role: 'tablist', 'aria-label': t('Tipo de modelo'), style: { marginBottom: '14px', flexWrap: 'wrap' } });
   const paintKind = () => {
     kindSeg.replaceChildren(...GGUF_KINDS.map(([k, l]) => h('button', { type: 'button', role: 'tab', 'aria-selected': kind === k ? 'true' : 'false', class: kind === k ? 'on' : '', onclick: () => { kind = k; results.replaceChildren(); files.replaceChildren(); paintKind(); paintInstalled(); } }, t(l))));
     kindHint.textContent = t(GGUF_HINT[kind]);
+    paintUnsloth();
     q.placeholder = kind === 'text' ? t('Buscar modelos GGUF (ex.: qwen, llama, gemma, mistral)…') : t('Buscar modelos GGUF de {k} (ex.: flux, wan, outetts, qwen-vl)…', { k: t(GGUF_KINDS.find(([x]) => x === kind)[1]).toLowerCase() });
   };
   paintKind();
@@ -163,6 +181,8 @@ export default async function render(root, ctx) {
   root.replaceChildren(h('div', { class: 'page narrow cfg' }, h('div', { class: 'page-h' }, h('div', null, h('h1', null, t('Modelos')), h('p', null, t('Baixe e gerencie modelos locais. VAEs, codificadores de texto e mmproj são instalados junto do modelo, automaticamente.')))),
     h('div', { class: 'card', style: { marginBottom: '16px' } }, h('h3', null, t('Recomendados')),
       h('p', { class: 'muted small', style: { marginTop: 0 } }, t('Um modelo de texto e um de imagem, já com a quantização definida. O de imagem vem com o VAE e o codificador de texto de que precisa.')), preBox),
+    h('div', { class: 'card', style: { marginBottom: '16px' }, id: 'md-unsloth' }, h('h3', null, t('Modelos da Unsloth')),
+      h('p', { class: 'muted small', style: { marginTop: 0 } }, t('Imagem e vídeo (GGUF) da organização unsloth no Hugging Face, na aba escolhida abaixo. «Funciona» = o OpenFlow baixa junto o VAE, o codificador de texto e o tokenizer.')), unslothBox),
     h('div', { class: 'card', style: { marginBottom: '16px' } }, h('h3', null, t('Buscar no Hugging Face')), kindSeg, kindHint,
       h('div', { class: 'row nw', style: { marginTop: '10px' } }, h('div', { class: 'search', style: { maxWidth: 'none', flex: 1 } }, icon('search', 17), q), h('button', { class: 'btn', type: 'button', onclick: search }, t('Buscar'))),
       h('div', { style: { marginTop: '12px' } }, results), files),
