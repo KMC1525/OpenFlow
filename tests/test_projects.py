@@ -106,10 +106,11 @@ class ProjectApiTests(ServerCase):
             self.assertTrue((WEB_DIR / ref.lstrip("/")).is_file(), ref)
 
     def test_settings_never_leak_secrets(self):
-        self.c.json("PUT", "/api/settings", {"hf": {"token": "hf_segredo"}, "providers": {"openai": {"api_key": "sk-segredo"}}})
+        self.c.json("PUT", "/api/settings", {"hf": {"token": "hf_segredo"}, "providers": {"openai": {"api_key": "sk-segredo"}}})  # chave antiga de nuvem: ignorada
         s, r = self.c.json("GET", "/api/settings")
         self.assertNotIn("segredo", json.dumps(r))
-        self.assertTrue(r["hf"]["token_set"] and r["providers"]["openai"]["has_key"])
+        self.assertTrue(r["hf"]["token_set"])
+        self.assertNotIn("openai", r["providers"])
         s, _h, body = self.c.req("GET", "/api/settings/export")
         self.assertNotIn(b"segredo", body)
 

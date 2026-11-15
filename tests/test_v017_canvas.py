@@ -175,9 +175,9 @@ class SimpleNodeTests(Base):
 
         from openflow.canvas import media as M
 
-        for cls in (M.MediaProvider, M.DemoMedia, M.OpenAIMedia, M.GGUFMedia):
+        for cls in (M.MediaProvider, M.DemoMedia, M.GGUFMedia):
             self.assertIn("long_side", inspect.signature(cls.video).parameters, cls.__name__)
-        for name in ("GoogleMedia", "ReplicateMedia", "HFInferenceMedia", "LocalHFMedia"):
+        for name in ("LocalHFMedia",):
             if hasattr(M, name):
                 self.assertIn("long_side", inspect.signature(getattr(M, name).video).parameters, name)
 

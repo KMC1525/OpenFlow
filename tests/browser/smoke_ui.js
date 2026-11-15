@@ -13,9 +13,9 @@ run('smoke', async ({ api, open, check, browser, base }) => {
   // configurações: todas as abas abrem
   await page.evaluate(() => { location.hash = '#/settings'; }); await page.waitForSelector('.cfgtabs button', { timeout: 8000 });
   const tabs = await page.locator('.cfgtabs button').count();
-  let ok = tabs === 6;
+  let ok = tabs === 5;
   for (let i = 0; i < tabs; i++) { await page.locator('.cfgtabs button').nth(i).click(); await page.waitForTimeout(350); ok = ok && (await page.locator('.cfg .card, .cfg .prov').count()) > 0; }
-  check('configuracoes:seis-abas-abrem', ok);
+  check('configuracoes:cinco-abas-abrem', ok);
   // atalhos
   await page.evaluate(() => { location.hash = '#/projects'; }); await page.waitForSelector('#pj-search');
   await page.keyboard.press('/'); check('atalho:barra-foca-a-pesquisa', await page.evaluate(() => document.activeElement && document.activeElement.id === 'pj-search'));

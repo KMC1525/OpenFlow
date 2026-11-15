@@ -6,9 +6,7 @@ import re
 import shutil
 import subprocess
 import sys
-import tempfile
 import threading
-import time
 import unittest
 import wave
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -242,7 +240,7 @@ class SchemaTests(unittest.TestCase):
     def test_params_are_clamped_and_cleaned(self):
         n = S.normalize_node(node("image", prompt="x" * 9000, size="9x9", count=99, seed=-4, mode="zzz", extra={"a": 1}, provider="  openai ", ignore_global_styles=1))
         p = n["params"]
-        self.assertEqual((len(p["prompt"]), p["size"], p["count"], p["seed"], p["mode"], p["provider"]), (6000, "1024x1024", 4, 0, "generate", "openai"))
+        self.assertEqual((len(p["prompt"]), p["size"], p["count"], p["seed"], p["mode"], p["provider"]), (6000, "1024x1024", 4, 0, "generate", ""))
         self.assertTrue(p["ignore_global_styles"])
         self.assertIsNone(S.normalize_node({"type": "nao_existe"}))
         self.assertTrue(S.normalize_node(node("style_prompt"))["params"]["global"])
@@ -402,207 +400,6 @@ class ProceduralTests(unittest.TestCase):
 
 
 # --------------------------------------------------------------------------- adaptadores de provedores
-
-
-class AdapterTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.mock = MediaMock()
-        cls.mock.__enter__()
-        cls.old_delay = M.RETRY_DELAY
-        M.RETRY_DELAY = 0.01
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.mock.__exit__()
-        M.RETRY_DELAY = cls.old_delay
-
-    def setUp(self):
-        self.mock.requests.clear()
-        self.mock.polls.clear()
-        self.mock.fail_next.clear()
-
-    def test_openai_image_generation_edit_and_url_response(self):
-        p = provider("openai", self.mock.url + "/v1", {"image": "gpt-image-1"})
-        out = p.image("um gato", size="1280x720", count=2, negative="borrado")
-        self.assertEqual([m.mime for m in out], ["image/png", "image/png"])
-        body = self.mock.last("/images/generations")["body"]
-        self.assertEqual((body["model"], body["n"], body["size"]), ("gpt-image-1", 2, "1536x1024"))
-        self.assertNotIn("response_format", body)  # gpt-image-1 não aceita
-        self.assertIn("Evite: borrado", body["prompt"])
-        self.assertEqual(self.mock.last("/images/generations")["h"]["authorization"], "Bearer k")
-        # dall-e-3: uma chamada por imagem, b64_json explícito
-        self.mock.requests.clear()
-        p.image("x", size="1024x1024", count=2, model="dall-e-3")
-        calls = [r for r in self.mock.requests if "generations" in r["path"]]
-        self.assertEqual(len(calls), 2)
-        self.assertEqual((calls[0]["body"]["response_format"], calls[0]["body"]["n"], calls[0]["body"]["size"]), ("b64_json", 1, "1024x1024"))
-        # imagem de referência → /images/edits em multipart
-        p.image("edite", refs=[(PNG, "image/png"), (PNG, "image/png")], size="1024x1024")
-        ed = self.mock.last("/images/edits")
-        self.assertIn("multipart/form-data", ed["h"]["content-type"])
-        self.assertEqual(ed["raw"].count(b'name="image[]"'), 2)
-        self.assertIn(b'name="prompt"', ed["raw"])
-        # resposta com URL em vez de base64 (servidores compatíveis)
-        self.assertEqual(len(p.image("JSON-OK", model="x")), 1)
-
-    def test_urls_returned_by_a_provider_must_be_http(self):
-        p = provider("openai", self.mock.url + "/v1", {"image": "x"})
-        with self.assertRaises(ProviderError) as cm:
-            p.image("FILE-URL")
-        self.assertIn("inválido", str(cm.exception))
-
-    def test_openai_voice_stt_models_and_errors(self):
-        p = provider("openai", self.mock.url + "/v1", {"voice": "tts-1", "stt": "whisper-1"})
-        v = p.voice("Olá!", voice="nova", speed=1.5)
-        self.assertEqual((v.kind, v.ext), ("audio", "mp3"))
-        body = self.mock.last("/audio/speech")["body"]
-        self.assertEqual((body["voice"], body["speed"], body["model"], body["response_format"]), ("nova", 1.5, "tts-1", "mp3"))
-        self.assertNotIn("instructions", body)
-        p.voice("Oi", model="gpt-4o-mini-tts", instructions="fale calmamente")
-        self.assertEqual(self.mock.last("/audio/speech")["body"]["instructions"], "fale calmamente")
-        self.assertEqual(p.transcribe(WAV, "a.wav", "audio/wav", language="pt-BR"), "olá mundo transcrito")
-        raw = self.mock.last("/audio/transcriptions")["raw"]
-        self.assertIn(b'name="language"\r\n\r\npt', raw)
-        self.assertIn(b"gpt-image-1", "".join(p.list_models("image")).encode())
-        self.assertTrue(p.test().startswith("conectado"))
-        with self.assertRaises(ProviderError) as cm:  # 200 com JSON de erro não vira "áudio"
-            p.voice("ERRO aqui")
-        self.assertIn("voz indisponível", str(cm.exception))
-        with self.assertRaises(ProviderError) as cm:
-            provider("openai", self.mock.url + "/v1", key="", needs_key=True).voice("x")
-        self.assertIn("chave", str(cm.exception))
-
-    def test_retry_on_rate_limit_but_not_on_auth_errors(self):
-        p = provider("openai", self.mock.url + "/v1")
-        self.mock.fail_next += [429, 503]
-        self.assertEqual(len(p.image("x", model="gpt-image-1")), 1)
-        self.assertEqual(len([r for r in self.mock.requests if r["method"] == "POST"]), 3)
-        self.mock.requests.clear()
-        self.mock.fail_next += [401]
-        with self.assertRaises(ProviderError) as cm:
-            p.image("x", model="gpt-image-1")
-        self.assertEqual(cm.exception.status, 401)
-        self.assertEqual(len([r for r in self.mock.requests if r["method"] == "POST"]), 1)
-
-    def test_openai_video_job_polling(self):
-        p = provider("openai", self.mock.url + "/v1")
-        out = p.video("um drone sobre o mar", duration=5, aspect="9:16", image=(PNG, "image/png"))
-        self.assertEqual(out.kind, "video")
-        raw = self.mock.last("/v1/videos")["raw"]
-        for needle in (b'name="seconds"\r\n\r\n4', b'name="size"\r\n\r\n720x1280', b'name="input_reference"', b"sora-2"):
-            self.assertIn(needle, raw)
-        self.assertGreaterEqual(self.mock.polls["vid1"], 2)
-
-    def test_elevenlabs_voice_by_name_sound_music_and_stt(self):
-        p = provider("elevenlabs", self.mock.url + "/v1")
-        v = p.voice("Olá", voice="Rachel", speed=3)
-        self.assertEqual(v.kind, "audio")
-        rec = self.mock.last("/text-to-speech/")
-        self.assertIn("/text-to-speech/abc123abc123abc123ab", rec["path"])
-        self.assertEqual(rec["h"]["xi-api-key"], "k")
-        self.assertEqual(rec["body"]["voice_settings"]["speed"], 1.2)  # limitado ao máximo da API
-        with self.assertRaises(ProviderError) as cm:
-            p.voice("x", voice="Inexistente")
-        self.assertIn("Rachel", str(cm.exception))
-        p.sound("trovão", kind="sfx", duration=99)
-        self.assertEqual(self.mock.last("/sound-generation")["body"]["duration_seconds"], 22.0)
-        p.sound("calma", kind="music", duration=20)
-        self.assertEqual(self.mock.last("/v1/music")["body"]["music_length_ms"], 20000)
-        self.assertEqual(p.transcribe(WAV, "a.wav", "audio/wav"), "transcrição elevenlabs")
-        self.assertEqual(p.list_models("voice"), ["Rachel", "Antônio"])
-        with self.assertRaises(ProviderError):
-            p.image("x")  # capacidade que o provedor não tem
-
-    def test_replicate_filters_inputs_by_schema_and_polls(self):
-        p = provider("replicate", self.mock.url + "/v1", {"image": "black-forest-labs/flux-schnell"})
-        out = p.image("um farol", size="1280x720", count=2, seed=7, negative="x")
-        self.assertEqual(len(out), 1)  # o mock devolve um arquivo
-        post = self.mock.last("flux-schnell/predictions")
-        inp = post["body"]["input"]
-        self.assertEqual((inp["prompt"], inp["aspect_ratio"], inp["num_outputs"], inp["seed"]), ("um farol", "16:9", 2, 7))
-        for dropped in ("width", "height", "output_format", "negative_prompt"):  # o modelo não aceita: não é enviado
-            self.assertNotIn(dropped, inp)
-        self.assertEqual(post["h"]["prefer"], "wait=45")
-        self.assertGreaterEqual(self.mock.polls["p1"], 2)
-        # modelo da comunidade: 404 no endpoint de modelos → usa a versão mais recente
-        self.mock.polls.clear()
-        p.image("x", model="owner/community")
-        self.assertEqual(self.mock.last("/v1/predictions")["body"]["version"], "ver999")
-        with self.assertRaises(ProviderError) as cm:
-            provider("replicate", self.mock.url + "/v1").image("x")
-        self.assertIn("modelo", str(cm.exception).lower())
-        self.assertIn("tester", p.test())
-
-    def test_stability_a1111_huggingface_google(self):
-        s = provider("stability", self.mock.url, {"image": "ultra"})
-        self.assertEqual(s.image("x", size="1280x720")[0].mime, "image/png")
-        rec = self.mock.last("/generate/ultra")
-        self.assertEqual((rec["h"]["authorization"], rec["h"]["accept"]), ("Bearer k", "image/*"))
-        self.assertIn(b'name="aspect_ratio"\r\n\r\n16:9', rec["raw"])
-        self.assertTrue(len(provider("stability", self.mock.url, {"image": "sd3.5-large"}).image("x", refs=[(PNG, "image/png")])) == 1)
-        self.assertIn(b"image-to-image", self.mock.last("/generate/sd3")["raw"])
-
-        a = provider("a1111", self.mock.url, key="", needs_key=False)
-        out = a.image("x", size="512x512", count=2, seed=5, negative="feio", model="sd15.safetensors")
-        self.assertEqual(len(out), 2)
-        body = self.mock.last("txt2img")["body"]
-        self.assertEqual((body["width"], body["seed"], body["negative_prompt"], body["override_settings"]["sd_model_checkpoint"]), (512, 5, "feio", "sd15.safetensors"))
-        a.image("x", refs=[(PNG, "image/png")])
-        self.assertTrue(self.mock.last("img2img")["body"]["init_images"])
-        self.assertEqual(a.list_models("image"), ["sd15.safetensors"])
-
-        h = provider("huggingface", self.mock.url + "/hf-inference/models", {"image": "black-forest-labs/FLUX.1-schnell", "stt": "openai/whisper-large-v3"})
-        self.assertEqual(h.image("x", count=2)[0].kind, "image")
-        self.assertEqual(self.mock.last("FLUX.1-schnell")["body"]["parameters"]["width"], 1024)
-        self.assertEqual(h.transcribe(WAV, "a.wav", "audio/wav"), "texto do whisper hf")
-        self.assertEqual(self.mock.last("whisper")["raw"][:4], b"RIFF")  # corpo bruto, não multipart
-        with self.assertRaises(ProviderError):
-            provider("huggingface", self.mock.url + "/hf-inference/models").image("x")  # sem modelo
-
-        g = provider("google", self.mock.url + "/v1beta", {"image": "gemini-2.5-flash-image", "video": "veo-3.0-fast-generate-001"})
-        self.assertEqual(g.image("x", size="720x1280", refs=[(PNG, "image/png")])[0].mime, "image/png")
-        rec = self.mock.last(":generateContent")
-        self.assertEqual(rec["h"]["x-goog-api-key"], "k")
-        self.assertEqual(rec["body"]["generationConfig"]["imageConfig"]["aspectRatio"], "9:16")
-        self.assertEqual(len(rec["body"]["contents"][0]["parts"]), 2)
-        self.mock.requests.clear()
-        g.image("NOIMAGECONFIG")  # o modelo recusa imageConfig (400): tenta de novo sem ele
-        gens = [r for r in self.mock.requests if r["path"].endswith(":generateContent")]
-        self.assertEqual(len(gens), 2)
-        self.assertNotIn("imageConfig", gens[1]["body"]["generationConfig"])
-        vid = g.video("x", duration=5, aspect="16:9")
-        self.assertEqual(vid.kind, "video")
-        self.assertEqual(self.mock.last(":predictLongRunning")["body"]["parameters"]["durationSeconds"], 4)  # 5 s → valor aceito mais próximo (empate: o menor)
-        self.assertIn("veo", " ".join(g.list_models("video")))
-
-    def test_registry_resolution_and_secrets(self):
-        settings = {"media": {"active": {"image": "openai"}, "models": {"openai": {"image": "dall-e-3"}}, "urls": {"a1111": "http://x:1"}}, "providers": {"openai": {"api_key": "sk-1"}}, "hf": {"token": "hf_1"}}
-        self.assertEqual(M.pick_provider(settings, "image"), "openai")
-        self.assertEqual(M.pick_provider(settings, "sound"), "demo")
-        self.assertEqual(M.pick_provider(settings, "image", "a1111"), "a1111")
-        for bad in (("video", "a1111"), ("image", "elevenlabs"), ("image", "nada")):
-            with self.assertRaises(ProviderError):
-                M.pick_provider(settings, bad[0], bad[1])
-        cfg = M.media_config(settings, "openai")
-        self.assertEqual((cfg["api_key"], cfg["models"]["image"], cfg["models"]["voice"]), ("sk-1", "dall-e-3", "tts-1"))
-        self.assertEqual(M.media_config(settings, "a1111")["base_url"], "http://x:1")
-        self.assertEqual(M.media_config(settings, "huggingface")["api_key"], "hf_1")  # reaproveita o token do Hugging Face
-        desc = {d["id"]: d for d in M.describe_media_presets(settings)}
-        self.assertTrue(desc["openai"]["has_key"])
-        self.assertFalse(desc["elevenlabs"]["has_key"])
-        self.assertNotIn("api_key", json.dumps(desc))
-        self.assertNotIn("sk-1", json.dumps(desc))
-        self.assertTrue({"demo", "openai", "elevenlabs", "replicate", "huggingface", "local_hf", "a1111", "stability", "google"} <= set(desc))
-
-    def test_expect_media_rejects_html_and_wrong_types(self):
-        with self.assertRaises(ProviderError):
-            M.expect_media(b"<html>erro</html>", "text/html", "image")
-        with self.assertRaises(ProviderError):
-            M.expect_media(PNG, "image/png", "audio")
-        self.assertEqual(M.expect_media(PNG, "application/octet-stream", "image").mime, "image/png")
-        self.assertEqual(M.size_of_aspect("9:16", 1280), (720, 1280))
-        self.assertEqual(M.aspect_of("1280x720"), "16:9")
 
 
 class FakeHub:
@@ -1102,14 +899,13 @@ class EngineTests(TmpCase):
         self.assertEqual(resolved["asset"]["id"], self.result(c["id"], "i")["assets"][0])  # clipe ligado ao nó usa a imagem nova
 
     def test_errors_isolate_branches_and_skip_dependents(self):
-        c = self.make([node("text", nid="t", text="x"), node("image", nid="bad", provider="a1111"), node("image", nid="ok"), node("video", nid="dep"), node("sound", nid="s", prompt="chuva", duration=1)],
+        c = self.make([node("text", nid="t", text="x"), node("image", nid="bad", provider="gguf_local"), node("image", nid="ok"), node("video", nid="dep"), node("sound", nid="s", prompt="chuva", duration=1)],
                       [edge("t", "bad", "prompt"), edge("t", "ok", "prompt"), edge("bad", "dep", "image")])
         s = self.store.get_settings()
-        self.store.save_settings({"media": {"urls": {"a1111": "http://127.0.0.1:9"}}})  # porta fechada
         stats, ev = self.run_engine(c["id"])
         self.assertEqual((stats["ran"], stats["errors"], stats["skipped"]), (2, 1, 1))
         self.assertEqual(self.result(c["id"], "bad")["state"], "error")
-        self.assertIn("conectar", self.result(c["id"], "bad")["error"])
+        self.assertTrue(self.result(c["id"], "bad")["error"])  # sem modelo GGUF baixado: explica o que fazer
         self.assertEqual(self.result(c["id"], "ok")["state"], "done")
         self.assertEqual(self.result(c["id"], "dep")["state"], "idle")
         self.assertEqual([e["state"] for e in ev if e.get("id") == "dep" and e["state"] != "running"], ["skipped"])
@@ -1308,20 +1104,6 @@ class EngineTests(TmpCase):
         self.cs.delete_asset(c["id"], refs[1]["id"])
         self.assertIn("i", CanvasEngine(self.store, c["id"]).stale_ids(self.cs.get(c["id"])))
 
-    def test_style_folder_uses_the_text_model_when_configured(self):
-        from tests.helpers import MockProviderServer
-
-        with MockProviderServer() as srv:
-            self.store.save_settings({"providers": {"custom": {"base_url": srv.url + "/v1", "model": "m", "vision": True}}, "active": {"generation": "custom"}})
-            c = self.cs.create("t")
-            a = self.cs.add_asset(c["id"], PNG, "png", "image", name="r.png", mime="image/png")
-            self.cs.save_layout(c["id"], {"nodes": [node("style_folder", nid="sf", files=[a["id"]])], "edges": []})
-            self.run_engine(c["id"], ["sf"])
-            req = next(r for r in srv.requests if r["path"].endswith("/chat/completions"))
-            parts = req["body"]["messages"][-1]["content"]
-            self.assertTrue(any(p.get("type") == "image_url" for p in parts))  # a imagem de referência vai para o modelo com visão
-            self.assertTrue(self.result(c["id"], "sf")["digest"])
-
     def test_llm_chains_into_image_prompt(self):
         c = self.make([node("text", nid="t", text="um gato"), node("llm", nid="l", instruction="detalhe a cena"), node("image", nid="i")], [edge("t", "l", "prompt"), edge("l", "i", "prompt")])
         self.run_engine(c["id"])
@@ -1330,36 +1112,6 @@ class EngineTests(TmpCase):
         cur = self.cs.get(c["id"])
         img = next(n for n in cur["nodes"] if n["id"] == "i")
         self.assertIn(text_out, next(a for a in cur["assets"] if a["id"] == img["result"]["assets"][0])["prompt"])
-
-    def test_transcribe_node_with_a_speech_server(self):
-        with MediaMock() as srv:
-            self.store.save_settings({"media": {"active": {"stt": "custom"}, "urls": {"custom": srv.url + "/v1"}}})
-            c = self.cs.create("t")
-            a = self.cs.add_asset(c["id"], WAV, "wav", "audio", name="fala.wav", mime="audio/wav")
-            self.cs.save_layout(c["id"], {"nodes": [node("upload", nid="u", files=[a["id"]]), node("transcribe", nid="tr", language="pt"), node("image", nid="i")],
-                                           "edges": [edge("u", "tr", "audio"), edge("tr", "i", "prompt")]})
-            stats, _ = self.run_engine(c["id"])
-            self.assertEqual(stats["errors"], 0, self.result(c["id"], "tr"))
-            self.assertEqual(self.result(c["id"], "tr")["text"], "olá mundo transcrito")
-            cur = self.cs.get(c["id"])
-            self.assertIn("olá mundo transcrito", next(x for x in cur["assets"] if x["node"] == "i")["prompt"])  # a transcrição alimenta a imagem
-
-    def test_external_provider_through_node_settings_and_default(self):
-        with MediaMock() as srv:
-            self.store.save_settings({"providers": {"openai": {"api_key": "sk-test"}}, "media": {"urls": {"openai": srv.url + "/v1"}, "active": {"image": "openai"}, "models": {"openai": {"image": "gpt-image-1"}}}})
-            c = self.make([node("image", nid="i", prompt="um robô", count=2), node("voice", nid="v", text="Olá", provider="demo")], [])
-            stats, _ = self.run_engine(c["id"])
-            self.assertEqual(stats["errors"], 0, [self.result(c["id"], n)["error"] for n in ("i", "v")])
-            cur = self.cs.get(c["id"])
-            assets = {a["id"]: a for a in cur["assets"]}
-            imgs = [assets[i] for i in self.result(c["id"], "i")["assets"]]
-            self.assertEqual(len(imgs), 2)
-            self.assertEqual((imgs[0]["provider"], imgs[0]["model"]), ("openai", "gpt-image-1"))
-            self.assertEqual(assets[self.result(c["id"], "v")["assets"][0]]["provider"], "demo")
-            self.assertEqual(srv.last("/images/generations")["h"]["authorization"], "Bearer sk-test")
-            # trocar de provedor/modelo invalida o cache
-            self.cs.patch_node_params(c["id"], "i", {"model": "dall-e-3"})
-            self.assertIn("i", CanvasEngine(self.store, c["id"]).stale_ids(self.cs.get(c["id"])))
 
     def test_force_without_targets_regenerates_every_node(self):
         c = self.make([node("text", nid="t", text="uma ilha"), node("image", nid="i"), node("sound", nid="s", prompt="vento", duration=1)], [edge("t", "i", "prompt")])
@@ -1570,25 +1322,16 @@ class CanvasApiTests(ServerCase):
         self.assertEqual(self.c.json("POST", f"/api/projects/{cid}/nodes/nao/autofill")[0], 404)
         self.c.json("DELETE", f"/api/projects/{cid}")
 
-    def test_media_providers_endpoint_never_leaks_keys_and_tests_connection(self):
-        with MediaMock() as srv:
-            self.c.json("PUT", "/api/settings", {"providers": {"openai": {"api_key": "sk-SECRETO"}}, "media": {"urls": {"openai": srv.url + "/v1"}, "active": {"image": "openai"}}})
-            status, r = self.c.json("GET", "/api/media/providers")
-            self.assertEqual(status, 200)
-            self.assertNotIn("SECRETO", json.dumps(r))
-            by = {p["id"]: p for p in r["providers"]}
-            self.assertTrue(by["openai"]["has_key"])
-            self.assertEqual(r["active"]["image"], "openai")
-            self.assertEqual(by["openai"]["base_url"], srv.url + "/v1")
-            status, t = self.c.json("POST", "/api/media/test", {"provider": "openai"})
-            self.assertEqual((status, t["ok"]), (200, True))
-            self.assertIn("conectado", t["message"])
-            status, models = self.c.json("GET", "/api/media/models?provider=openai&cap=image")
-            self.assertIn("gpt-image-1", models["models"])
-            self.assertEqual(self.c.json("POST", "/api/media/test", {"provider": "elevenlabs"})[0], 502)  # sem chave
-            self.assertEqual(self.c.json("POST", "/api/media/test", {"provider": "nada"})[0], 502)
-            self.assertEqual(self.c.json("POST", "/api/media/test", {"provider": "demo"})[1]["ok"], True)
-        self.c.json("PUT", "/api/settings", {"providers": {"openai": {"api_key": None}}, "media": {"urls": {"openai": ""}, "active": {"image": "demo"}}})
+    def test_only_local_providers_are_listed_and_old_cloud_settings_are_ignored(self):
+        self.c.json("PUT", "/api/settings", {"providers": {"openai": {"api_key": "sk-SECRETO"}}, "media": {"active": {"image": "openai"}}})
+        status, r = self.c.json("GET", "/api/media/providers")
+        self.assertEqual(status, 200)
+        self.assertNotIn("SECRETO", json.dumps(r))
+        self.assertEqual({p["id"] for p in r["providers"]}, {"demo", "local_hf", "gguf_local"})
+        self.assertIn(r["active"]["image"], {"demo", "local_hf", "gguf_local"})  # a escolha antiga de nuvem foi trocada
+        self.assertEqual(self.c.json("POST", "/api/media/test", {"provider": "openai"})[0], 502)  # não existe mais
+        self.assertEqual(self.c.json("POST", "/api/media/test", {"provider": "demo"})[1]["ok"], True)
+
 
 
 if __name__ == "__main__":
