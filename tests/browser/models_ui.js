@@ -18,7 +18,7 @@ run('models', async ({ api, open, check }) => {
   await page.route('**/api/models/support/install', (r) => { seen.repair.push(JSON.parse(r.request().postData())); repaired = true; json(r, { job_id: 'j_fix' }); });
   await page.route('**/api/jobs/j_fix/events', (r) => r.fulfill({ status: 200, contentType: 'text/event-stream', body: 'data: {"type":"start"}\n\ndata: {"type":"done","files":["Qwen3-4B-Q4_K_M.gguf"],"failed":[]}\n\ndata: {"type":"end","status":"done"}\n\n' }));
 
-  await page.evaluate(() => { location.hash = '#/models'; }); await page.waitForSelector('.prerow', { timeout: 10000 });
+  await page.evaluate(() => { location.hash = '#/models'; }); await page.waitForSelector('#lib-get', { timeout: 10000 }); await page.click('#lib-get'); await page.waitForSelector('.prerow', { timeout: 10000 });
   check('recomendados:dois-modelos', (await page.locator('.prerow').count()) === 2);
   const zimg = page.locator('.prerow', { hasText: 'Z-Image' });
   check('recomendados:imagem-mostra-o-que-vem-junto', (await zimg.innerText()).includes('VAE') && /text encoder/i.test(await zimg.innerText()));

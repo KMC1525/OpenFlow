@@ -2,6 +2,22 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.27.0] — 2026-11-15
+
+### New — Library 2.0 (Google-Drive style)
+- **Redesigned screen:** a sidebar with the sections (**AI models**, **Generated files**, **Downloads**) and the folder tree; on top, a **search bar**, breadcrumb trail, type/source filters and a **grid/list** toggle. Everything the Library already did stays (use and delete models, download more models, download/delete files, open the source project, downloads with progress and speed).
+- **Folders and subfolders** for AI models and for files (separate scopes): **New folder**, rename, move, delete. They are **virtual** (`library.json`): no file moves or is renamed on disk; models stay in `models/` and files inside their projects. Deleting a folder deletes nothing — its contents move up to the parent folder. Repeated names in the same folder are refused.
+- **Drag and drop** to organise: items and folders onto a folder in the body, in the sidebar or in the breadcrumb; or the “⋮ → Move to…” menu.
+- **Search** across all folders: finds folders and files/models by name (also by project and generating model) and shows **where they are** (“in Animals / Pets”).
+- **“Download more models”** opens the former catalogue (recommended, Unsloth, Hugging Face search, download speed, token).
+- **In the canvas, a “Library” tab** in the right panel (next to “Project”): browse folders, search and see files from **all projects** (images, videos and sounds only); **drag into the flow** (or use “+”) and OpenFlow copies the file into the project and creates a **Media** node with it, keeping the source model and prompt. New routes: `GET /api/library/items`, `GET/POST/PUT/DELETE /api/library/folders`, `POST /api/library/move`, `POST /api/projects/<id>/assets/import`.
+
+### Not verified
+- Tested in Chromium (create/enter/search/move by menu and by drag, delete folder, drag from the canvas tab) and the API; **not** with thousands of files (the list loads everything at once, up to 5000 files) nor on a phone beyond the basic responsive layout.
+- Drag and drop depends on the browser: on touch screens use “Move to…”.
+- A file lives only in its source project: deleting the project deletes the file, whatever folder it is in. A model deleted outside OpenFlow leaves only a harmless folder record.
+- Model folders do not change where OpenFlow looks for the model; it is organisation only.
+
 ## [0.26.0] — 2026-11-15
 
 ### New — multiple graphics cards (multi-GPU)
