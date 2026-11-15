@@ -63,5 +63,5 @@ class PreinstalledRoutes:
             r = preinstalled.install(self.store, e["id"], token, progress, lambda: job.cancelled)
             job.emit({"type": "done", "id": e["id"], "notes": r["notes"]})
 
-        job = self.app.jobs.start("preinstalled", work)
+        job = self.app.jobs.start("preinstalled", work, {"title": e["label"]})
         req.json({"job_id": job.id})

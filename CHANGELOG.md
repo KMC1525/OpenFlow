@@ -2,6 +2,19 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.23.0] — 2026-11-15
+
+### Novo — Biblioteca
+- **A tela «Modelos» virou «Biblioteca»** (barra lateral, atalho Alt+2; o endereço antigo `#/models` ainda abre a Biblioteca). Ela tem três abas:
+  - **Modelos:** tudo o que a tela Modelos já fazia (baixados — agora no topo —, recomendados, lista da Unsloth, busca no Hugging Face, token).
+  - **Arquivos gerados:** as imagens, vídeos e sons que os nós geraram, **de todos os projetos**, do mais novo ao mais antigo, com miniatura, modelo usado, tamanho, projeto (link), **busca** (nome, projeto ou modelo), filtros de **tipo** e de **origem** (gerados por modelos / enviados por você / todos), **baixar** e **apagar** (some do projeto também, com confirmação). Novo `GET /api/library/files`.
+  - **Downloads:** os downloads **em andamento** (modelos, arquivos de apoio, componentes do LTX-2, sd-cli…) com barra de progresso, bytes e **cancelar**; os **recentes** desta sessão (concluídos, cancelados ou com erro e o motivo); e a lista de **todos os modelos baixados**, dos mais novos aos mais antigos, com tipo, tamanho e quantização. Atualiza sozinha (a cada 1 s enquanto algo baixa, a cada 4 s parada) e para ao sair da aba. Novo `GET /api/library/downloads`.
+- Um download que falha com erro agora aparece como **«Falhou»** (antes a tarefa terminava como «concluída»).
+
+### Ainda não verificado
+- Testei no Chromium com dados simulados (listas, filtros, apagar, progresso e cancelar) e a API com projetos e tarefas de verdade; **não** acompanhei um download real de vários GB na aba Downloads. A lista de «recentes» vive na memória do servidor: some quando o OpenFlow fecha (os modelos baixados continuam na lista de modelos).
+- Os arquivos «gerados» são os que não foram enviados nem vieram de um link; vídeos montados no Editor e arquivos de nós de código contam como gerados.
+
 ## [0.22.0] — 2026-11-15
 
 ### Novo — MiniMax H3 e LTX-2 / 2.3 / 2.5 (vídeo com áudio)

@@ -8,7 +8,7 @@ Inspired by ElevenLabs Flow and much lighter than ComfyUI: connect a few nodes, 
 
 [Install](#install) · [The `flow` command](#the-flow-command) · [Projects](#projects--the-home-screen) · [Nodes](#the-nodes) · [Style Folder](#style-folder--folders-and-subfolders) · [Models](#models--support-files-install-themselves) · [Providers](#ai-providers) · [Rust core](#rust-core) · [Development](#development) · [Changelog](CHANGELOG.en.md) · [Português](README.pt-BR.md)
 
-`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Rust core` · `no required dependencies` · `v0.22.0`
+`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Rust core` · `no required dependencies` · `v0.23.0`
 
 </div>
 
@@ -115,7 +115,7 @@ Old projects open unchanged (a Style Folder without folders works as before).
 
 ## Models — support files install themselves
 
-Open **Models** to install and manage local models (GGUF, via llama.cpp and stable-diffusion.cpp):
+Open **Library** (it replaced the old *Models* screen; `#/models` still works) — three tabs: **Models** (downloaded models, recommended ones, Unsloth list, Hugging Face search), **Generated files** (everything your nodes produced, across all projects, with type/source filters, search, download and delete) and **Downloads** (what is downloading now with progress and cancel, recent ones, and all downloaded models). To install and manage local models (GGUF, via llama.cpp and stable-diffusion.cpp):
 
 - **Recommended:** a small text model and an image model (Z-Image), with quantization already chosen. The image model comes with its VAE and text encoder.
 - **Search on Hugging Face** by type (Text, Image, Video, Sound, Voice, Other); you see **every quantization** (bits, size, quality, whether it fits your RAM, the recommended one) and choose which to download.
@@ -182,7 +182,7 @@ node tests/js/i18n_check.mjs                     # every UI phrase has an Englis
 
 Browser tests need Node, Playwright and Chromium (`NODE_PATH` pointing at your `playwright` install). Python 3.9 compatible code (no `match`, no runtime `X | Y`). Every UI and terminal string is Portuguese-first with an English translation (`openflow/web/js/en.js`, `openflow/term_en.py`); tests enforce it.
 
-## Honest limits (v0.22.0)
+## Honest limits (v0.23.0)
 
 Verified here (Linux, Python 3.13): the full Python test suite (442 tests), the Chromium browser tests, the Rust tests, and `install.sh` end to end against a local checkout. **Not verified:** `install.ps1` on a real Windows machine and `install.sh` on macOS (CI jobs are written but were not run); Rust core builds for macOS/Windows/ARM; real downloads of VAEs, text encoders and `mmproj` from Hugging Face (tests simulate the downloads — file names of the curated and example repositories were checked against Hugging Face listings); inference with real GGUF models and GPUs; vision input through `mmproj` with a real model; cloud providers with real keys (tests use fake servers). Performance numbers are not benchmarked.
 

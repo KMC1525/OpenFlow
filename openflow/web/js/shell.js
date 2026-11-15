@@ -90,5 +90,5 @@ export async function maybeWelcome(app, force = false) {
   const choice = await modal(t('Bem-vindo ao OpenFlow'), body, [{ label: demo ? t('Explorar no Demo') : t('Começar'), value: 'go' }, ...(demo ? [{ label: t('Instalar modelos'), value: 'models', cls: 'primary' }] : [])]);
   await saveSettings({ ui: { welcome_done: true } });
   renderSide();
-  if (choice === 'models') go('models');
+  if (choice === 'models') go('library');
 }

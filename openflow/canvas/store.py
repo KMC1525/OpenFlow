@@ -127,6 +127,28 @@ class ProjectStore:
             out.sort(key=lambda c: c.get("updated", ""), reverse=True)
         return out
 
+    def library_files(self, kind: str = "", q: str = "", source: str = "generated", limit: int = 400) -> List[Dict[str, Any]]:
+        """Os arquivos de todos os projetos (imagens, vídeos, sons), do mais novo ao mais antigo, para a Biblioteca. `source`: «generated» (feitos por um modelo), «upload» (enviados) ou «all»;
+        `kind`: image | video | audio (vazio = todos); `q` filtra pelo nome do arquivo, do projeto e pelo modelo."""
+        tokens = [t for t in _fold(q).split() if t]
+        out: List[Dict[str, Any]] = []
+        for d in self.folder.iterdir():
+            c = self.get(d.name) if d.is_dir() else None
+            if not c or not c["id"]:
+                continue
+            for a in c["assets"]:
+                gen = a.get("provider") not in ("upload", "url")
+                if (source == "generated" and not gen) or (source == "upload" and gen) or (kind and a["kind"] != kind):
+                    continue
+                hay = _fold(" ".join(str(x) for x in (a.get("name"), c["name"], a.get("model"), a.get("provider"))))
+                if any(t not in hay for t in tokens):
+                    continue
+                out.append({"id": a["id"], "kind": a["kind"], "name": a.get("name") or a["file"], "mime": a.get("mime", ""), "bytes": a.get("bytes", 0), "created": a.get("created", ""),
+                            "w": a.get("w"), "h": a.get("h"), "duration": a.get("duration"), "model": a.get("model", ""), "provider": a.get("provider", ""), "generated": gen,
+                            "project": c["id"], "project_name": c["name"], "url": f"/api/projects/{c['id']}/assets/{a['file']}"})
+        out.sort(key=lambda x: x["created"], reverse=True)
+        return out[:limit]
+
     def create(self, name: str = "", template: str = "blank", prompt: str = "") -> Dict[str, Any]:
         with self._lock:
             cid = new_id("pj_")

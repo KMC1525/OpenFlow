@@ -8,12 +8,12 @@ import { h, icon } from './ui.js';
 export const state = { settings: null, presets: [], hardware: {}, native: {}, version: '', home: '', ctx: {} };
 
 // Telas da barra lateral: «Projetos» é a tela inicial (todos os projetos + barra de pesquisa).
-export const NAV = [['projects', 'Projetos', 'canvas'], ['models', 'Modelos', 'cube'], ['settings', 'Configurações', 'config']];
+export const NAV = [['projects', 'Projetos', 'canvas'], ['library', 'Biblioteca', 'library'], ['settings', 'Configurações', 'config']];
 const VIEWS = {
   projects: () => import('./views/projects.js'), project: () => import('./views/canvas_edit.js'),
-  models: () => import('./views/models.js'), settings: () => import('./views/settings.js'),
+  library: () => import('./views/library.js'), settings: () => import('./views/settings.js'),
 };
-const ALIASES = { config: 'settings', canvas: 'projects', library: 'models', main: 'projects' };   // endereços antigos/curtos
+const ALIASES = { config: 'settings', canvas: 'projects', models: 'library', main: 'projects' };   // endereços antigos/curtos
 
 // Recarrega a página (uma vez por falha: sem laço se o problema continuar). Devolve true se recarregou.
 function reloadPage(force) {

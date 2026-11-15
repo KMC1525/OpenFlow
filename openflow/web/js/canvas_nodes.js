@@ -470,7 +470,7 @@ export function nodeResult(c, n) {
           });
         } catch (e) { rb.disabled = false; toast(e.status === 409 ? t('Já há um download em andamento.') : e.message, 'err'); }
       };
-      box.append(rb, h('button', { class: 'btn sm nodrag', type: 'button', id: 'sdrepo-' + n.id, style: { marginTop: '6px' }, onclick: async () => { const { go } = await import('./main.js'); go('models', { repo: repoHit[1], kind: 'image' }); } }, t('Abrir {r} em Modelos', { r: repoHit[1] })));
+      box.append(rb, h('button', { class: 'btn sm nodrag', type: 'button', id: 'sdrepo-' + n.id, style: { marginTop: '6px' }, onclick: async () => { const { go } = await import('./main.js'); go('library', { repo: repoHit[1], kind: 'image' }); } }, t('Abrir {r} em Modelos', { r: repoHit[1] })));
     }
     if (cli) {
       const cb = h('button', { class: 'btn sm primary nodrag', type: 'button', id: 'sdcli-' + n.id, style: { marginTop: '6px', marginRight: '6px' } }, icon('download', 13), tools ? t('Instalar o que falta e compilar o sd-cli') : t('Baixar o executável pronto (sem compilar)'));
