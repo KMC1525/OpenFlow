@@ -1,7 +1,7 @@
 import { api, events } from '../api.js';
 import { t } from '../i18n.js';
 import { saveSettings } from '../main.js';
-import { confirmDialog, debounce, fmtBytes, fmtDate, fmtEta, h, icon, modal, toast } from '../ui.js';
+import { checkbox, confirmDialog, debounce, fmtBytes, fmtDate, fmtEta, h, icon, modal, toast } from '../ui.js';
 import { GGUF_KINDS } from '../model_labels.js';
 
 // Biblioteca (v0.27), no estilo do Google Drive: pastas e subpastas (virtuais: nada muda no disco) para modelos de IA e arquivos gerados, busca em todas as pastas, arrastar e soltar para organizar,
@@ -276,10 +276,72 @@ export default async function render(root, ctx) {
   }
 
 
+  // ---------------------------------------------------------------------------------------------- onde guardar (v0.33)
+  async function paintWhere(box) {
+    let r;
+    try { r = await api('/api/storage/locations'); } catch (e) { return box.replaceChildren(h('div', { class: 'res err' }, e.message)); }
+    const KIND = { ssd: 'SSD', hdd: 'HDD', unknown: '' };
+    const row = (k, label) => {
+      const x = r[k];
+      return h('div', { class: 'row nw', style: { padding: '8px 0', borderBottom: '1px solid var(--line2)' }, 'data-where': k },
+        h('div', { class: 'grow', style: { minWidth: 0 } }, h('div', null, h('b', null, label), x.custom ? h('span', { class: 'chip on', style: { marginLeft: '8px' } }, t('personalizada')) : h('span', { class: 'chip', style: { marginLeft: '8px' } }, t('padrão'))),
+          h('div', { class: 'mono small', style: { overflowWrap: 'anywhere' } }, x.path),
+          h('div', { class: 'dim small' }, t('{f} livres de {t}', { f: fmtBytes(x.free), t: fmtBytes(x.total) }) + (KIND[x.kind] ? ' · ' + KIND[x.kind] : ''))),
+        h('button', { class: 'btn sm', type: 'button', id: 'where-' + k, disabled: r.busy, title: r.busy ? t('Espere as tarefas em andamento terminarem.') : '', onclick: () => change(k, label, r) }, t('Alterar…')),
+        x.custom ? h('button', { class: 'btn sm ghost', type: 'button', disabled: r.busy, id: 'where-default-' + k, onclick: () => apply(k, '', true) }, t('Usar a padrão')) : null);
+    };
+    box.replaceChildren(h('div', { class: 'card', style: { marginBottom: '16px' } }, h('h3', null, t('Onde guardar')),
+      h('p', { class: 'muted small', style: { marginTop: 0 } }, t('Guarde os modelos e os arquivos dos projetos em outro disco: um HD ou SSD externo, um pendrive ou outra pasta do computador. O que já existe pode ser movido junto (copia primeiro e só apaga a pasta antiga no fim).')),
+      ...(r.warnings || []).map((w) => h('p', { class: 'res warn small' }, '⚠ ' + w)),
+      row('models', t('Modelos de IA')), row('files', t('Arquivos dos projetos (imagens, vídeos e sons)'))));
+  }
+  async function apply(kind, path, move) {
+    let res;
+    try { res = await api('/api/storage/location', { method: 'POST', body: { kind, path, move } }); } catch (e) { return toast(e.message, 'err'); }
+    if (!res.job_id) { toast(t('Pronto: o OpenFlow usa {p}', { p: res.path }), 'ok'); return show(); }
+    const bar = h('i'), label = h('span', { class: 'small muted' }, '0%'), note = h('div', { class: 'small muted' });
+    const area = h('div', { class: 'card', id: 'where-progress', style: { marginBottom: '16px' } }, h('div', { class: 'row' }, h('b', { class: 'grow' }, t('Movendo para {p}', { p: res.path })), label,
+      h('button', { class: 'btn sm', type: 'button', onclick: () => api('/api/jobs/' + res.job_id + '/cancel', { method: 'POST' }).catch(() => {}) }, t('Cancelar'))), h('div', { class: 'bar', role: 'progressbar', 'aria-label': t('Movendo') }, bar), note);
+    document.getElementById('lib-where').prepend(area);
+    events('/api/jobs/' + res.job_id + '/events', (ev) => {
+      if (ev.type === 'progress' && ev.total) { const pc = Math.min(1, ev.done / ev.total); bar.style.width = Math.round(pc * 100) + '%'; label.textContent = Math.round(pc * 100) + '% · ' + fmtBytes(ev.done) + ' / ' + fmtBytes(ev.total); }
+      else if (ev.type === 'note') note.textContent = ev.message;
+      else if (ev.type === 'done') { toast(t('Movido. O OpenFlow já usa a nova pasta.'), 'ok'); show(); }
+      else if (ev.type === 'error') { toast(ev.message, 'err'); show(); }
+      else if (ev.type === 'cancelled') { toast(t('Cancelado: nada foi apagado.')); show(); }
+    });
+  }
+  async function change(kind, label, r) {
+    const inp = h('input', { type: 'text', id: 'where-path', style: { width: '100%' }, placeholder: t('Caminho da pasta (ex.: E:/OpenFlow ou /media/usuario/HD)'), value: '' });
+    const moveBox = { v: true };
+    const list = h('div', { class: 'lib-pick', id: 'where-list' });
+    const browse = async (path) => {
+      try {
+        const b = await api('/api/storage/browse?path=' + encodeURIComponent(path || ''));
+        const here = h('div', { class: 'dim small', style: { padding: '4px 0' } }, b.path || t('Discos e dispositivos'));
+        list.replaceChildren(here, ...(b.parent || (!b.volumes && b.path) ? [h('button', { type: 'button', class: 'lib-fold', onclick: () => browse(b.parent || '') }, icon('chev', 14), h('span', null, t('Voltar')))] : []),
+          ...b.dirs.map((d) => { const full = b.volumes ? d : b.path.replace(/[\\/]$/, '') + (b.path.includes('\\') ? '\\' : '/') + d;
+            const vol = b.volumes ? r.volumes.find((v) => v.path === d) : null;
+            return h('button', { type: 'button', class: 'lib-fold', 'data-dir': full, onclick: () => { inp.value = full; browse(full); } }, icon('folder', 14),
+              h('span', null, b.volumes ? ((vol && vol.label) || d) + (vol ? ' · ' + t('{f} livres', { f: fmtBytes(vol.free) }) + (vol.removable ? ' · ' + t('externo') : '') : '') : d)); }));
+      } catch (e) { list.replaceChildren(h('div', { class: 'res err small' }, e.message)); }
+    };
+    await browse('');
+    const body = h('div', null, h('p', { class: 'muted small', style: { marginTop: 0 } }, t('Escolha a pasta (ou digite o caminho). A raiz de um disco vira uma subpasta «OpenFlow».')), inp, list,
+      checkbox(t('Mover o que já existe para a nova pasta (recomendado)'), true, (v) => { moveBox.v = v; }),
+      h('p', { class: 'muted small' }, t('Sem mover, o conteúdo antigo continua na pasta de antes e deixa de aparecer no OpenFlow.')));
+    const v = await modal(t('Alterar: {n}', { n: label }), body, [{ label: t('Cancelar'), value: null }, { label: t('Usar esta pasta'), value: 'ok', cls: 'primary' }]);
+    if (v !== 'ok') return;
+    if (!inp.value.trim()) return toast(t('Escolha uma pasta.'), 'err');
+    await apply(kind, inp.value.trim(), moveBox.v);
+  }
+
   // ---------------------------------------------------------------------------------------------- armazenamento (v0.31)
   async function storageTab(box) {
     const body = h('div', { id: 'lib-storage' });
-    box.append(body);
+    const where = h('div', { id: 'lib-where' });
+    box.append(where, body);
+    await paintWhere(where);
     const paint = (r) => {
       const used = Object.values(r.models).reduce((a, b) => a + b, 0) + r.projects + r.uploads;
       const KIND = { ssd: t('SSD'), hdd: t('HDD'), unknown: t('tipo desconhecido') };

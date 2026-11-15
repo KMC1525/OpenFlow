@@ -43,4 +43,11 @@ run('screens', async ({ api, open, check }) => {
   await pg.click('#lib-tab-storage'); await pg.waitForSelector('#lib-storage .card', { timeout: 8000 });
   const txt = await pg.locator('#lib-storage').innerText();
   check('armazenamento:mostra-o-disco-e-a-limpeza', /disk/i.test(txt) && /cleanup/i.test(txt) && /free of/.test(txt));
+
+  // onde guardar (v0.33): o cartão mostra as duas pastas e «Alterar…» abre a escolha de disco
+  await pg.waitForSelector('[data-where="models"]', { timeout: 8000 });
+  check('onde-guardar:mostra-modelos-e-arquivos', (await pg.locator('[data-where]').count()) === 2 && /standard|default/i.test(await pg.locator('#lib-where').innerText()));
+  await pg.click('#where-models'); await pg.waitForSelector('.modal #where-path', { timeout: 5000 });
+  check('onde-guardar:janela-lista-discos', (await pg.locator('.modal #where-list button').count()) >= 1);
+  await pg.keyboard.press('Escape');
 });

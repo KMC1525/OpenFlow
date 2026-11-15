@@ -2,6 +2,21 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.33.0] — 2026-11-15
+
+### Novo — Biblioteca em outras pastas (HD/SSD externo, pendrive, outro disco)
+- **Biblioteca → Armazenamento → «Onde guardar»:** escolha **onde ficam os modelos de IA** e **onde ficam os arquivos dos projetos** (imagens, vídeos e sons gerados ou enviados) — um HD ou SSD externo, um pendrive ou outra pasta do próprio computador. Cada um tem a sua pasta («padrão» ou «personalizada»), com o espaço livre, o tipo (SSD/HDD) e o botão **Alterar…**, que lista os **discos e dispositivos** do computador (com o espaço livre e o selo «externo»), deixa navegar pelas pastas ou digitar o caminho e oferece **«Usar a padrão»** para voltar.
+- **Mover o que já existe, com segurança:** a opção «Mover o que já existe» **copia primeiro** (com barra de progresso, cancelável e também visível na aba Downloads), confere o tamanho de cada arquivo, **troca a pasta em uso só no fim** e só então esvazia a pasta antiga; falha ou cancelamento **desfaz as cópias novas** e a pasta antiga fica intacta, então nunca falta modelo. Reinicia de onde parou se repetir. Sem «mover», o OpenFlow passa a usar a nova pasta e o conteúdo antigo fica onde está (avisado na janela).
+- **Disco externo desligado não quebra o OpenFlow:** se a pasta configurada não está acessível (dispositivo desconectado, pasta apagada), ele **usa a padrão e mostra um aviso** no cartão; quando o disco volta, a pasta escolhida volta a valer.
+- **Proteções:** a nova pasta precisa existir (ou a de cima, para criar uma), aceitar gravação e **ter espaço** para o conteúdo; não pode ficar dentro da atual (nem a atual dentro dela); a **raiz de um disco** vira uma subpasta «OpenFlow-modelos»/«OpenFlow-projetos» (nada de espalhar arquivos na raiz do pendrive); e não muda nada com uma geração, download ou outra tarefa em andamento. Novas rotas: `GET /api/storage/locations`, `GET /api/storage/browse` e `POST /api/storage/location`; a configuração fica em `storage.models_dir` e `storage.files_dir`.
+- A pasta dos modelos vale para tudo: downloads, arquivos de apoio, a lista da Biblioteca, o `flow models …` do terminal e a carga dos modelos. Os mapas de pastas e as configurações ficam na pasta de dados do OpenFlow.
+
+### Ainda não verificado
+- **Não testei com um disco externo de verdade:** os testes usam pastas temporárias (a cópia, o desfazer, a validação, a troca de pasta e o aviso de pasta inacessível rodam; o aviso com o dispositivo realmente desligado foi simulado com um caminho que não dá para criar). A **lista de dispositivos** segue a convenção de cada sistema (Linux `/media`, `/run/media`, `/mnt`; macOS `/Volumes`; Windows letras de unidade) e **não foi executada no Windows nem no macOS**.
+- Mover entre discos lentos (HDD externo por USB 2) pode levar bastante tempo; o desempenho **não** foi medido. Rodar modelos a partir de um disco externo lento deixa o carregamento mais demorado (o OpenFlow pré-carrega o modelo na RAM).
+- **Não são movidos:** o cache do Hugging Face (componentes do LTX-2), o `sd-cli`, os arquivos enviados soltos (`uploads`), as configurações e o mapa de pastas da Biblioteca — ficam na pasta de dados do OpenFlow.
+- Importar as configurações em outro computador traz os caminhos: se não existirem lá, vale o aviso e a pasta padrão.
+
 ## [0.32.0] — 2026-11-15
 
 ### Corrigido — bugs ao editar vídeos (e imagens) gerados

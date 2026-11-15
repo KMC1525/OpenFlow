@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import Any, Dict, List
 
 from . import hf
@@ -35,6 +36,9 @@ class LibraryRoutes:
         a("POST", r"/api/library/move", self.r_move)
         a("GET", r"/api/storage", self.r_storage)
         a("POST", r"/api/storage/clean", self.r_storage_clean)
+        a("GET", r"/api/storage/locations", self.r_locations)
+        a("GET", r"/api/storage/browse", self.r_browse)
+        a("POST", r"/api/storage/location", self.r_location)
 
     def _wrap(self, fn, *a, **k):
         try:
@@ -93,6 +97,95 @@ class LibraryRoutes:
         if not what:
             raise HttpError(400, "Escolha o que limpar.")
         req.json(diskuse.clean(self.store, what, self._downloading()))
+
+    # ------------------------------------------------------------------ onde guardar (v0.33)
+    def _dirs(self) -> Dict[str, Any]:
+        st = self.store
+        return {"models": (st.models_dir, st.default_models_dir, "models_dir"), "files": (Path(st.projects.folder), st.default_projects_dir, "files_dir")}
+
+    def r_locations(self, req) -> None:
+        """Onde estão os modelos e os arquivos dos projetos (e as alternativas): discos e dispositivos, espaço livre e avisos (dispositivo desligado)."""
+        from . import diskuse, storagepaths
+
+        cfg = self.store.get_settings().get("storage") or {}
+        out: Dict[str, Any] = {}
+        for k, (cur, default, key) in self._dirs().items():
+            u = storagepaths._usage(str(cur))
+            out[k] = {"path": str(cur), "default": str(default), "custom": bool(cfg.get(key)), "configured": cfg.get(key) or "", "free": u["free"], "total": u["total"], "kind": diskuse.kind_of(cur)}
+        req.json({**out, "volumes": storagepaths.volumes(), "warnings": list(self.store.storage_warnings), "busy": self._busy()})
+
+    def r_browse(self, req) -> None:
+        from . import storagepaths
+        from .providers import ProviderError
+
+        try:
+            req.json(storagepaths.browse((req.query.get("path", [""])[0] or "")[:1000]))
+        except ProviderError as exc:
+            raise HttpError(400, str(exc))
+
+    def _busy(self) -> bool:
+        with self.app.jobs.lock:
+            return any(j.status == "running" for j in self.app.jobs.jobs.values())
+
+    def r_location(self, req) -> None:
+        """Muda a pasta dos modelos (`kind: models`) ou dos arquivos dos projetos (`kind: files`): `{"kind", "path" ("" = a padrão), "move": true}`. Com `move`, o que já existe é copiado
+        (um job com progresso) e a pasta antiga só é esvaziada no fim; sem `move`, o OpenFlow passa a usar a nova pasta e o conteúdo antigo fica onde está."""
+        from . import storagepaths
+        from .jobs import Job
+        from .providers import ProviderError
+
+        b = req.body_json()
+        b = b if isinstance(b, dict) else {}
+        kind = text(b.get("kind"), "", 10)
+        if kind not in ("models", "files"):
+            raise HttpError(400, "Escolha «models» ou «files».")
+        if self._busy():
+            raise HttpError(409, "Há uma geração, download ou outra tarefa em andamento: espere terminar (ou cancele) antes de mudar a pasta.")
+        cur, default, key = self._dirs()[kind]
+        picked = text(b.get("path"), "", 1000)
+        try:
+            dst = default if not picked else storagepaths.resolve(kind, picked)
+            if not picked:
+                default.mkdir(parents=True, exist_ok=True)
+            move = bool(b.get("move"))
+            total = storagepaths.check_move(cur, dst) if move else 0
+        except ProviderError as exc:
+            raise HttpError(400, str(exc))
+
+        def switch() -> None:
+            self.store.save_settings({"storage": {key: "" if dst == default else str(dst)}})
+
+        if not move:
+            switch()
+            req.json({"ok": True, "path": str(dst), "moved": False})
+            return
+
+        def work(job: Job) -> None:
+            job.emit({"type": "start", "file": str(dst)})
+            last = [0.0]
+
+            def progress(done: int, tot: int) -> None:
+                import time as _t
+
+                if _t.time() - last[0] > 0.4:
+                    last[0] = _t.time()
+                    job.emit({"type": "progress", "done": done, "total": tot})
+
+            try:
+                storagepaths.migrate(cur, dst, progress, lambda: job.cancelled, lambda m: job.emit({"type": "note", "message": m}))
+            except ProviderError as exc:
+                job.emit({"type": "cancelled"} if str(exc) == "cancelado" else {"type": "error", "message": str(exc)[:400]})
+                return
+            except OSError as exc:
+                job.emit({"type": "error", "message": f"Não consegui copiar: {exc}"[:400]})
+                return
+            switch()
+            job.emit({"type": "note", "message": "Apagando a pasta antiga…"})
+            storagepaths.remove_source(cur)
+            job.emit({"type": "done", "path": str(dst), "bytes": total})
+
+        job = self.app.jobs.start("storage_move", work, {"title": str(dst), "kind": kind})
+        req.json({"job_id": job.id, "path": str(dst), "moved": True, "bytes": total})
 
     # ------------------------------------------------------------------ itens
     def _models(self) -> List[Dict[str, Any]]:

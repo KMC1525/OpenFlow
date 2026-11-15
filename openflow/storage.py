@@ -45,6 +45,7 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "canvas": {"template": "text_image", "agents": 1, "effort": "high"},  # equipe dos nós de texto (IA) e do planejador de fluxos
     "performance": {"mode": "auto", "idle_unload_min": 10, "device": "auto", "gpus": [], "cpu_pin": True},  # auto | light | balanced | max — veja perf.py
     "server": {"max_upload_mb": 200},
+    "storage": {"models_dir": "", "files_dir": ""},   # v0.33: onde guardar os modelos e os arquivos dos projetos ("" = a pasta padrão do OpenFlow; um disco externo, outro disco…)
     "hf": {"token": "", "auto_support": True, "connections": 4},  # auto_support: baixa junto do modelo o VAE, os codificadores de texto e o mmproj (ver canvas/support.py); connections: conexões simultâneas por download (1 a 8; ver dl.py)
 }
 
@@ -126,15 +127,54 @@ class Store:
         self.home = Path(home) if home else flow_home()
         self.home.mkdir(parents=True, exist_ok=True)
         self.settings_path = self.home / "settings.json"
-        self.projects = ProjectStore(self.home / "projects")
+        self.default_models_dir = self.home / "models"
+        self.default_projects_dir = self.home / "projects"
+        self.projects = ProjectStore(self.default_projects_dir)
         self.uploads_dir = self.home / "uploads"
-        self.models_dir = self.home / "models"
-        for d in (self.uploads_dir, self.models_dir):
+        self._models_dir = self.default_models_dir
+        self.storage_warnings: list = []
+        for d in (self.uploads_dir, self.default_models_dir):
             d.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
         from . import perf
 
-        perf.configure(self.get_settings().get("performance"))
+        s = self.get_settings()
+        perf.configure(s.get("performance"))
+        self.apply_storage(s)
+
+    # ------------------------------------------------------------------ onde guardar (v0.33)
+    @property
+    def models_dir(self) -> Path:
+        return self._models_dir
+
+    @models_dir.setter
+    def models_dir(self, value: Any) -> None:
+        self._models_dir = Path(value)
+
+    def _usable_dir(self, chosen: str, default: Path, label: str) -> Path:
+        """A pasta configurada, se está acessível e dá para gravar; senão a padrão, com um aviso (dispositivo externo desconectado, pasta apagada…)."""
+        if not chosen:
+            return default
+        p = Path(chosen).expanduser()
+        try:
+            p.mkdir(parents=True, exist_ok=True)
+            probe = p / ".flow-write-probe"
+            probe.write_bytes(b"")
+            probe.unlink()
+            return p
+        except OSError:
+            self.storage_warnings.append(f"{label}: a pasta {chosen} não está acessível (dispositivo desconectado?). Usando a pasta padrão até ela voltar.")
+            return default
+
+    def apply_storage(self, settings: dict) -> None:
+        """Passa a usar as pastas de `settings["storage"]` para os modelos e os projetos. Pasta inacessível → a padrão, com aviso em `storage_warnings` (nada quebra com um disco externo desligado)."""
+        cfg = settings.get("storage") or {}
+        self.storage_warnings = []
+        self._models_dir = self._usable_dir(str(cfg.get("models_dir") or ""), self.default_models_dir, "Modelos")
+        folder = self._usable_dir(str(cfg.get("files_dir") or ""), self.default_projects_dir, "Arquivos dos projetos")
+        if Path(self.projects.folder) != folder:
+            folder.mkdir(parents=True, exist_ok=True)
+            self.projects.folder = folder
 
     # ------------------------------------------------------------------ settings
     def get_settings(self) -> dict:
@@ -185,6 +225,7 @@ class Store:
             from . import perf
 
             perf.configure(merged.get("performance"))
+            self.apply_storage(merged)
             return merged
 
     def public_settings(self) -> dict:
