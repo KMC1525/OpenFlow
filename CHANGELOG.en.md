@@ -2,6 +2,20 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.37.0] — 2026-11-15
+
+### New — local 3D models (text → 3D and image → 3D)
+- **"3D model" node** (new **3D** palette group): prompt and/or image → **GLB** or **OBJ** file, with a viewer on the node (drag to rotate, wheel to zoom, auto-spin) and in the enlarged view; Download button; the Gallery accepts the model; the Library has a "3D models" type.
+- **Local Hugging Face models:** **Shap-E** (`openai/shap-e` text → 3D; `openai/shap-e-img2img` image → 3D, picked automatically when an image is connected), **TripoSR** (`stabilityai/TripoSR`) and **Hunyuan3D-2** (`tencent/Hunyuan3D-2mini` / `-2`), image only. With a text, TripoSR and Hunyuan3D first generate an image of the object with the default image model (two steps, noted on the node).
+- Download/use: "3D" in the Canvas model search bar (Hugging Face: text-to-3d / image-to-3d) and in Settings → Media; downloaded 3D models only appear in the 3D node's list. Nothing is downloaded silently.
+- **Offline Demo:** procedural shapes (sphere, torus, cube, cone, vase) with colors — to test 3D flows without a model.
+- Own GLB and OBJ writer (no dependencies); the mesh is centered and fitted into a cube of side 2.
+
+### Not verified yet
+- **No real 3D model was run here** (no weights, GPU, or the TripoSR/Hunyuan3D libraries): Shap-E, TripoSR and Hunyuan3D-2 were tested only with stand-ins. Shap-E's mesh orientation (rotated −90° on X) and the Hunyuan3D/TripoSR subfolder names and arguments follow their documentation and may need tuning.
+- The viewer is a simple renderer (no textures; per-vertex colors) and draws at most ~40k faces at a time.
+- Textured (UV) output of the big models is not written: only geometry and per-vertex color.
+
 ## [0.36.0] — 2026-11-15
 
 ### New — 2 nodes in the Image group to make hard prompts easy

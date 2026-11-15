@@ -37,7 +37,7 @@ RUNNABLE = GENERATORS + ("editor",) + EXT_TYPES
 IMAGE_DEFAULT_SECONDS = 3.0
 STYLE_IMAGES_MAX = 3
 KEEP_HISTORY = 24
-CAP_OF = {"image": "image", "video": "video", "sound": "sound", "voice": "voice", "transcribe": "stt"}
+CAP_OF = {"image": "image", "video": "video", "sound": "sound", "voice": "voice", "transcribe": "stt", "model3d": "model3d"}
 
 
 def _sig(obj: Any) -> str:
@@ -231,7 +231,7 @@ class CanvasEngine:
             return {"text": r["text"] if r["state"] == "done" else "", "assets": []}
         if t in EXT_TYPES:  # nós novos que entregam arquivos (a Galeria entrega também o texto que recebeu)
             return {"text": r["text"] if r["state"] == "done" and t == "out_gallery" else "", "assets": [assets[i] for i in r["assets"] if i in assets] if r["state"] == "done" else []}
-        if t in ("image", "video", "sound", "voice", "editor"):
+        if t in ("image", "video", "sound", "voice", "editor", "model3d"):
             return {"text": "", "assets": [assets[i] for i in r["assets"] if i in assets] if r["state"] == "done" else []}
         return {"text": "", "assets": []}
 
@@ -422,7 +422,7 @@ class CanvasEngine:
     def node_hash(self, canvas: Dict[str, Any], node: Dict[str, Any]) -> str:
         t = node["type"]
         data: Dict[str, Any] = {"type": t, "params": node["params"]}
-        if t in ("image", "video", "sound", "voice", "llm", "transcribe", "editor") or t in EXT_TYPES:
+        if t in ("image", "video", "sound", "voice", "llm", "transcribe", "editor", "model3d") or t in EXT_TYPES:
             ports: Dict[str, Any] = {}
             for pid_, _label, _acc, _multi in NODE_TYPES[t]["ins"]:
                 if pid_ == "style":
@@ -438,7 +438,7 @@ class CanvasEngine:
         if t in ("image", "video"):   # as imagens citadas com @ no prompt entram no hash: citar outra (ou trocar o arquivo) deixa o nó desatualizado
             txt = "\n\n".join(x for x in (self.inputs(canvas, node, "prompt")["text"], node["params"].get("prompt", "").strip()) if x)   # o @ vale também no texto de um nó Texto ligado
             data["mentions"] = mentions_mod.ids_in(canvas, txt)
-        if t in ("image", "video", "sound", "voice", "llm", "text_refine"):
+        if t in ("image", "video", "sound", "voice", "llm", "text_refine", "model3d"):
             data["style"] = self.styles_for(canvas, node, need_digest=False).signature()
             data["style_ids"] = self.style_ids(canvas, node)
         if t in CAP_OF:
@@ -600,6 +600,16 @@ class CanvasEngine:
             raise ProviderError("Não foi possível salvar o arquivo gerado.")
         return a["id"]
 
+    def _object_picture(self, prompt: str, seed: int, warnings: List[str]) -> Tuple[bytes, str]:
+        """Etapa 1 do texto → 3D nos modelos que só leem imagem: gera, com o modelo de imagem padrão do projeto, o objeto isolado em fundo liso."""
+        ipid = pick_provider(self.settings, "image", "")
+        iprov = build_media(self.settings, ipid, self.ctl, self.store.models_dir)
+        imodel = media_config(self.settings, ipid)["models"].get("image", "")
+        self.ctl.note("Etapa 1 de 2: gerando uma imagem do objeto…")
+        warnings.append("Este modelo 3D só aceita imagem: o texto virou uma imagem do objeto (modelo de imagem padrão) antes de virar 3D.")
+        m = iprov.image(f"{prompt}, a single object, centered, full view, plain white background, soft even lighting", size="1024x1024", count=1, seed=seed, model=imodel)[0]
+        return m.data, m.mime
+
     def _generate(self, canvas: Dict[str, Any], node: Dict[str, Any], forced: bool) -> Dict[str, Any]:
         t, p = node["type"], node["params"]
         style = self.styles_for(canvas, node)
@@ -691,6 +701,17 @@ class CanvasEngine:
             prompt = (prompt + (f"\n\nStyle: {style.render(prompt)}" if style.text else "")) if p["kind"] == "music" else prompt
             m = prov.sound(prompt, kind=p["kind"], duration=p["duration"], model=p["model"], extra=p["extra"], seed=seed)
             return {"assets": [self._save(node, m, "audio", self._title(node, "Música" if p["kind"] == "music" else "Som"), prompt, pid, model)], "text": "", "warnings": warnings}
+        if t == "model3d":
+            base = "\n\n".join(x for x in (self.inputs(canvas, node, "prompt")["text"], p["prompt"].strip()) if x)
+            img = next(iter(self.image_inputs(canvas, node, "image")), None)
+            if not base and not img:
+                raise ValueError(self._no_prompt(canvas, node, "O nó Modelo 3D precisa de um prompt (ou de uma imagem ligada)."))
+            stx = style.render(base) if base else ""
+            prompt = base + (f"\n\nStyle: {stx}" if stx and not img else "")
+            if img is None and prov.model3d_needs_image(p["model"]):
+                img = self._object_picture(base, seed, warnings)   # TripoSR/Hunyuan3D só aceitam imagem: o texto vira uma foto do objeto antes (duas etapas)
+            m = prov.model3d(prompt, image=img, model=p["model"], seed=seed, fmt=p["format"], extra=p["extra"])
+            return {"assets": [self._save(node, m, "model3d", self._title(node, "Modelo 3D"), prompt or "imagem", pid, model)], "text": "", "warnings": warnings}
         if t == "voice":
             speech = "\n\n".join(x for x in (self.inputs(canvas, node, "text")["text"], p["text"].strip()) if x)
             if not speech:

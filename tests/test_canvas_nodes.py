@@ -26,11 +26,11 @@ class SchemaTests(unittest.TestCase):
         for k, v in nodes_ext.SPECS.items():
             groups.setdefault(v["group"], []).append(k)
         self.assertEqual({g: len(v) for g, v in groups.items()}, {"Texto": 7, "Imagem": 9, "Vídeo": 8, "Som": 6, "Input": 6, "Output": 6})   # v0.34: +10 nós
-        self.assertEqual([g for g, _ in schema.PALETTE], ["Texto", "Imagem", "Vídeo", "Som", "Input", "Output"])
+        self.assertEqual([g for g, _ in schema.PALETTE], ["Texto", "Imagem", "Vídeo", "Som", "Input", "3D", "Output"])
         listed = [t for _, ts in schema.PALETTE for t in ts]
         self.assertEqual(sorted(listed), sorted(schema.NODE_TYPES))  # todo nó (antigo e novo) está na paleta, uma vez só
         self.assertEqual(len(listed), len(set(listed)))
-        self.assertEqual({t["group"] for t in schema.describe_types()}, {"Texto", "Imagem", "Vídeo", "Som", "Input", "Output"})
+        self.assertEqual({t["group"] for t in schema.describe_types()}, {"Texto", "Imagem", "Vídeo", "Som", "Input", "3D", "Output"})
         for k in schema.NODE_TYPES:  # todo nó tem parâmetros válidos por padrão
             self.assertIsInstance(schema.normalize_params(k, {}), dict)
         for k in nodes_ext.SPECS:

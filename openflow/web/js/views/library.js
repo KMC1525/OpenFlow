@@ -120,7 +120,7 @@ export default async function render(root, ctx) {
       crumbs.append(h('button', { type: 'button', class: 'lib-crumb', ...dropTarget(''), onclick: () => go({ folder: '' }) }, rootName));
       (S.path || []).forEach((p) => crumbs.append(h('span', { class: 'sep' }, '›'), h('button', { type: 'button', class: 'lib-crumb', ...dropTarget(p.id), onclick: () => go({ folder: p.id }) }, p.name)));
     }
-    const kinds = S.scope === 'models' ? [['', 'Todos os tipos'], ...GGUF_KINDS.map(([k, l]) => [k, l])] : [['', 'Todos os tipos'], ['image', 'Imagens'], ['video', 'Vídeos'], ['audio', 'Sons']];
+    const kinds = S.scope === 'models' ? [['', 'Todos os tipos'], ...GGUF_KINDS.map(([k, l]) => [k, l])] : [['', 'Todos os tipos'], ['image', 'Imagens'], ['video', 'Vídeos'], ['audio', 'Sons'], ['model3d', 'Modelos 3D']];
     filters.replaceChildren();
     if ((S.scope === 'models' || S.scope === 'files') && !S.browse) {
       filters.append(h('select', { id: 'lib-kind', 'aria-label': t('Tipo de arquivo'), onchange: (e) => { S.kind = e.target.value; loadItems(); } }, kinds.map(([v, l]) => h('option', { value: v, selected: v === S.kind }, t(l)))));
@@ -171,7 +171,7 @@ export default async function render(root, ctx) {
   const open = (f) => { S.q = ''; search.value = ''; go({ folder: f.id, browse: false }); };
 
   const thumb = (f) => f.kind === 'image' ? h('img', { src: f.url, alt: f.name, loading: 'lazy', draggable: 'false' })
-    : f.kind === 'video' ? h('video', { src: f.url, preload: 'metadata', muted: true, 'aria-label': f.name }) : h('div', { class: 'ico' }, icon('audio', 30));
+    : f.kind === 'video' ? h('video', { src: f.url, preload: 'metadata', muted: true, 'aria-label': f.name }) : h('div', { class: 'ico' }, icon(f.kind === 'model3d' ? 'cube' : 'audio', 30));
 
   function fileCard(f) {
     return h('div', { class: 'lib-card file', 'data-asset': f.id, draggable: 'true', ondragstart: dragStart({ keys: [f.key] }) },

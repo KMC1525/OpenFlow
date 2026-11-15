@@ -231,7 +231,7 @@ class ProjectRoutes:
         if archives.archive_kind(name):   # ZIP, RAR, 7z, TAR…: as imagens, vídeos e áudios de dentro viram arquivos do canvas (uma resposta com `also` quando há mais de um)
             return self._asset_upload_archive(req, cid, name, data)
         mime = sniff_mime(data)  # o tipo vem do conteúdo, nunca do nome nem do Content-Type enviado
-        kind = mime.split("/")[0] if mime.split("/")[0] in ("image", "audio", "video") else ""
+        kind = mime.split("/")[0] if mime.split("/")[0] in ("image", "audio", "video") else ("model3d" if mime == "model/gltf-binary" else "")
         if not data or not kind:
             raise HttpError(400, "Envie uma imagem, um vídeo ou um áudio válido (PNG, JPG, WebP, GIF, MP4, WebM, MP3, WAV, OGG, FLAC, M4A…).")
         file_ext = MIME_EXT.get(mime, "bin")
@@ -280,7 +280,7 @@ class ProjectRoutes:
             raise HttpError(404, "Arquivo não encontrado")
         rec = next((a for a in c["assets"] if a["file"] == fname), None)
         mime = (rec or {}).get("mime") or mimetypes.guess_type(fname)[0] or "application/octet-stream"
-        if mime.split("/")[0] not in ("image", "audio", "video"):
+        if mime.split("/")[0] not in ("image", "audio", "video", "model"):
             mime = "application/octet-stream"
         dl = "1" in (req.query.get("download") or [])
         req.file(path, mime, download_name=(rec or {}).get("name", fname) if dl else "", cache=True)
@@ -391,7 +391,7 @@ class ProjectRoutes:
         qs = req.query
         kind = (qs.get("kind", [""])[0] or "").strip()
         source = (qs.get("source", ["generated"])[0] or "generated").strip()
-        if kind not in ("", "image", "video", "audio") or source not in ("generated", "upload", "all"):
+        if kind not in ("", "image", "video", "audio", "model3d") or source not in ("generated", "upload", "all"):
             raise HttpError(400, "Filtro inválido.")
         files = self.cs.library_files(kind, (qs.get("q", [""])[0] or "")[:100], source)
         req.json({"files": files})
@@ -535,7 +535,7 @@ class ProjectRoutes:
         req.json({"job_id": job.id})
 
     def r_media_installed(self, req) -> None:
-        """Modelos instalados neste computador para um tipo (image, video, sound, voice, stt): GGUF baixados e modelos do Hugging Face local."""
+        """Modelos instalados neste computador para um tipo (image, video, sound, voice, stt, model3d): GGUF baixados e modelos do Hugging Face local."""
         from .canvas import installed
 
         cap = text(req.query.get("cap", ["image"])[0], "image", 12)
@@ -553,7 +553,7 @@ class ProjectRoutes:
         req.json({"items": items[:50]})
 
     # ------------------------------------------------------------------ barra de busca de modelos (Hugging Face) no topo do editor
-    HUB_CAPS = ("image", "video", "sound", "voice", "stt", "text")
+    HUB_CAPS = ("image", "video", "sound", "voice", "stt", "text", "model3d")
     GGUF_CAP_KIND = {"image": "image", "video": "video", "text": "text"}   # só estes têm provedor GGUF no OpenFlow (sons e vozes usam o formato original)
 
     def r_hub_search(self, req) -> None:
@@ -593,7 +593,7 @@ class ProjectRoutes:
             model = Path(model).name
         elif not REPO_RE.match(model):
             raise HttpError(400, "Informe o modelo no formato dono/nome.")
-        node_type = {"image": "image", "video": "video", "sound": "sound", "voice": "voice", "stt": "transcribe", "text": "llm"}[cap]
+        node_type = {"image": "image", "video": "video", "sound": "sound", "voice": "voice", "stt": "transcribe", "text": "llm", "model3d": "model3d"}[cap]
         if cap == "text":   # modelo de texto GGUF baixado: provedor «Hugging Face GGUF (embutido)» da conversa
             if not (self.store.models_dir / Path(model).name).is_file():
                 raise HttpError(404, "Esse arquivo GGUF não foi baixado ainda.")

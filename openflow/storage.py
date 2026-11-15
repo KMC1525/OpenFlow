@@ -34,7 +34,7 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     },
     "media": {
         # provedor padrão de cada capacidade (cada nó pode escolher outro)
-        "active": {"image": "demo", "video": "demo", "sound": "demo", "voice": "demo", "stt": "local_hf"},   # transcrição: o Whisper local (precisa de openflow[media])
+        "active": {"image": "demo", "video": "demo", "sound": "demo", "voice": "demo", "stt": "local_hf", "model3d": "demo"},   # transcrição: o Whisper local (precisa de openflow[media])
         "models": {},  # {"local_hf": {"image": "stabilityai/sd-turbo"}} — modelo por provedor e capacidade
     },
     "canvas": {"template": "text_image", "agents": 1, "effort": "high"},  # equipe dos nós de texto (IA) e do planejador de fluxos

@@ -35,9 +35,9 @@ from .. import perf as _perf
 from ..util import hardware_info
 from ..providers.base import ProviderError
 from . import procedural as proc
-from . import gguf_info, sdcli, support
+from . import gguf_info, mesh3d, sdcli, support
 
-CAP_LABELS = {"image": "imagens", "video": "vídeos", "sound": "sons e músicas", "voice": "vozes", "stt": "transcrição de áudio"}
+CAP_LABELS = {"image": "imagens", "video": "vídeos", "sound": "sons e músicas", "voice": "vozes", "stt": "transcrição de áudio", "model3d": "modelos 3D"}
 Ref = Tuple[bytes, str]  # (bytes, mime) de uma imagem de referência
 RETRY_DELAY = 2.0  # espera antes de repetir uma chamada recusada por excesso de uso (os testes reduzem)
 
@@ -45,6 +45,7 @@ MIME_EXT = {
     "image/png": "png", "image/jpeg": "jpg", "image/jpg": "jpg", "image/webp": "webp", "image/gif": "gif",
     "audio/mpeg": "mp3", "audio/mp3": "mp3", "audio/wav": "wav", "audio/x-wav": "wav", "audio/wave": "wav", "audio/ogg": "ogg", "audio/opus": "ogg",
     "audio/flac": "flac", "audio/x-flac": "flac", "audio/mp4": "m4a", "audio/aac": "aac", "audio/webm": "weba",
+    "model/gltf-binary": "glb", "model/obj": "obj",
     "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov", "video/x-msvideo": "avi",
 }
 DEFAULT_MIME = {"image": "image/png", "audio": "audio/mpeg", "video": "video/mp4"}
@@ -70,6 +71,8 @@ def sniff_mime(data: bytes, fallback: str = "") -> str:
         return "video/x-msvideo"
     if h[:4] == b"OggS":
         return "audio/ogg"
+    if h[:4] == b"glTF":
+        return "model/gltf-binary"
     if h[:4] == b"fLaC":
         return "audio/flac"
     if h[:3] == b"ID3" or (len(h) > 1 and h[0] == 0xFF and (h[1] & 0xE0) == 0xE0):
@@ -91,7 +94,8 @@ class Media:
 
     @property
     def kind(self) -> str:
-        return self.mime.split("/")[0] if self.mime.split("/")[0] in ("image", "audio", "video") else "file"
+        main = self.mime.split("/")[0]
+        return main if main in ("image", "audio", "video") else ("model3d" if main == "model" else "file")
 
     @property
     def ext(self) -> str:
@@ -233,6 +237,14 @@ class MediaProvider:
     def transcribe(self, data: bytes, filename: str, mime: str, *, language: str = "", model: str = "") -> str:
         raise self._no("stt")
 
+    def model3d(self, prompt: str, *, image: Optional[Ref] = None, model: str = "", seed: int = 0, fmt: str = "glb", extra: Optional[Dict[str, Any]] = None) -> Media:
+        """Um modelo 3D (GLB ou OBJ) a partir de um texto e/ou de uma imagem."""
+        raise self._no("model3d")
+
+    def model3d_needs_image(self, model: str = "") -> bool:
+        """O modelo só aceita imagem (então o texto vira uma imagem antes)?"""
+        return False
+
     def list_models(self, cap: str) -> List[str]:
         return []
 
@@ -245,7 +257,7 @@ class MediaProvider:
 
 class DemoMedia(MediaProvider):
     id, label = "demo", "Demo (offline)"
-    caps = ("image", "video", "sound", "voice")
+    caps = ("image", "video", "sound", "voice", "model3d")
     supports_refs = True
 
     def image(self, prompt, *, size="1024x1024", count=1, seed=0, negative="", refs=(), model="", extra=None):
@@ -264,6 +276,11 @@ class DemoMedia(MediaProvider):
 
     def voice(self, text, *, voice="", speed=1.0, model="", extra=None, instructions=""):
         return Media(proc.babble(text, speed, proc.seed_of(voice)), "audio/wav", {"note": "demo"})
+
+    def model3d(self, prompt, *, image=None, model="", seed=0, fmt="glb", extra=None):
+        mix = proc.seed_of(len(image[0])) if image else 0   # com imagem, o resultado muda (não reconstrói de verdade)
+        fmt = mesh3d.valid_format(fmt)
+        return Media(mesh3d.encode(mesh3d.demo_mesh(prompt, seed + mix), fmt), mesh3d.MIME[fmt], {"note": "demo"})
 
     def transcribe(self, data, filename, mime, *, language="", model=""):
         raise ProviderError("O provedor Demo não transcreve áudio. Escolha um provedor de transcrição (OpenAI, Groq, Whisper local…) em Configuração → Mídia.")
@@ -483,7 +500,7 @@ class LocalHFMedia(MediaProvider):
     """
 
     id, label = "local_hf", "Hugging Face local (embutido)"
-    caps = ("image", "video", "sound", "voice", "stt")
+    caps = ("image", "video", "sound", "voice", "stt", "model3d")
     supports_refs = True   # imagem → imagem pelo mesmo modelo
     refs_edit_only = True
 
@@ -661,6 +678,113 @@ class LocalHFMedia(MediaProvider):
             img.save(buf, format="PNG")
             out.append(Media(buf.getvalue(), "image/png"))
         return out
+
+    # ---- 3D (v0.37): Shap-E (texto e imagem, diffusers), TripoSR e Hunyuan3D-2 (imagem, bibliotecas próprias)
+    def model3d_needs_image(self, model: str = "") -> bool:
+        return mesh3d.needs_image(self._pick("model3d", model, "openai/shap-e"))
+
+    def model3d(self, prompt, *, image=None, model="", seed=0, fmt="glb", extra=None):
+        model = self._pick("model3d", model, "openai/shap-e")
+        fam = mesh3d.family(model)
+        if not fam:
+            raise ProviderError(f'O modelo 3D "{model}" não é de uma família conhecida. Use Shap-E (openai/shap-e), TripoSR (stabilityai/TripoSR) ou Hunyuan3D-2 (tencent/Hunyuan3D-2mini) — baixe em Configuração → Mídia.')
+        pil = _pil_refs([image], 1) if image else []
+        if image and not pil:
+            raise ProviderError("Não consegui ler a imagem ligada ao nó 3D (formato não suportado).")
+        if fam == "shap-e":
+            if pil and not mesh3d.is_img2img(model):
+                model = mesh3d.FAMILIES["shap-e"]["image_repo"]   # com imagem, o Shap-E usa a versão «img2img» (outro modelo; precisa estar baixado)
+            elif not pil and mesh3d.is_img2img(model):
+                raise ProviderError("O modelo openai/shap-e-img2img precisa de uma imagem ligada ao nó. Para texto → 3D use openai/shap-e.")
+            mesh = self._mesh_shape(model, prompt, pil[0] if pil else None, seed, extra or {})
+        else:
+            if not pil:
+                raise ProviderError(f"{mesh3d.FAMILIES[fam]['label']} só cria 3D a partir de uma imagem: ligue uma imagem ao nó (ou use um texto, que vira imagem antes).")
+            mesh = self._mesh_tsr(model, pil[0], extra or {}) if fam == "triposr" else self._mesh_hunyuan(model, pil[0], seed, extra or {})
+        fmt = mesh3d.valid_format(fmt)
+        return Media(mesh3d.encode(mesh, fmt), mesh3d.MIME[fmt], {"family": fam})
+
+    def _mesh_shape(self, model: str, prompt: str, pil: Any, seed: int, extra: Dict[str, Any]) -> Any:
+        (diffusers,) = _local_import("diffusers")
+        (torch,) = _local_import("torch")
+        dev, _ = _device()
+        ready = self._ready(model)
+        cls = diffusers.ShapEImg2ImgPipeline if pil is not None else diffusers.ShapEPipeline
+
+        def load() -> Any:
+            return _slim(cls.from_pretrained(model, torch_dtype=ready["dtype"], local_files_only=True), dev)
+
+        pipe = _local_load("model3d", model, load)
+        self.ctl.note("Gerando o modelo 3D localmente…")
+        gen = torch.Generator("cpu").manual_seed(int(seed) if seed else int(time.time() * 1000) % (2 ** 31))
+        kw: Dict[str, Any] = {"num_inference_steps": 64, "guidance_scale": 15.0, "frame_size": 256, "output_type": "mesh", "generator": gen}
+        kw.update(extra)
+        out = pipe(pil if pil is not None else prompt, **kw)
+        m = out.images[0]
+        chans = getattr(m, "vertex_channels", None) or {}
+        colors = None
+        if all(k in chans for k in "RGB"):
+            colors = [(float(r), float(g), float(b)) for r, g, b in zip(chans["R"].tolist(), chans["G"].tolist(), chans["B"].tolist())]
+        v, f, c = mesh3d.as_lists(m.verts, m.faces, colors)
+        return mesh3d.rotate_x(v, -90.0), f, c   # o Shap-E entrega a malha deitada (eixo z para cima)
+
+    def _mesh_tsr(self, model: str, pil: Any, extra: Dict[str, Any]) -> Any:
+        from . import localmodels as lm
+
+        try:
+            from tsr.system import TSR  # type: ignore
+        except ImportError:
+            raise ProviderError("O TripoSR precisa da biblioteca dele:  pip install git+https://github.com/VAST-AI-Research/TripoSR  (e o torch).") from None
+        (torch,) = _local_import("torch")
+        self._ready(model)
+        snap = lm._snapshot(model)
+        dev = "cuda" if torch.cuda.is_available() and _perf.device() != "cpu" else "cpu"
+
+        def load() -> Any:
+            m = TSR.from_pretrained(str(snap or model), config_name="config.yaml", weight_name="model.ckpt")
+            m.renderer.set_chunk_size(8192)
+            return m.to(dev)
+
+        net = _local_load("model3d", model, load)
+        self.ctl.note("Reconstruindo o objeto em 3D (TripoSR)…")
+        img = pil.convert("RGBA")
+        bg = img.__class__.new("RGBA", img.size, (128, 128, 128, 255))   # objeto sobre cinza médio, como o TripoSR espera
+        bg.alpha_composite(img)
+        with torch.no_grad():
+            codes = net([bg.convert("RGB")], device=dev)
+            meshes = net.extract_mesh(codes, True, resolution=int(extra.get("resolution", 256)))
+        m = meshes[0]
+        vc = getattr(getattr(m, "visual", None), "vertex_colors", None)
+        colors = [(c[0] / 255.0, c[1] / 255.0, c[2] / 255.0) for c in vc.tolist()] if vc is not None and len(vc) == len(m.vertices) else None
+        return mesh3d.as_lists(m.vertices, m.faces, colors)
+
+    def _mesh_hunyuan(self, model: str, pil: Any, seed: int, extra: Dict[str, Any]) -> Any:
+        try:
+            from hy3dgen.shapegen import Hunyuan3DDiTFlowMatchingPipeline  # type: ignore
+        except ImportError:
+            raise ProviderError("O Hunyuan3D-2 precisa da biblioteca dele:  pip install git+https://github.com/Tencent/Hunyuan3D-2  (e o torch).") from None
+        (torch,) = _local_import("torch")
+        self._ready(model)
+        dev = "cuda" if torch.cuda.is_available() and _perf.device() != "cpu" else "cpu"
+
+        def load() -> Any:
+            old = os.environ.get("HF_HUB_OFFLINE")
+            os.environ["HF_HUB_OFFLINE"] = "1"   # nada é baixado em silêncio
+            try:
+                sub = "hunyuan3d-dit-v2-mini" if "mini" in model.lower() else "hunyuan3d-dit-v2-0"
+                return Hunyuan3DDiTFlowMatchingPipeline.from_pretrained(model, subfolder=sub, use_safetensors=True, device=dev)
+            finally:
+                if old is None:
+                    os.environ.pop("HF_HUB_OFFLINE", None)
+                else:
+                    os.environ["HF_HUB_OFFLINE"] = old
+
+        pipe = _local_load("model3d", model, load)
+        self.ctl.note("Gerando o modelo 3D localmente (Hunyuan3D-2)…")
+        gen = torch.Generator("cpu").manual_seed(int(seed) if seed else int(time.time() * 1000) % (2 ** 31))
+        res = pipe(image=pil, num_inference_steps=int(extra.get("steps", 30)), octree_resolution=int(extra.get("octree_resolution", 256)), generator=gen, output_type="trimesh")
+        m = res[0] if isinstance(res, (list, tuple)) else res
+        return mesh3d.as_lists(m.vertices, m.faces)
 
     def sound(self, prompt, *, kind="sfx", duration=5, model="", extra=None, seed=0):
         model = self._pick("sound", model, "facebook/musicgen-small")
@@ -1627,13 +1751,13 @@ class GGUFMedia(MediaProvider):
 
 MEDIA_PRESETS: Dict[str, Dict[str, Any]] = {   # v0.35: só o Demo (offline) e os modelos locais do Hugging Face; nenhum provedor de nuvem
     "demo": {
-        "label": "Demo (offline, sem IA)", "kind": "demo", "caps": ["image", "video", "sound", "voice"], "local": True, "needs_key": False,
+        "label": "Demo (offline, sem IA)", "kind": "demo", "caps": ["image", "video", "sound", "voice", "model3d"], "local": True, "needs_key": False,
         "hint": "Gera paisagens abstratas, sons sintetizados e vídeos simples sem chave e sem internet — ótimo para testar fluxos inteiros (vídeo precisa do ffmpeg).",
     },
     "local_hf": {
-        "label": "Hugging Face local (embutido)", "kind": "local_hf", "caps": ["image", "video", "sound", "voice", "stt"], "needs_key": False, "local": True,
-        "models": {"image": "stabilityai/sd-turbo", "video": "Lightricks/LTX-Video", "sound": "facebook/musicgen-small", "voice": "suno/bark-small", "stt": "openai/whisper-small"},
-        "suggest": {"image": ["stabilityai/sd-turbo", "stabilityai/sdxl-turbo", "black-forest-labs/FLUX.1-schnell", "unsloth/Z-Image-Turbo", "unsloth/FLUX.2-klein-4B", "unsloth/FLUX.1-schnell"], "video": ["Lightricks/LTX-Video"],
+        "label": "Hugging Face local (embutido)", "kind": "local_hf", "caps": ["image", "video", "sound", "voice", "stt", "model3d"], "needs_key": False, "local": True,
+        "models": {"image": "stabilityai/sd-turbo", "video": "Lightricks/LTX-Video", "sound": "facebook/musicgen-small", "voice": "suno/bark-small", "stt": "openai/whisper-small", "model3d": "openai/shap-e"},
+        "suggest": {"model3d": mesh3d.SUGGEST, "image": ["stabilityai/sd-turbo", "stabilityai/sdxl-turbo", "black-forest-labs/FLUX.1-schnell", "unsloth/Z-Image-Turbo", "unsloth/FLUX.2-klein-4B", "unsloth/FLUX.1-schnell"], "video": ["Lightricks/LTX-Video"],
                     "sound": ["facebook/musicgen-small"], "voice": ["suno/bark-small", "facebook/mms-tts-por", "unsloth/orpheus-3b-0.1-ft", "unsloth/csm-1b"],
                     "stt": ["openai/whisper-small", "openai/whisper-large-v3-turbo", "unsloth/whisper-large-v3-turbo", "unsloth/whisper-small", "unsloth/whisper-base"]},
         "hint": 'Roda modelos do Hugging Face dentro do OpenFlow. Requer:  pip install "openflow[media]". Antes de usar, escolha a precisão (quantização) e baixe cada modelo aqui mesmo — nada é baixado em silêncio. Vídeo exige GPU.',

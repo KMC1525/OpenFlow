@@ -210,7 +210,7 @@ class LibraryRoutes:
         q = (qs.get("q", [""])[0] or "").strip()[:100]
         kind = (qs.get("kind", [""])[0] or "").strip()
         source = (qs.get("source", ["all"])[0] or "all").strip()
-        if source not in ("generated", "upload", "all") or kind not in ("", "image", "video", "audio", "text", "sound", "voice", "stt"):
+        if source not in ("generated", "upload", "all") or kind not in ("", "image", "video", "audio", "text", "sound", "voice", "stt", "model3d"):
             raise HttpError(400, "Filtro inválido.")
         try:
             items = self._models() if scope == "models" else self._files(kind if scope == "files" else "", source)

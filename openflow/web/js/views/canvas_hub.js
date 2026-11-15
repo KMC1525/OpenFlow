@@ -3,9 +3,9 @@ import { t } from '../i18n.js';
 import { fill, h, icon, toast } from '../ui.js';
 
 // Barra de pesquisa de modelos no topo do Canvas (Hugging Face): procura, mostra TODAS as quantizações de cada modelo, baixa e passa a usar — no nó selecionado e como padrão do tipo.
-const CAPS = [['image', 'Imagem'], ['video', 'Vídeo'], ['sound', 'Som'], ['voice', 'Voz'], ['stt', 'Transcrição'], ['text', 'Texto']];
+const CAPS = [['image', 'Imagem'], ['video', 'Vídeo'], ['sound', 'Som'], ['voice', 'Voz'], ['stt', 'Transcrição'], ['model3d', '3D'], ['text', 'Texto']];
 const GGUF_CAPS = ['image', 'video', 'text'];   // os únicos com provedor GGUF no OpenFlow; os outros usam o formato original (fp32/fp16/bf16)
-const NODE_OF = { image: 'image', video: 'video', sound: 'sound', voice: 'voice', stt: 'transcribe', text: 'llm' };
+const NODE_OF = { image: 'image', video: 'video', sound: 'sound', voice: 'voice', stt: 'transcribe', text: 'llm', model3d: 'model3d' };
 const QUALITY = { very_low: 'qualidade muito baixa', low: 'qualidade baixa', good: 'boa qualidade', very_good: 'ótima qualidade', high: 'alta qualidade', lossless: 'quase sem perdas', original: 'original' };
 const PREC_HINT = { fp32: 'Maior e mais lento; funciona em qualquer computador', fp16: 'Metade do tamanho; ideal com placa de vídeo', bf16: 'Como o fp16, com a faixa do fp32' };
 const bytes = (n) => (n >= 1 << 30 ? (n / (1 << 30)).toFixed(1) + ' GB' : n >= 1 << 20 ? Math.round(n / (1 << 20)) + ' MB' : n ? Math.round(n / 1024) + ' KB' : '?');
