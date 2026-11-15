@@ -139,6 +139,7 @@ class App:
         a("GET", r"/api/jobs", self.r_jobs)
         a("GET", r"/api/library/downloads", self.r_downloads)
         a("GET", r"/api/cpu", self.r_cpu)
+        a("GET", r"/api/gpu", self.r_gpu)
         a("POST", r"/api/cpu/bench", self.r_cpu_bench)
         a("GET", r"/api/jobs/(?P<jid>[\w-]+)/events", self.r_job_events)
         a("POST", r"/api/jobs/(?P<jid>[\w-]+)/cancel", self.r_job_cancel)
@@ -339,6 +340,28 @@ class App:
                               int(info.get("p_logical") or 1) + int(info.get("e_logical") or 0), bool(info.get("hybrid")), int(info.get("simd") or 0), int(info.get("l2_kb") or 0), int(mem.get("ram_avail") or 0), mode)
         return {"info": {k: v for k, v in info.items() if k not in ("p_cpus", "e_cpus", "features")}, "features": info.get("features", []), "bench": {k: v for k, v in bench.items() if k != "key"}, "models": models,
                 "weak": bool(ref.get("weak")), "max_gb_5tps": ref.get("max_gb_5tps", 0), "max_gb_10tps": ref.get("max_gb_10tps", 0), "pinned": bool(perf._PINNED["cpus"]), "rust": native.status().get("active", False)}
+
+    def r_gpu(self, req: "Request") -> None:
+        """As placas de vídeo (NVIDIA/AMD/Intel), se o llama-cpp-python instalado consegue usá-las, o executável do sd-cli que será usado e a velocidade esperada de cada modelo de texto baixado na melhor placa.
+        Configurações → Desempenho mostra isto."""
+        from . import native, perf
+        from .canvas import sdcli
+
+        gpus = native.gpu_info()
+        sup = native.llama_gpu_support()
+        best = perf.best_discrete_gpu()
+        mode = perf.MODE_NUM[perf.resolve(str((self.store.get_settings().get("performance") or {}).get("mode") or "auto"), hardware_info())]
+        bench = native.cached_bench() or {}
+        models = []
+        if best:
+            for m in hf.local_models(self.store.models_dir, "text"):
+                info = native.model_info(str(hf.kind_dir(self.store.models_dir, "text") / m["name"])) or {}
+                plan = native.plan_gpu(int(m["size"]), int(info.get("layers") or 0), int(info.get("kv_bytes_per_token") or 0), 4096, int(best.get("vram_total") or 0), int(best.get("vram_free") or 0),
+                                       best["vendor"], False, float(best.get("bw_gbs") or 0), float(bench.get("bwn") or 0), 0, mode)
+                models.append({"name": m["name"], "size": m["size"], "layers_fit": plan["layers_fit"], "layers": int(info.get("layers") or 0), "all_gpu": plan["n_gpu_layers"] == -1, "kv_on_gpu": plan["offload_kqv"],
+                               "est_tps": plan["est_tps"], "est_tps_cpu": plan["est_tps_cpu"], "notes": plan["notes"]})
+        backend = best["backend"] if best else (gpus[0]["backend"] if gpus else "")
+        req.json({"gpus": gpus, "llama": sup, "backend": backend, "best": (best or {}).get("name", ""), "sd_cli": sdcli.backend(), "models": models, "device": perf.device()})
 
     def r_cpu(self, req: "Request") -> None:
         """O processador, a largura de banda da memória (se já medida) e a velocidade esperada de cada modelo de texto baixado, só na CPU. Configurações → Desempenho mostra isto."""

@@ -2,6 +2,22 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.29.0] — 2026-11-15
+
+### New — GPU Upgrade: faster local models on NVIDIA, AMD and Intel cards (Rust core)
+- **Card detection** (`gpu.rs`, core interface 6): NVIDIA through `nvidia-smi`; **AMD and Intel through `/sys/class/drm` (Linux)**, with total/free memory, the kind (**dedicated** or **integrated**), the name from the system's `pci.ids` and the right backend (CUDA, Vulkan, Metal). Before, only NVIDIA existed for OpenFlow: on an AMD/Intel text always fell to the CPU (or, with "GPU" forced, sent everything to the card without checking memory).
+- **GPU planner** for text models: how many layers go to the card and **where the attention cache lives**. On **small cards (2–6 GB, laptops)** the cache stays in RAM and VRAM gets only layers — more layers fit, and the maths (card bandwidth × the RAM measured in v0.28) decides when it pays; a **bigger VRAM reserve** on small cards (the system uses some); **flash attention only on NVIDIA/Apple** (compatibility varies on Vulkan); **an integrated GPU is not used** by default (it shares RAM with the CPU, which performs the same) — unless you choose "GPU" in Run on.
+- **Planning bug fixed:** the PyPI `llama-cpp-python` is **CPU-only**. With an NVIDIA card and that package, OpenFlow planned as if the card were used (context window from VRAM, only 4 threads, big batches) and the model ran on the CPU with the wrong settings. It now **asks llama.cpp whether GPU support exists** (`llama_supports_gpu_offload`) and, if not, treats the model as a CPU one (v0.28 tuning).
+- **sd-cli (image and video):** with a **dedicated** AMD/Intel card, Automatic mode now downloads the **Vulkan** executable (before, only with "GPU" forced).
+- **Settings → Performance → “Graphics card (acceleration)”:** lists the cards (memory, dedicated/integrated, backend), shows whether the installed llama.cpp **uses** the card and, if not, **the command to reinstall it with CUDA/Vulkan/Metal** (Copy button; PowerShell on Windows), the sd-cli executable in use and, per text model, how many layers go to the card, whether the cache stays in RAM and the expected speed. New route `GET /api/gpu`.
+- Python equivalent without the Rust core; tests check Rust and Python give the **same plan** across 400 combinations.
+
+### Not verified
+- **There is no graphics card on this computer:** NVIDIA/AMD/Intel detection and the `/sys/class/drm` reading follow the kernel and `nvidia-smi` documentation but **never ran on a real card**; the planner was tested with simulated values. **Intel Arc:** reading dedicated memory (`lmem_total_bytes`) depends on the driver (i915) and may come empty. **Windows and macOS:** only NVIDIA (Windows) and Apple Silicon (already existed) are detected; AMD/Intel on Windows are not.
+- The “≈ tok/s” speeds depend on a **bandwidth table of common cards** (manufacturer specs, not measured); a card outside the table gets no estimate. I timed no model.
+- **OpenFlow does not install GPU-enabled llama.cpp by itself:** compiling takes minutes and needs the vendor kit (CUDA Toolkit, Vulkan SDK); it only shows the command. AMD ROCm was not handled — the recommended route is Vulkan.
+- `offload_kqv` and flash attention depend on the installed llama-cpp-python accepting them; on an old version loading falls back to the basic options, as it already did.
+
 ## [0.28.0] — 2026-11-15
 
 ### New — CPU Upgrade: faster local models on AMD/Intel processors (Rust core)

@@ -283,10 +283,53 @@ def gpu_memory(ram_total: int = 0, ram_avail: int = 0) -> tuple:
                 v = (tot, free, False)
         except (OSError, subprocess.SubprocessError, ValueError):
             pass
+    if v[0] == 0:   # AMD/Intel dedicadas (Linux, /sys/class/drm): a maior memória livre (v0.29)
+        g = best_discrete_gpu()
+        if g and g.get("vram_total"):
+            v = (int(g["vram_total"]), int(g["vram_free"]), False)
     if v[0] == 0 and platform.system() == "Darwin" and "arm" in platform.machine().lower() and ram_total:
         v = (int(ram_total * 0.65), int(min(ram_avail, ram_total) * 0.65), True)
     _GPU_CACHE.update(t=now, v=v)
     return v
+
+
+def best_discrete_gpu() -> Optional[Dict[str, Any]]:
+    """A placa de vídeo dedicada para os modelos de texto: NVIDIA (a escolhida com mais memória livre) ou, sem NVIDIA, a AMD/Intel dedicada com mais memória livre. None se não há."""
+    try:
+        from . import native
+
+        gpus = [g for g in native.gpu_info() if not g.get("integrated") and g.get("vram_total")]
+    except Exception:  # noqa: BLE001
+        return None
+    nv = [g for g in gpus if g["vendor"] == "nvidia"]
+    if nv:
+        sel = set(selected_gpus()) or {g["index"] for g in nv}
+        nv = [g for g in nv if g["index"] in sel] or nv
+        return max(nv, key=lambda g: g["vram_free"])
+    return max(gpus, key=lambda g: g["vram_free"]) if gpus else None
+
+
+def gpu_tuning(weights: int, layers: int, kv_per_token: int, ctx: int, mode: str) -> Dict[str, Any]:
+    """Plano da placa de vídeo para um modelo de texto (native.plan_gpu): camadas na placa, cache de atenção na VRAM ou na RAM, atenção flash e velocidade esperada. {} sem placa dedicada
+    ou se algo falhar — quem chama segue com o plano antigo."""
+    try:
+        from . import native
+
+        g = best_discrete_gpu()
+        integrated = False
+        if g is None:   # só integrada: o planejador decide que não vale (a menos que o usuário force «GPU»)
+            ig = [x for x in native.gpu_info() if x.get("integrated")]
+            if not ig:
+                return {}
+            g, integrated = ig[0], True
+        bench = native.cached_bench() or {}
+        mem = memory_state()
+        plan = native.plan_gpu(int(weights), int(layers), int(kv_per_token), int(ctx), int(g.get("vram_total") or 0), int(g.get("vram_free") or 0), g["vendor"], integrated, float(g.get("bw_gbs") or 0),
+                               float(bench.get("bwn") or 0), int(mem.get("ram_avail") or 0), MODE_NUM.get(mode, 1))
+        plan["gpu"] = {k: g.get(k) for k in ("index", "vendor", "name", "backend", "vram_total", "vram_free", "integrated")}
+        return plan
+    except Exception:  # noqa: BLE001
+        return {}
 
 
 def memory_state() -> Dict[str, Any]:

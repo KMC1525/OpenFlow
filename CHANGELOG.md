@@ -2,6 +2,22 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.29.0] — 2026-11-15
+
+### Novo — GPU Upgrade: modelos locais mais rápidos em placas NVIDIA, AMD e Intel (núcleo Rust)
+- **Detecção de placas** (`gpu.rs`, interface 6 do núcleo): NVIDIA pelo `nvidia-smi`; **AMD e Intel pelo `/sys/class/drm` (Linux)**, com a memória total/livre, o tipo (**dedicada** ou **integrada**), o nome do banco `pci.ids` do sistema e o backend certo (CUDA, Vulkan, Metal). Antes só a NVIDIA existia para o OpenFlow: numa AMD/Intel o texto caía sempre na CPU (ou, com «GPU» forçada, mandava tudo para a placa sem medir a memória).
+- **Planejador de GPU** para modelos de texto: quantas camadas vão para a placa e **onde fica o cache de atenção**. Em **placas pequenas (2–6 GB, notebooks)** o cache fica na RAM e a VRAM recebe só camadas — cabem mais camadas, e a conta (largura de banda da placa × RAM medida na v0.28) decide quando vale; **reserva maior de VRAM** nas placas pequenas (o sistema usa uma parte); **atenção flash só em NVIDIA/Apple** (no Vulkan a compatibilidade varia); **GPU integrada não é usada** por padrão (divide a RAM com a CPU, que rende igual) — a menos que você escolha «GPU» em Rodar em.
+- **Corrigido um erro de planejamento:** o `llama-cpp-python` do PyPI é **só CPU**. Com uma placa NVIDIA e esse pacote, o OpenFlow planejava como se a placa fosse usada (janela de contexto pela VRAM, só 4 threads, lotes grandes) e o modelo rodava na CPU com os ajustes errados. Agora ele **pergunta ao llama.cpp se há suporte a GPU** (`llama_supports_gpu_offload`) e, não havendo, trata o modelo como de CPU (ajustes da v0.28).
+- **sd-cli (imagem e vídeo):** com uma AMD/Intel **dedicada**, o modo Automático passa a baixar o executável **Vulkan** (antes só com «GPU» forçada).
+- **Configurações → Desempenho → «Placa de vídeo (aceleração)»:** lista as placas (memória, dedicada/integrada, backend), mostra se o llama.cpp instalado **usa** a placa e, se não, **o comando para reinstalá-lo com CUDA/Vulkan/Metal** (com botão Copiar; PowerShell no Windows), o executável do sd-cli em uso e, por modelo de texto, quantas camadas vão para a placa, se o cache fica na RAM e a velocidade esperada. Nova rota `GET /api/gpu`.
+- Equivalente em Python sem o núcleo Rust; os testes conferem que Rust e Python dão o **mesmo plano** em 400 combinações.
+
+### Ainda não verificado
+- **Não há placa de vídeo neste computador:** a detecção NVIDIA/AMD/Intel e a leitura do `/sys/class/drm` seguem a documentação do kernel e do `nvidia-smi` mas **nunca rodaram numa placa real**; o planejador foi testado com valores simulados. **Intel Arc:** a leitura da memória dedicada (`lmem_total_bytes`) depende do driver (i915) e pode vir vazia. **Windows e macOS:** só NVIDIA (Windows) e Apple Silicon (já existia) são detectados; AMD/Intel no Windows não.
+- As velocidades «≈ tok/s» dependem de uma **tabela de largura de banda de placas comuns** (especificações dos fabricantes, não medidas); placa fora da tabela fica sem estimativa. Não cronometrei nenhum modelo.
+- **O OpenFlow não instala o llama.cpp com GPU sozinho:** compilar leva minutos e precisa do kit do fabricante (CUDA Toolkit, Vulkan SDK); ele só mostra o comando. O ROCm da AMD não foi tratado — a rota recomendada é Vulkan.
+- `offload_kqv` e a atenção flash dependem de a versão instalada do llama-cpp-python aceitá-los; em versão antiga o carregamento cai para as opções básicas, como já acontecia.
+
 ## [0.28.0] — 2026-11-15
 
 ### Novo — CPU Upgrade: modelos locais mais rápidos em processadores AMD/Intel (núcleo Rust)
