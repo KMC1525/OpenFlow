@@ -45,17 +45,20 @@ def _backoff(attempt: int, cancelled: Callable[[], bool]) -> None:
         time.sleep(0.2)
 
 
-def probe(url: str, headers: Dict[str, str]) -> Tuple[str, int, bool]:
-    """(endereço final depois dos redirecionamentos, tamanho total, aceita faixas?). Pede só o primeiro byte."""
+def probe(url: str, headers: Dict[str, str], keep: bool = False) -> Tuple[str, int, bool, object]:
+    """(endereço final depois dos redirecionamentos, tamanho total, aceita faixas?, resposta). Pede só o primeiro byte. Se o servidor ignora a faixa e manda o arquivo inteiro e `keep` é verdadeiro,
+    a resposta continua aberta (e é devolvida) para o download de uma conexão aproveitá-la, sem pedir de novo; nos outros casos é fechada e a resposta é None."""
     resp = http.request(url, headers={**headers, "Range": "bytes=0-0"}, timeout=60)
-    try:
-        final = resp.geturl() or url
-        m = re.match(r"bytes\s+\d+-\d+/(\d+)", resp.headers.get("Content-Range") or "")
-        if resp.status == 206 and m:
-            return final, int(m.group(1)), True
-        return final, int(resp.headers.get("Content-Length") or 0), False
-    finally:
+    final = resp.geturl() or url
+    m = re.match(r"bytes\s+\d+-\d+/(\d+)", resp.headers.get("Content-Range") or "")
+    if resp.status == 206 and m:
         resp.close()
+        return final, int(m.group(1)), True, None
+    total = int(resp.headers.get("Content-Length") or 0)
+    if keep and resp.status == 200:
+        return final, total, False, resp
+    resp.close()
+    return final, total, False, None
 
 
 def _segment_headers(url: str, final: str, headers: Dict[str, str]) -> Dict[str, str]:
@@ -94,7 +97,7 @@ def _save_state(part: Path, total: int, segs: List[Tuple[int, int]], done: List[
         pass
 
 
-def single(url: str, part: Path, headers: Dict[str, str], progress: Optional[Callable[[int, int], None]], cancelled: Callable[[], bool]) -> int:
+def single(url: str, part: Path, headers: Dict[str, str], progress: Optional[Callable[[int, int], None]], cancelled: Callable[[], bool], first: object = None) -> int:
     """Uma conexão, retomando do `.part`; se a rede cai, tenta de novo (até `RETRIES` vezes) a partir do que já chegou."""
     attempt = 0
     total = 0
@@ -104,11 +107,16 @@ def single(url: str, part: Path, headers: Dict[str, str], progress: Optional[Cal
         if start:
             hdrs["Range"] = f"bytes={start}-"
         try:
-            resp = http.request(url, headers=hdrs, timeout=60)
+            if first is not None and not start:   # a resposta do teste de faixas já é o arquivo inteiro: aproveita
+                resp, first = first, None
+            else:
+                resp = http.request(url, headers=hdrs, timeout=60)
         except ProviderError as exc:
             if getattr(exc, "status", None) == 416 and start:   # o .part já tem o arquivo inteiro
                 return start
-            if attempt >= RETRIES or getattr(exc, "status", None) in (401, 403, 404):
+            st = getattr(exc, "status", None)
+            transient = st in (429, 500, 502, 503, 504) or (st is None and start > 0)   # sem internet logo de cara: avisa já; já tinha começado: a rede pode voltar
+            if attempt >= RETRIES or not transient:
                 raise
             attempt += 1
             _backoff(attempt, cancelled)
@@ -245,9 +253,10 @@ def fetch(url: str, part: Path, headers: Dict[str, str], connections: int = DEFA
     """Baixa `url` para `part` (arquivo parcial) e devolve o tamanho. O chamador renomeia o `.part` para o nome final."""
     connections = clamp_connections(connections)
     legacy = part.exists() and not _sidecar(part).exists() and part.stat().st_size > 0   # .part de uma conexão só (versões antigas): continua do mesmo jeito
+    first = None
     if connections > 1 and not legacy:
         try:
-            final, total, ranged = probe(url, headers)
+            final, total, ranged, first = probe(url, headers, keep=True)
         except ProviderError as exc:
             if getattr(exc, "status", None) in (401, 403, 404):
                 raise
@@ -258,4 +267,4 @@ def fetch(url: str, part: Path, headers: Dict[str, str], connections: int = DEFA
             except _NoRange:
                 part.unlink(missing_ok=True)
                 _sidecar(part).unlink(missing_ok=True)
-    return single(url, part, headers, progress, cancelled)
+    return single(url, part, headers, progress, cancelled, first)
