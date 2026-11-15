@@ -2,6 +2,21 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.33.0] — 2026-11-15
+
+### New — Library in other folders (external HDD/SSD, pen drive, another disk)
+- **Library → Storage → “Where to store”:** choose **where the AI models live** and **where the project files live** (generated or uploaded images, videos and sounds) — an external HDD or SSD, a pen drive or another folder on the computer itself. Each has its own folder (“default” or “custom”), with free space, the type (SSD/HDD) and a **Change…** button that lists the computer's **disks and devices** (with free space and an “external” tag), lets you browse folders or type the path, and offers **“Use the default”** to go back.
+- **Moving what already exists, safely:** the “Move what already exists” option **copies first** (with a progress bar, cancellable and also shown in the Downloads tab), checks each file's size, **switches the folder in use only at the end** and only then empties the old folder; a failure or cancel **undoes the new copies** and the old folder stays intact, so a model is never missing. It resumes where it stopped if repeated. Without “move”, OpenFlow starts using the new folder and the old content stays where it is (warned in the dialog).
+- **A disconnected external disk does not break OpenFlow:** if the configured folder is not accessible (device unplugged, folder deleted), it **uses the default and shows a warning** on the card; when the disk comes back, the chosen folder applies again.
+- **Safeguards:** the new folder must exist (or its parent, so one can be created), accept writing and **have room** for the content; it cannot sit inside the current one (nor the current inside it); a **disk root** becomes an “OpenFlow-modelos”/“OpenFlow-projetos” subfolder (no scattering files over a pen drive's root); and nothing changes while a generation, download or other task is running. New routes: `GET /api/storage/locations`, `GET /api/storage/browse` and `POST /api/storage/location`; the setting lives in `storage.models_dir` and `storage.files_dir`.
+- The models folder applies to everything: downloads, support files, the Library list, the terminal's `flow models …` and model loading. Settings and the folder map stay in OpenFlow's data folder.
+
+### Not verified
+- **I did not test with a real external disk:** tests use temporary folders (copy, undo, validation, folder switch and the inaccessible-folder warning run; the warning with a really unplugged device was simulated with a path that cannot be created). The **device list** follows each system's convention (Linux `/media`, `/run/media`, `/mnt`; macOS `/Volumes`; Windows drive letters) and **was not run on Windows or macOS**.
+- Moving between slow disks (an external HDD over USB 2) can take a long time; performance was **not** measured. Running models from a slow external disk makes loading slower (OpenFlow preloads the model into RAM).
+- **Not moved:** the Hugging Face cache (LTX-2 components), `sd-cli`, loose uploads (`uploads`), settings and the Library folder map — they stay in OpenFlow's data folder.
+- Importing settings on another computer brings the paths: if they do not exist there, the warning and the default folder apply.
+
 ## [0.32.0] — 2026-11-15
 
 ### Fixed — bugs when editing generated videos (and images)

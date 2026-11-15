@@ -154,7 +154,7 @@ def report(store: Any, downloading: bool) -> Dict[str, Any]:
     home = store.home
     models = {k: _size(store.models_dir / k) for k in ("image", "video", "sound", "voice", "stt")} if store.models_dir.is_dir() else {}
     models["text"] = sum(p.stat().st_size for p in store.models_dir.glob("*") if p.is_file() and not p.name.endswith((".part", ".seg")))
-    proj = _size(home / "projects")
+    proj = _size(Path(store.projects.folder))
     uploads = _size(store.uploads_dir)
     parts = [] if downloading else [p for p in _partials(store.models_dir) if _old(p)]
     temps = [p for p in _temp_leftovers() if _old(p)]
