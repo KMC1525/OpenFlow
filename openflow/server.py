@@ -302,7 +302,18 @@ class App:
             start = next((e for e in evs if e.get("type") == "start"), {})
             title = j.meta.get("title") or start.get("label") or start.get("file") or start.get("model") or self.DOWNLOAD_KINDS[j.kind]
             status = "error" if err and j.status == "done" else j.status   # um job que emitiu erro termina como «done»: a lista mostra o que de fato houve
-            out.append({"id": j.id, "kind": j.kind, "label": self.DOWNLOAD_KINDS[j.kind], "title": str(title), "repo": j.meta.get("repo", ""), "status": status, "created": j.created,
+            speed = 0.0
+            if j.status == "running":   # velocidade média dos últimos ~8 s (os eventos de progresso trazem a hora)
+                pr = [e for e in evs if e.get("type") == "progress" and e.get("ts")]
+                if len(pr) >= 2:
+                    last = pr[-1]
+                    first = next((e for e in pr if last["ts"] - e["ts"] <= 8), pr[0])
+                    dt = last["ts"] - first["ts"]
+                    if dt > 0 and last["done"] >= first["done"]:
+                        speed = (last["done"] - first["done"]) / dt
+            total_b, done_b = int((prog or {}).get("total") or 0), int((prog or {}).get("done") or 0)
+            eta = int((total_b - done_b) / speed) if speed > 0 and total_b > done_b else 0
+            out.append({"speed": int(speed), "eta": eta, "id": j.id, "kind": j.kind, "label": self.DOWNLOAD_KINDS[j.kind], "title": str(title), "repo": j.meta.get("repo", ""), "status": status, "created": j.created,
                         "done": int((prog or {}).get("done") or 0), "total": int((prog or {}).get("total") or 0), "note": note or "", "error": err or ""})
         req.json({"downloads": out, "running": sum(1 for d in out if d["status"] == "running")})
 
@@ -340,7 +351,9 @@ class App:
 
     # ----- modelos do Hugging Face
     def _hf_token(self) -> str:
-        return self.store.get_settings()["hf"].get("token", "")
+        cfg = self.store.get_settings()["hf"]
+        hf.configure(cfg)   # todo download começa pegando o token: aproveita para aplicar o número de conexões configurado
+        return cfg.get("token", "")
 
     def _auto_support(self) -> bool:
         return self.store.get_settings()["hf"].get("auto_support", True) is not False

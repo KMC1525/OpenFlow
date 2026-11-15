@@ -45,7 +45,7 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "canvas": {"template": "text_image", "agents": 1, "effort": "high"},  # equipe dos nós de texto (IA) e do planejador de fluxos
     "performance": {"mode": "auto", "idle_unload_min": 10, "device": "auto"},  # auto | light | balanced | max — veja perf.py
     "server": {"max_upload_mb": 200},
-    "hf": {"token": "", "auto_support": True},  # auto_support: baixa junto do modelo o VAE, os codificadores de texto e o mmproj (ver canvas/support.py)
+    "hf": {"token": "", "auto_support": True, "connections": 4},  # auto_support: baixa junto do modelo o VAE, os codificadores de texto e o mmproj (ver canvas/support.py); connections: conexões simultâneas por download (1 a 8; ver dl.py)
 }
 
 

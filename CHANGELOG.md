@@ -2,6 +2,21 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.25.0] — 2026-11-15
+
+### Melhorado — downloads mais rápidos e que não se perdem
+- **Várias conexões por arquivo:** um modelo de vários GB agora é dividido em faixas (`Range`) baixadas **ao mesmo tempo** (4 por padrão) para um arquivo pré-alocado. Uma única conexão costuma ficar bem abaixo da velocidade da sua internet; com várias, o download tende a usar a banda toda. Arquivos pequenos (< 64 MB) e servidores sem suporte a faixas continuam por uma conexão só, sem erro.
+- **Retomada de verdade:** o progresso de cada faixa é guardado num arquivo `.seg` ao lado do `.part`; se você fechar o OpenFlow, cancelar ou a luz cair, baixar de novo **continua de onde parou**. `.part` de versões antigas também continuam.
+- **Queda de rede não derruba mais o download:** a conexão que cai é refeita sozinha, a partir do byte em que parou (até 6 tentativas com espera crescente). Se o endereço assinado do CDN vence no meio de um download longo, o OpenFlow pede um novo.
+- **Velocidade e tempo restante:** o download mostra «12 MB/s ≈ 4 min» na tela Modelos e na aba Downloads da Biblioteca.
+- **Configuração:** Biblioteca → Modelos → «Velocidade dos downloads» → **conexões por download** (1 a 8; padrão 4). Use 1 se o download atrapalhar o resto da sua internet.
+- Vale para tudo o que baixa pelo Hugging Face: modelos, VAEs, codificadores de texto, `mmproj`, os recomendados e o botão «Baixar a versão compatível».
+
+### Ainda não verificado
+- Testei com um servidor HTTP local que respeita `Range`: arquivo idêntico byte a byte, queda de conexão no meio, cancelamento e retomada, servidor sem `Range`, `.part` antigo. **Não medi a velocidade contra o Hugging Face de verdade** (sem rede aqui): o ganho depende de o servidor limitar cada conexão e da sua internet; se a sua já é saturada por uma conexão, o ganho será pequeno.
+- O CDN do Hugging Face recebe a credencial só no servidor original (no CDN a assinatura vai na própria URL); não testei um token de repositório restrito de ponta a ponta.
+- Os arquivos de apoio e os modelos divididos em partes continuam baixando um arquivo por vez (cada arquivo, em paralelo por dentro).
+
 ## [0.24.0] — 2026-11-15
 
 ### Melhorado — FLUX.3 Image Klein
