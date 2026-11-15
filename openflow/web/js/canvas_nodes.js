@@ -54,6 +54,24 @@ export const portLabel = (nodeType, p) => (nodeType === 'llm' && p.id === 'promp
 
 // ---------------------------------------------------------------------------------------------------- controles
 const cut = (e) => e.stopPropagation();
+// O texto que chega pelas conexões da entrada «Prompt» (nó Texto, ou um nó que entrega texto e já rodou): aparece sob o campo do nó, para ficar claro o que será usado além do que está escrito nele.
+const promptLinks = (c, n) => (c.cv ? c.cv.edges : []).filter((e) => e.to === n.id && e.port === 'prompt').map((e) => {
+  const s = c.cv.nodes.find((x) => x.id === e.from);
+  if (!s) return null;
+  const done = s.type === 'text' || (s.result && s.result.state === 'done');
+  return { label: s.title || t(LABEL[s.type] || s.type), text: String((s.type === 'text' ? s.params.text : (done ? s.result.text : '')) || '').trim(), waiting: !done };
+}).filter(Boolean);
+function linkedPrompt(c, n) {
+  const links = promptLinks(c, n);
+  if (!links.length) return null;
+  return h('div', { class: 'linked-list' }, links.map((l) => {
+    const bad = !l.text;
+    const msg = l.waiting ? t('Aguardando o nó «{n}» rodar para entregar o texto.', { n: l.label }) : (bad ? t('O texto do nó «{n}» está vazio.', { n: l.label }) : null);
+    return h('div', { class: 'linked' + (bad ? ' warn' : ''), title: l.text || msg }, h('b', null, t('Texto ligado') + ' · ' + l.label + ': '), msg || '“' + l.text + '”');
+  }));
+}
+const promptHint = (c, n, base) => (promptLinks(c, n).length ? t('Opcional: acrescente detalhes ao texto ligado (ele vem primeiro).') : base);
+
 function ta(c, n, key, ph, rows, mention) {
   const el = h('textarea', { placeholder: ph, rows: rows || 3, class: 'nodrag' });
   el.value = n.params[key] || '';
@@ -311,11 +329,13 @@ const BODY = {
   upload: (c, n) => fileThumbs(c, n),
   image: (c, n) => [
     seg([['generate', t('Gerar')], ['edit', t('Editar')]], n.params.mode, (v) => c.change(n, 'mode', v, true)),
-    ta(c, n, 'prompt', n.params.mode === 'edit' ? t('O que mudar na imagem ligada em “Referências” (ou citada com @)?') : t('Descreva a imagem (ou ligue um nó de texto). Digite @ para citar uma imagem, vídeo ou som do projeto.'), 3, true),
+    ta(c, n, 'prompt', promptHint(c, n, n.params.mode === 'edit' ? t('O que mudar na imagem ligada em “Referências” (ou citada com @)?') : t('Descreva a imagem (ou ligue um nó de texto). Digite @ para citar uma imagem, vídeo ou som do projeto.')), 3, true),
+    linkedPrompt(c, n),
     lab(t('Quantidade'), select([1, 2, 3, 4].map((i) => [String(i), String(i)]), String(n.params.count), (v) => c.change(n, 'count', Number(v)))),
     ...providerBlock(c, n, 'image', lab(t('Resolução'), sizeSelect(c, n)))],
   video: (c, n) => [
-    ta(c, n, 'prompt', t('Descreva o vídeo (ou ligue um texto e/ou uma imagem inicial). Digite @ para citar a imagem inicial.'), 3, true),
+    ta(c, n, 'prompt', promptHint(c, n, t('Descreva o vídeo (ou ligue um texto e/ou uma imagem inicial). Digite @ para citar a imagem inicial.')), 3, true),
+    linkedPrompt(c, n),
     h('div', { class: 'r2' }, lab(t('Duração (s)'), txt(c, n, 'duration', '5', 'number')), lab(t('Proporção'), select(c.meta.aspects.map((a) => [a, a]), n.params.aspect, (v) => c.change(n, 'aspect', v)))),
     ...providerBlock(c, n, 'video', lab(t('Resolução'), select((c.meta.resolutions || [0]).map((r) => [String(r), r ? r + 'p' : t('Automática')]), String(n.params.resolution || 0), (v) => c.change(n, 'resolution', Number(v)))))],
   sound: (c, n) => [

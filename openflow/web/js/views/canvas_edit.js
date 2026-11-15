@@ -28,7 +28,7 @@ export default async function render(root, ctx, cid) {
     state: (id) => S.states[id] || {},
     providerLabel: (pid) => (prov.providers.find((p) => p.id === pid) || { label: pid }).label,
     openConfig: () => { go('settings', { tab: 'media' }); },
-    change(n, key, value, rerender) { n.params[key] = value; dirty(); if (rerender) refreshNode(n.id); },
+    change(n, key, value, rerender) { n.params[key] = value; dirty(); if (rerender) refreshNode(n.id); if (key === 'text') relink(n.id); },
     accOpen: new Set(),
     uploadTo: (n, files, fid) => uploadFiles(files, null, n, fid),
     mentions: () => api(`/api/projects/${cid}/mentions`).then((r) => r.items),
@@ -36,6 +36,10 @@ export default async function render(root, ctx, cid) {
     run: (ids, force) => run(ids, force),
     preview: (a, list) => preview(a, list),
   };
+
+  // o texto de um nó mudou: os nós Imagem/Vídeo ligados a ele mostram o texto novo (depois de uma pausa na digitação)
+  let linkTimer = 0;
+  function relink(id) { clearTimeout(linkTimer); linkTimer = setTimeout(() => S.cv.edges.filter((e) => e.from === id && e.port === 'prompt').forEach((e) => refreshNode(e.to)), 300); }
 
   // ---------------------------------------------------------------------------------------------- salvar
   const savedLbl = h('span', { class: 'sv' });

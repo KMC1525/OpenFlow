@@ -194,6 +194,17 @@ class CanvasEngine:
             return {"text": "", "assets": [assets[i] for i in r["assets"] if i in assets] if r["state"] == "done" else []}
         return {"text": "", "assets": []}
 
+    def _no_prompt(self, canvas: Dict[str, Any], node: Dict[str, Any], default: str) -> str:
+        """A mensagem de «falta o prompt»: se já há um nó ligado na entrada Prompt, o problema não é a falta de ligação — é o texto dele que está vazio (ou o nó ainda não rodou)."""
+        names = []
+        for src in self._edges_to(canvas, node["id"], "prompt"):
+            sn = self._node(canvas, src)
+            if sn:
+                names.append((sn.get("title") or NODE_TYPES[sn["type"]]["label"]) + (" (ainda não rodou)" if sn["type"] != "text" and sn["result"].get("state") != "done" else " (texto vazio)"))
+        if not names:
+            return default
+        return f"O texto ligado ao nó está vazio: {', '.join(names)}. Escreva o texto no nó ligado (ou no campo do próprio nó" + (" ou ligue uma imagem inicial" if node["type"] == "video" else "") + ")."
+
     def inputs(self, canvas: Dict[str, Any], node: Dict[str, Any], port: str) -> Dict[str, Any]:
         texts: List[str] = []
         assets: List[Dict[str, Any]] = []
@@ -495,7 +506,7 @@ class CanvasEngine:
         if t == "image":
             base = "\n\n".join(x for x in (self.inputs(canvas, node, "prompt")["text"], p["prompt"].strip()) if x)
             if not base:
-                raise ValueError("O nó Imagem precisa de um prompt: escreva nele ou ligue um nó de texto.")
+                raise ValueError(self._no_prompt(canvas, node, "O nó Imagem precisa de um prompt: escreva nele ou ligue um nó de texto."))
             raw_base = base
             base, ment_ids, missing = mentions_mod.resolve(canvas, base)   # «@mídia» no prompt (ou num Texto ligado): imagens e quadros de vídeo viram as primeiras referências
             warnings += [f"@{m}: não há mídia com esse apelido neste canvas — ficou como texto." for m in missing]
@@ -562,7 +573,7 @@ class CanvasEngine:
             if len(ment_refs) > 1:
                 warnings.append("O vídeo usa uma só imagem inicial: só a primeira citada com @ virou imagem; as outras valem como texto.")
             if not base and not first:
-                raise ValueError("O nó Vídeo precisa de um prompt (ou de uma imagem inicial ligada).")
+                raise ValueError(self._no_prompt(canvas, node, "O nó Vídeo precisa de um prompt (ou de uma imagem inicial ligada)."))
             start = first
             prompt = (base or "Animate this image with gentle, natural motion") + (f"\n\nStyle: {style.text}" if style.text else "")
             m = prov.video(prompt, duration=p["duration"], aspect=p["aspect"], image=start, model=p["model"], extra=p["extra"], seed=seed, long_side=p["resolution"])

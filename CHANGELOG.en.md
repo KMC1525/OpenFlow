@@ -2,6 +2,16 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.19.0] — 2026-11-15
+
+### Fixed (Text node linked to Image and Video nodes)
+- **You could not see which text the Image/Video node would use:** with a Text node linked to the «Prompt» input, the node's field stayed empty (with the "Describe the image…" hint) and only the number "1" beside the port showed there was a link. Now the linked text appears under the field ("Linked text · Text: “A forest at dawn…”"), **follows what you type** in the Text node, and the node's field says "Optional: add details to the linked text (it comes first)" — which reflects what the engine does (linked text first, then the field's). It works for any node that delivers text (AI text, Transcribe…): if it has not run yet, the notice says "Waiting for node … to run".
+- **"Needs a prompt: connect a text node" with the text node already connected:** when the linked node was empty, the error told you to connect a node that was already connected. Now it says which node is empty ("The text linked to the node is empty: Text (empty text)…") and, on Video, reminds you that you can connect a start image.
+- **The error action button stuck out of the node:** the long label ("Open leejet/flux-3-image-klein-GGUF in Models") stayed on one line and went past the node's right edge. Now it wraps and fits inside the node.
+
+### Not verified yet
+- I checked the flow in the browser with the Demo provider (connect by dragging, run, edit the text, delete the node); I could not reproduce with the real models and cloud providers. If something still looks off with Text linked to Image/Video, describe what happened (or send the node's error).
+
 ## [0.18.0] — 2026-11-14
 
 ### Fixed
