@@ -193,17 +193,7 @@
 .mpick select{flex:1;min-width:0;max-width:100%}.mpick input{margin-top:6px;width:100%}.mpick input.hidden{display:none}
 
 /* caixa de prompt (gerar fluxo com IA) embaixo do canvas; recolhe para uma barra fina */
-.cv-dock{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);width:min(560px,calc(100% - 190px));z-index:6;background:var(--bg1);border:1px solid var(--line2);border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,.5);cursor:default}
-.cv-dock-head{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;color:var(--muted);font-size:13px}
-.cv-dock-title{font-weight:600;color:var(--text)}
-.cv-dock-body{padding:0 10px 10px}
-.cv-dock textarea{width:100%;min-height:44px;max-height:120px;resize:vertical;font-size:13px}
-.cv-dock-row{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
-.cv-dock-msg{margin-top:6px;line-height:1.4}
-.cv-dock.min{width:auto;border-radius:999px}.cv-dock.min .cv-dock-body{display:none}.cv-dock.min .cv-dock-head{padding:4px 6px 4px 12px}
-.cv-dock-toggle.flip svg{transform:rotate(180deg)}
-@media (max-width:700px){.cv-dock{width:calc(100% - 28px);bottom:62px}}
-
+@media (max-width:700px){
 /* Style Folder: pastas e subpastas (v0.1) */
 .cv-node .sf-bar{margin-bottom:6px}
 .cv-node .sf-root{margin-bottom:4px}

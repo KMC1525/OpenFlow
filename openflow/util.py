@@ -387,3 +387,5 @@ def strip_reasoning(raw: str) -> str:
 _LAN_CACHE: dict = {"t": 0.0, "ips": []}
 
 
+class Cancelled(Exception):
+    """A execução foi cancelada pelo usuário."""

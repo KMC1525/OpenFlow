@@ -1,4 +1,4 @@
-"""Níveis de esforço — Low · Medium · High · Extra · Mega · Max · Ultra · Omni — dos nós de texto com IA e do planejador de fluxos (ver `team.py`).
+"""Níveis de esforço — Low · Medium · High · Extra · Mega · Max · Ultra · Omni — dos nós de texto com IA (ver `team.py`).
 
 O esforço vale **igualmente** para modelos de nuvem (frontier) e locais, porque a maior parte dele é do próprio motor do OpenFlow — quantos passos cada agente pode dar, quantas rodadas de revisão
 e correção, quanto contexto cada agente enxerga, se roda os testes, se escreve testes novos, se o plano é revisado antes de começar. Além disso, onde o provedor/modelo tem «tempo de pensamento»

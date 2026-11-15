@@ -24,7 +24,7 @@ from .util import deep_merge, flow_home, new_id, now_iso, read_json, safe_filena
 DEFAULT_SETTINGS: Dict[str, Any] = {
     "language": "auto",  # auto | pt-BR | en
     "ui": DEFAULT_UI,  # aparência: tema, cor de destaque, escala, densidade…
-    "active": {"generation": "demo"},  # provedor de texto dos nós «Texto IA» e do planejador de fluxos
+    "active": {"generation": "demo"},  # provedor de texto dos nós «Texto IA» e da descrição de estilo
     "providers": {},
     "generation": {
         "temperature": 0.8,
@@ -37,7 +37,7 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
         "active": {"image": "demo", "video": "demo", "sound": "demo", "voice": "demo", "stt": "local_hf", "model3d": "demo"},   # transcrição: o Whisper local (precisa de openflow[media])
         "models": {},  # {"local_hf": {"image": "stabilityai/sd-turbo"}} — modelo por provedor e capacidade
     },
-    "canvas": {"template": "text_image", "agents": 1, "effort": "high"},  # equipe dos nós de texto (IA) e do planejador de fluxos
+    "canvas": {"template": "text_image", "agents": 1, "effort": "high"},  # equipe dos nós de texto (IA)
     "performance": {"mode": "auto", "idle_unload_min": 10, "device": "auto", "gpus": [], "cpu_pin": True},  # auto | light | balanced | max — veja perf.py
     "server": {"max_upload_mb": 200},
     "storage": {"models_dir": "", "files_dir": ""},   # v0.33: onde guardar os modelos e os arquivos dos projetos ("" = a pasta padrão do OpenFlow; um disco externo, outro disco…)

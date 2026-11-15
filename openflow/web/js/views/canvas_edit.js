@@ -79,7 +79,7 @@ export default async function render(root, ctx, cid) {
     h('button', { class: 'btn ghost', title: t('Provedores de mídia'), onclick: () => c.openConfig() }, icon('config', 14), t('Provedores')),
     assetsBtn,
     h('a', { class: 'btn', href: `/api/projects/${cid}/download`, title: t('Baixa o projeto e todos os arquivos (.zip)') }, icon('download', 14), t('Baixar')),
-    runBtn, cancelBtn);
+    team.el, runBtn, cancelBtn);
 
   const world = h('div', { class: 'cv-world' });
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -93,53 +93,6 @@ export default async function render(root, ctx, cid) {
       h('button', { class: 'btn icon sm', title: t('Reduzir'), onclick: () => zoomBy(1 / 1.2) }, h('span', { style: { fontSize: '18px', lineHeight: 1 } }, '−')),
       h('button', { class: 'btn icon sm', title: t('Ajustar à tela'), onclick: () => fit() }, icon('fit', 15))));
   const assetsPanel = h('div', { class: 'cv-assets hidden' });
-
-  // ---------------------------------------------------------------------------------------------- caixa de prompt (gerar fluxo com IA)
-  // fica embaixo do canvas, pequena; o botão ▾/▴ recolhe e abre para não atrapalhar a montagem do fluxo. A equipe (esforço e agentes) é a mesma da execução.
-  const DOCK_KEY = 'openflow.cv.dock';
-  const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { /* sem armazenamento */ } return null; };
-  const dockText = h('textarea', { rows: 2, id: 'cv-dock-text', placeholder: t('Descreva o fluxo que você quer: ex. «thumb de YouTube com uma foto minha e 3 personagens» ou «cena de farol com narração»…'), 'aria-label': t('Prompt do fluxo') });
-  const dockMsg = h('div', { class: 'cv-dock-msg muted small hidden', id: 'cv-dock-msg' });
-  const dockGo = h('button', { class: 'btn primary sm', id: 'cv-dock-go', type: 'button', title: t('A equipe de agentes monta os nós e as ligações; você revisa e executa'), onclick: () => genFlow() }, icon('wand', 14), t('Gerar fluxo'));
-  const dockBody = h('div', { class: 'cv-dock-body' }, dockText, dockMsg, h('div', { class: 'cv-dock-row' }, team.el, h('span', { class: 'grow' }), dockGo));
-  const dockToggle = h('button', { class: 'btn icon sm cv-dock-toggle', id: 'cv-dock-toggle', type: 'button', onclick: () => setDock(dock.classList.contains('min')) });
-  const dock = h('div', { class: 'cv-dock', id: 'cv-dock' }, h('div', { class: 'cv-dock-head' }, icon('wand', 14), h('span', { class: 'cv-dock-title' }, t('Gerar fluxo com IA')), h('span', { class: 'grow' }), dockToggle), dockBody);
-  function setDock(open) {
-    dock.classList.toggle('min', !open); ls(DOCK_KEY, open ? '1' : '0');
-    dockToggle.replaceChildren(icon('chevd', 14));
-    dockToggle.title = dockToggle.ariaLabel = open ? t('Minimizar a caixa de prompt') : t('Maximizar a caixa de prompt');
-    dockToggle.classList.toggle('flip', !open);
-    if (open) setTimeout(() => dockText.focus(), 0);
-  }
-  dock.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); genFlow(); } });
-  let flowJob = '';
-  async function genFlow() {
-    const prompt = dockText.value.trim();
-    if (!prompt) { dockText.focus(); return toast(t('Descreva o fluxo que você quer criar.'), 'err'); }
-    if (flowJob) return;
-    const xs = S.cv.nodes.map((n) => n.x + (n.w || 280)), ys = S.cv.nodes.map((n) => n.y);
-    const origin = S.cv.nodes.length ? { x: Math.max(...xs) + 120, y: Math.min(...ys) } : toWorld(surface.getBoundingClientRect().left + 120, surface.getBoundingClientRect().top + 90);
-    await save();
-    dockGo.disabled = true; dockMsg.classList.remove('hidden'); dockMsg.textContent = t('Equipe de agentes montando o fluxo…');
-    let r;
-    try { r = await api(`/api/projects/${cid}/flow`, { method: 'POST', body: { prompt, team: team.get(), x: Math.round(origin.x), y: Math.round(origin.y) } }); }
-    catch (e) { if (e.status === 409) { try { r = JSON.parse(e.message); } catch (er) { /* ignore */ } } if (!r) { dockGo.disabled = false; dockMsg.classList.add('hidden'); return toast(e.message, 'err'); } }
-    flowJob = r.job_id;
-    const STEP = { planner: t('Planejador'), reviewer: t('Revisor'), build: t('Montagem') };
-    const stop = events('/api/jobs/' + flowJob + '/events', (ev) => {
-      if (ev.type === 'step' && ev.status === 'running') dockMsg.textContent = t('Equipe de agentes: {s}…', { s: STEP[ev.id] || ev.id });
-      else if (ev.type === 'note') dockMsg.textContent = ev.message;
-      else if (ev.type === 'done') applyFlow(ev);
-      else if (ev.type === 'error') { dockMsg.textContent = ''; toast(ev.message || t('Não consegui gerar o fluxo.'), 'err'); }
-    }, () => { flowJob = ''; dockGo.disabled = false; setTimeout(() => dockMsg.classList.add('hidden'), 4000); if (stop) stop(); });
-  }
-  function applyFlow(ev) {
-    for (const n of ev.nodes || []) { n.w = n.w || (['editor', 'image', 'video'].includes(n.type) ? 300 : 280); S.cv.nodes.push(n); addToDom(n); }
-    for (const e of ev.edges || []) S.cv.edges.push(e);
-    paintHint(); drawEdges(); fit(); dirty();
-    dockMsg.textContent = t('{n} nós e {e} ligações adicionados. Revise e aperte «Executar tudo».', { n: (ev.nodes || []).length, e: (ev.edges || []).length }) + ((ev.warnings || []).length ? ' ⚠ ' + ev.warnings.join(' · ') : '');
-    dockText.value = '';
-  }
 
   // paleta de nós com busca (v0.31): filtra pelo nome, pela ajuda e pelo grupo; Enter adiciona o primeiro resultado
   const fold = (x) => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -160,7 +113,6 @@ export default async function render(root, ctx, cid) {
   paintPalette();
 
   root.replaceChildren(h('div', { class: 'cv-root cv-pg' }, top, h('div', { class: 'cv-main' }, palette, surface, assetsPanel)));
-  surface.appendChild(dock); setDock(ls(DOCK_KEY) !== '0');
   const rootEl = root.firstChild;
 
   // ---------------------------------------------------------------------------------------------- vista (pan/zoom)
@@ -184,7 +136,7 @@ export default async function render(root, ctx, cid) {
     view = { zoom: z, x: (r.width - (x2 - x1) * z) / 2 - x1 * z, y: (r.height - (y2 - y1) * z) / 2 - y1 * z }; applyView(); drawEdges(); dirty(1500);
   }
   surface.addEventListener('wheel', (e) => {
-    if (e.target.closest('textarea,select,input,.rtxt,.digest,.cv-dock')) return;
+    if (e.target.closest('textarea,select,input,.rtxt,.digest')) return;
     e.preventDefault();
     const r = surface.getBoundingClientRect();
     zoomAt(e.deltaY < 0 ? 1.1 : 1 / 1.1, e.clientX - r.left, e.clientY - r.top);
@@ -195,7 +147,7 @@ export default async function render(root, ctx, cid) {
     window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
   }
   surface.addEventListener('pointerdown', (e) => {
-    const bg = !e.target.closest('.cv-node,.cv-zoom,.cv-dock,.hit,.del');
+    const bg = !e.target.closest('.cv-node,.cv-zoom,.hit,.del');
     if (!(bg && e.button === 0) && e.button !== 1) return;
     e.preventDefault();
     if (bg) select('', '');
@@ -494,14 +446,12 @@ export default async function render(root, ctx, cid) {
     else if (ev.type === 'error') toast(ev.message, 'err');
     else if (ev.type === 'cancelled') toast(t('Execução cancelada.'));
   }
-  // Puxa o canvas para que o nó apareça inteiro acima do painel «Gerar fluxo com IA» (o painel cobria o fim do nó: a mensagem de erro e os botões dela ficavam escondidos).
+  // Puxa o canvas para que o nó apareça inteiro na área visível (o fim dele — a mensagem de erro e os botões — não pode ficar abaixo da borda).
   function revealNode(id) {
-    const ne = el[id], dock = document.getElementById('cv-dock');
+    const ne = el[id];
     if (!ne || !surface.isConnected) return;
     const area = surface.getBoundingClientRect(), r = ne.getBoundingClientRect();
-    const dk = dock && dock.getBoundingClientRect();
-    const covers = dk && dk.width > 0 && dk.height > 0 && r.right > dk.left && r.left < dk.right;   // só atrapalha se o painel está embaixo do nó
-    const limit = Math.min(area.bottom, covers ? dk.top : area.bottom) - 14;
+    const limit = area.bottom - 14;
     if (r.bottom <= limit) return;
     const room = limit - area.top, dy = r.height <= room ? Math.min(r.bottom - limit, Math.max(0, r.top - area.top - 10)) : r.bottom - limit;   // cabendo, mantém o topo na tela; nó mais alto que o espaço: o fim (erro e botões) é o que importa
     if (dy <= 0) return;
@@ -514,7 +464,7 @@ export default async function render(root, ctx, cid) {
     const msgs = Object.fromEntries(Object.entries(S.states).filter(([, x]) => x.state === 'error').map(([id, x]) => [id, x.message]));
     await reload();
     for (const [id, m] of Object.entries(msgs)) { const n = nodeById(id); if (n && !n.result.error) { n.result.state = 'error'; n.result.error = m; refreshNode(id); } }
-    for (const id of Object.keys(msgs)) revealNode(id);   // o painel «Gerar fluxo com IA» não pode cobrir o erro e os botões dele
+    for (const id of Object.keys(msgs)) revealNode(id);   // o fim do nó (erro e botões) precisa ficar visível dele
     if (errs.length) toast(t('{n} nó(s) com erro. Veja a mensagem no nó.', { n: errs.length }), 'err');
     else if (sum) toast(sum.ran ? t('Pronto: {n} nó(s) gerado(s).', { n: sum.ran }) + (sum.cached ? ' ' + t('{n} vieram do cache.', { n: sum.cached }) : '') : t('Nada a gerar: tudo já está atualizado.'), 'ok');
   }

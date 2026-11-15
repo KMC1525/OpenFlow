@@ -42,7 +42,7 @@ async function providers() {
     const S = state.settings;
     return h('div', { class: 'card', style: { marginBottom: '16px' } }, h('h3', null, t('Quem escreve os textos')),
       field(t('Modelo de texto (IA)'), select(presets.map((p) => [p.id, t(p.label)]), S.active.generation, async (v) => { await saveSettings({ active: { generation: v } }); await refreshState(); renderSide(); paint(); }),
-        t('Usado pelo nó Texto IA, pelo planejador de fluxos («Montar o fluxo com IA») e para descrever as pastas de estilo. «Demo» funciona offline, sem IA, para testar.')));
+        t('Usado pelo nó Texto IA e para descrever as pastas de estilo. «Demo» funciona offline, sem IA, para testar.')));
   };
   const paint = () => container.replaceChildren(rolesCard(), h('div', null, presets.map(card)));
 

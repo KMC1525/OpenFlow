@@ -1,6 +1,6 @@
 """Equipe de agentes do OpenFlow: quantos agentes (1 · 2 · 4 · 8 · 12 · 16 · 20 · 24 · 28 · 32) e qual esforço de raciocínio (Low · Medium · High · Extra · Mega · Max · Ultra · Omni).
 
-Valem para os nós de texto com IA (Texto IA, Refinar com IA, descrição do estilo) e para o planejador de fluxos («Gerar fluxo com IA»):
+Valem para os nós de texto com IA (Texto IA, Refinar com IA, descrição do estilo):
 
   • **Esforço** → o «tempo de pensamento» pedido ao modelo onde o provedor tem suporte (`providers/thinking.py`); o tamanho da resposta de cada agente; as rodadas de revisão/correção
     (`Team.revisions`) e, de Max para cima, uma crítica do plano antes de seguir. Onde o modelo não «pensa» (a maioria dos locais), o que cresce é o orçamento do próprio motor.
@@ -77,7 +77,6 @@ LENSES: Tuple[Tuple[str, str], ...] = (
 )
 
 #: etapas de planejamento/análise: de Max para cima passam por uma crítica antes de seguir
-PLAN_AGENTS = ("analyst", "planner", "analyze", "profiler")
 
 
 def normalize_agents(value: Any, default: int = DEFAULT_AGENTS) -> int:

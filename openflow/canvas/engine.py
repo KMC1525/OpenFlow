@@ -20,7 +20,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from .. import attachments as att
 from .. import native
 from .. import team as teamlib
-from ..agents.runner import Cancelled
+from ..util import Cancelled
 from ..providers import ProviderError, build_provider
 from ..util import now_iso
 from . import procedural as proc

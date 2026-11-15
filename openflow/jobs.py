@@ -10,7 +10,7 @@ import time
 import traceback
 from typing import Callable, Dict, List, Optional
 
-from .agents.runner import Cancelled
+from .util import Cancelled
 from .providers import ProviderError
 from .util import new_id
 
