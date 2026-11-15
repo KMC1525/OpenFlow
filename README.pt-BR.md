@@ -8,7 +8,7 @@ Inspirado no ElevenLabs Flow e muito mais leve que o ComfyUI: ligue alguns nós,
 
 [Instalar](#instalar) · [O comando `flow`](#o-comando-flow) · [Projetos](#projetos--a-tela-inicial) · [Nós](#os-nós) · [Style Folder](#style-folder--pastas-e-subpastas) · [Modelos](#modelos--os-arquivos-de-apoio-se-instalam-sozinhos) · [Provedores](#provedores-de-ia) · [Núcleo Rust](#núcleo-rust) · [Desenvolvimento](#desenvolvimento) · [Changelog](CHANGELOG.md) · [English](README.md)
 
-`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Núcleo Rust` · `sem dependências obrigatórias` · `v0.34.0`
+`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Núcleo Rust` · `sem dependências obrigatórias` · `v0.35.0`
 
 </div>
 
@@ -24,7 +24,7 @@ O OpenFlow é o lado de fluxos criativos do [ASTA](https://github.com/KMC1525/AS
 - 📦 **Os modelos se instalam com tudo o que precisam.** VAEs, codificadores de texto e arquivos `mmproj` são baixados **automaticamente, junto do modelo**.
 - 🦀 **Núcleo Rust** (só biblioteca padrão, carregado por `ctypes`): síntese de áudio, ordem de execução do fluxo, planejamento de modelos locais, liberação de memória… com um espelho em Python puro de cada função.
 - ⌨️ **Um comando em todos os sistemas: `flow`.** Instale, atualize e rode pelo terminal no Linux, macOS e Windows.
-- 🔒 **Local e privado.** Seus projetos são pastas comuns (`project.json` + `assets/`); sem telemetria; o servidor escuta em `127.0.0.1`; chaves de API nunca chegam ao navegador.
+- 🔒 **Local e privado.** Seus projetos são pastas comuns (`project.json` + `assets/`); sem telemetria; o servidor escuta em `127.0.0.1`; sem contas na nuvem nem chaves de API: tudo roda na sua máquina.
 
 ## Instalar
 
@@ -99,7 +99,7 @@ Cada nó tem **uma saída**, **entradas tipadas** e um **resultado que aparece n
 | **Input** | Mídia · Style Prompt · **Style Folder** · Cor e degradê · Silêncio · Link (URL) · Sorteio de texto · Data e projeto |
 | **Output** | **Editor** (editor de vídeo: trilhas, bandeja, prévia, dividir/cortar, fades, legendas, MP4) · Vídeo final · GIF · Áudio final · Imagem final · Galeria |
 
-Extras: menções com `@` a imagens, vídeos e sons do projeto dentro dos prompts; seletor de modelo em cada nó de mídia (instalados primeiro, depois cada provedor de nuvem com chave); **Gerar fluxo com IA** (uma equipe de planejador + revisor monta nós e ligações a partir de uma frase, com modelos de partida quando não há IA); **barra de busca de modelos** do Hugging Face no editor; modelos de projeto para começar rápido.
+Extras: menções com `@` a imagens, vídeos e sons do projeto dentro dos prompts; seletor de modelo em cada nó de mídia (modelos locais instalados); **Gerar fluxo com IA** (uma equipe de planejador + revisor monta nós e ligações a partir de uma frase, com modelos de partida quando não há IA); **barra de busca de modelos** do Hugging Face no editor; modelos de projeto para começar rápido.
 
 ## Style Folder — pastas e subpastas
 
@@ -134,9 +134,11 @@ Com a biblioteca opcional `local`, um modelo que tem um `mmproj` ao lado é carr
 
 ## Provedores de IA
 
-**Texto** (nó Texto IA, planejador de fluxos, descrição de estilo): Claude (Anthropic), ChatGPT (OpenAI), Grok (xAI), Gemini, OpenRouter, Hugging Face Inference, LM Studio (detectado automaticamente), Ollama / servidor llama.cpp / vLLM / qualquer endpoint compatível com OpenAI, GGUF do Hugging Face embutido e **Demo** (offline).
+**Texto** (nó Texto IA, planejador de fluxos, descrição de estilo): modelos GGUF do Hugging Face embutidos (llama.cpp) e **Demo** (offline).
 
-**Mídia** (definida por tipo em *Configurações → Imagem, vídeo, som e voz*, e trocável em cada nó): OpenAI (gpt-image, TTS, Whisper), servidores compatíveis com OpenAI (Kokoro, faster-whisper, LocalAI…), ElevenLabs, Google (Gemini/Veo), Stability AI, **Qwen (Alibaba Cloud)**, **Krea**, **Bria**, Replicate, Hugging Face Inference, Stable Diffusion WebUI (local), **Hugging Face local** (diffusers + transformers), **GGUF local** (stable-diffusion.cpp) e **Demo** (offline: imagens procedurais, som sintetizado, vídeo Ken Burns — precisa de `ffmpeg`).
+**Mídia** (definida por tipo em *Configurações → Imagem, vídeo e som*, e trocável em cada nó): **Hugging Face local** (diffusers + transformers), **GGUF local** (stable-diffusion.cpp) e **Demo** (offline: imagens procedurais, som sintetizado, vídeo Ken Burns — precisa do `ffmpeg`).
+
+Desde a v0.35 **não há provedores de nuvem, frontier nem servidores locais** (OpenAI, Claude, Gemini, ElevenLabs, Ollama, LM Studio, A1111…): só modelos locais baixados do Hugging Face. Configurações antigas são migradas e chaves de API antigas são ignoradas.
 
 ## Núcleo Rust
 
@@ -147,7 +149,7 @@ O OpenFlow mantém a arquitetura do ASTA: a orquestração e o servidor HTTP fic
 Tudo fica em `~/.openflow` (ou `OPENFLOW_HOME`), em formatos abertos:
 
 ```
-settings.json                     configurações (chaves de API nunca são exportadas)
+settings.json                     configurações (exportadas sem segredos)
 projects/<id>/project.json        nós, ligações, pastas de estilo
 projects/<id>/assets/             mídias geradas e enviadas
 models/ (image/ video/ …)         modelos GGUF e seus arquivos de apoio
@@ -162,7 +164,7 @@ Sem telemetria. O servidor escuta em `127.0.0.1` e confere `Host`/`Origin`. Entr
 openflow/
   cli.py · server.py · storage.py · routes_projects.py · routes_preinstalled.py
   canvas/        motor, esquema dos nós, provedores de mídia, armazenamento, arquivos de apoio (VAE/codificadores/mmproj)
-  providers/     provedores de IA de texto (nuvem, locais, Demo)
+  providers/     provedores de IA de texto (Hugging Face local, Demo)
   native/        o núcleo Rust + o espelho em Python
   web/           a interface (HTML/CSS/JS puros, sem etapa de build)
 install.sh · install.ps1     instaladores (Linux/macOS · Windows)
@@ -182,9 +184,9 @@ node tests/js/i18n_check.mjs                     # toda frase da interface tem t
 
 Os testes de navegador precisam de Node, Playwright e Chromium (`NODE_PATH` apontando para a sua instalação do `playwright`). Código compatível com Python 3.9 (sem `match`, sem `X | Y` em tempo de execução). Todo texto da interface e do terminal é em português primeiro, com tradução para o inglês (`openflow/web/js/en.js`, `openflow/term_en.py`); os testes conferem.
 
-## Limites honestos (v0.34.0)
+## Limites honestos (v0.35.0)
 
-Verificado aqui (Linux, Python 3.13): a suíte completa de testes em Python (442 testes), os testes de navegador no Chromium, os testes em Rust e o `install.sh` de ponta a ponta contra uma cópia local. **Não verificado:** o `install.ps1` num Windows de verdade e o `install.sh` no macOS (os jobs de CI estão escritos mas não rodaram); a compilação do núcleo Rust para macOS/Windows/ARM; downloads reais de VAEs, codificadores de texto e `mmproj` do Hugging Face (os testes simulam os downloads — os nomes de arquivo dos repositórios curados e de exemplo foram conferidos nas listagens do Hugging Face); inferência com modelos GGUF e GPUs reais; entrada de imagens por `mmproj` com um modelo real; provedores de nuvem com chaves reais (os testes usam servidores falsos). Não há medições de desempenho.
+Verificado aqui (Linux, Python 3.13): a suíte completa de testes em Python (a suíte completa), os testes de navegador no Chromium, os testes em Rust e o `install.sh` de ponta a ponta contra uma cópia local. **Não verificado:** o `install.ps1` num Windows de verdade e o `install.sh` no macOS (os jobs de CI estão escritos mas não rodaram); a compilação do núcleo Rust para macOS/Windows/ARM; downloads reais de VAEs, codificadores de texto e `mmproj` do Hugging Face (os testes simulam os downloads — os nomes de arquivo dos repositórios curados e de exemplo foram conferidos nas listagens do Hugging Face); inferência com modelos GGUF e GPUs reais; entrada de imagens por `mmproj` com um modelo real; provedores de nuvem com chaves reais (os testes usam servidores falsos). Não há medições de desempenho.
 
 ## Licença e créditos
 

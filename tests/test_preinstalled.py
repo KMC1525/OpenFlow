@@ -119,10 +119,10 @@ class InstallTests(TmpCase):
             r = pre.install(self.store, "text-qwen3.8-2b-distill")
         self.assertEqual(self.store.get_settings()["active"]["generation"], "demo")  # sem llama-cpp-python não adianta ativar
         self.assertTrue(any("flow libs" in n for n in r["notes"]))
-        self.store.save_settings({"active": {"generation": "anthropic"}})
+        self.store.save_settings({"active": {"generation": "local_hf"}})
         with self.libs(llama_cpp=True):
             pre.apply(self.store, pre.entry("text-qwen3.8-2b-distill"))
-        self.assertEqual(self.store.get_settings()["active"]["generation"], "anthropic")  # escolha do usuário é respeitada
+        self.assertEqual(self.store.get_settings()["active"]["generation"], "local_hf")  # escolha do usuário é respeitada
         self.assertEqual(self.store.get_settings()["providers"]["local_hf"]["model"], "Qwen3.8-2B-Q8_0.gguf")
 
     def test_image_model_comes_with_its_vae_and_text_encoder(self):

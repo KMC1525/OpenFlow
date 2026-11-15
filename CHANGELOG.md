@@ -2,6 +2,17 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.35.0] — 2026-11-15
+
+### Mudou — sem nuvem (por enquanto): só modelos locais do Hugging Face
+- **Removidos** todos os provedores de nuvem/frontier (OpenAI, Claude, Grok, Gemini, OpenRouter, ElevenLabs, Stability, Qwen, Krea, Bria, Replicate, Hugging Face Inference…) **e também os servidores locais** (Ollama, LM Studio, servidor llama.cpp, A1111, endpoints compatíveis com OpenAI, voz em modo servidor): sobram **Hugging Face local**, **GGUF local** e o **Demo** offline.
+- Configurações antigas migram sozinhas: provedores e chaves removidos são ignorados (e saem do `settings.json` na próxima gravação); padrões voltam ao Demo/automático; nós salvos com um provedor removido usam o padrão do projeto. A aba «Voz» e os campos de chave/URL saíram das Configurações.
+- Mensagem clara quando algo pede um provedor que não existe mais.
+
+### Ainda não verificado
+- Migração testada com configurações sintéticas, não com instalações antigas reais.
+- Modelos locais reais (llama.cpp, diffusers) seguem não exercitados aqui sem os pesos.
+
 ## [0.34.0] — 2026-11-15
 
 ### Novo — 10 nós novos no canvas (os atuais continuam; todos testados rodando de verdade)
