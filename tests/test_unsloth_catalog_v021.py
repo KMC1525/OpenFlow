@@ -82,7 +82,7 @@ class CatalogTests(ServerCase):
         self.assertEqual(by["unsloth/MOSS-Image-SFT-GGUF"]["status"], "ready")
         self.assertEqual(by["unsloth/Wan2.2-TI2V-5B-GGUF"]["status"], "ready")
         self.assertEqual(by["unsloth/flux-3-image-klein-GGUF"]["status"], "alt")
-        self.assertEqual(by["unsloth/flux-3-image-klein-GGUF"]["use"], support.SD_NATIVE[0]["repo"])      # aponta o mesmo repositório do aviso da v0.18
+        self.assertEqual(by["unsloth/flux-3-image-klein-GGUF"]["use"], support.sd_native_for("flux3-image-klein-Q4_K.gguf")["repo"])      # aponta o mesmo repositório do aviso da v0.18
         for repo in ("unsloth/MiniMax-H3-GGUF", "unsloth/LTX-2.5-GGUF", "unsloth/LTX-2.3-GGUF", "unsloth/LTX-2-GGUF"):
             self.assertEqual(by[repo]["status"], "beta", repo)                                            # v0.22: rodam, mas sem verificação em hardware real
         self.assertEqual(by["unsloth/ERNIE-Image-Turbo-GGUF"]["status"], "soon")
