@@ -97,6 +97,9 @@ class BrowserTests(unittest.TestCase):
     def test_17_3d_model_node_viewer_and_library(self):
         self.run_script("model3d_ui.js")
 
+    def test_18_sweep_all_screens_and_all_nodes(self):
+        self.run_script("sweep_ui.js")
+
 
 if __name__ == "__main__":
     unittest.main()

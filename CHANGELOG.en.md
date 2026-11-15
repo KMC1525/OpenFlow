@@ -2,6 +2,25 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.38.0] — 2026-11-15
+
+### Fixed — general sweep (every node, screen and the API)
+- **A GIF used as a still image in a video** (Editor, "Join clips", "Images to video" and "Final video") failed with ffmpeg's "Option not found"; the GIF now goes in through its first frame.
+- **Editor with only audio** on the timeline failed with "Error opening output files"; it now makes a plain-background video with the sound.
+- **"Extract from text" with a regex that never ends** (e.g. `(a|a)*b`) froze the run with no way to cancel; the pattern now runs in a separate process with a 4 s limit and says "took too long".
+- Invalid API inputs (search kind, repository, a provider that no longer exists) answered 502 ("gateway"); they now answer 400.
+- Lint: an f-string without fields.
+
+### Tested
+- **All 55 node types really run** (engine + ffmpeg + Demo) with valid inputs wired — `tests/test_all_nodes_v038.py`; only "Transcribe" depends on the optional Whisper library.
+- A matrix of odd inputs (RGBA/gray/palette/WebP/GIF/CMYK/16-bit/tiny/huge images; vertical/silent/odd-size/broken-fps/WebM/very short videos; mono WAV/OGG/FLAC/M4A/short audio) against every media node.
+- Browser sweep (`sweep_ui.js`): every screen at 390, 1500 and 3440 px with no horizontal scroll, every Settings tab, and every canvas node with every option of every list and odd values in fields, then running everything — no page errors.
+- Fuzz of 1,700 API requests and 8 thousand node parameters: no 500 errors; reads/writes outside the folder, zip-slip, secrets in exports and cross-origin requests remain blocked.
+
+### Not verified yet
+- Real local models (llama.cpp, diffusers, Shap-E…) still not run here, for lack of weights.
+- "Transcribe" did not run (the Whisper library is missing in this environment).
+
 ## [0.37.0] — 2026-11-15
 
 ### New — local 3D models (text → 3D and image → 3D)

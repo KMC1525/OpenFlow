@@ -13,7 +13,7 @@ from .canvas.engine import CanvasEngine
 from .canvas.flow import FlowPipeline
 from . import archives
 from . import team as teamlib
-from .canvas.media import MIME_EXT, build_media, describe_media_presets, sniff_mime
+from .canvas.media import MEDIA_PRESETS, MIME_EXT, build_media, describe_media_presets, sniff_mime
 from .canvas.schema import ASPECTS, CAPS, NODE_TYPES, SIZES, TEMPLATES, VIDEO_RESOLUTIONS, describe_types, find_folder, normalize_params, normalize_result
 from .jobs import HttpError, Job
 from .providers import ProviderError
@@ -332,6 +332,8 @@ class ProjectRoutes:
     def r_media_test(self, req) -> None:
         body = req.body_json()
         pid = text(body.get("provider"), "", 40)
+        if pid not in MEDIA_PRESETS:
+            raise HttpError(400, f"O provedor «{pid}» não existe (desde a v0.35 só há o Demo e os modelos locais).")
         try:
             prov = build_media(self.store.get_settings(), pid, models_dir=self.store.models_dir)
             req.json({"ok": True, "message": prov.test()})
@@ -341,6 +343,8 @@ class ProjectRoutes:
     def r_media_models(self, req) -> None:
         pid = text(req.query.get("provider", [""])[0], "", 40)
         cap = text(req.query.get("cap", ["image"])[0], "image", 12)
+        if pid not in MEDIA_PRESETS:
+            raise HttpError(400, f"O provedor «{pid}» não existe (desde a v0.35 só há o Demo e os modelos locais).")
         try:
             req.json({"models": build_media(self.store.get_settings(), pid, models_dir=self.store.models_dir).list_models(cap)})
         except ProviderError as exc:
@@ -580,7 +584,6 @@ class ProjectRoutes:
 
     def r_hub_use(self, req) -> None:
         """Passa a usar um modelo baixado: vira o padrão da capacidade em Configuração → Mídia e, se vier `canvas` + `node`, também o modelo desse nó."""
-        from .canvas.media import MEDIA_PRESETS
 
         b = req.body_json()
         b = b if isinstance(b, dict) else {}

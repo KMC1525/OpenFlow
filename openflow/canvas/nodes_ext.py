@@ -19,7 +19,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from ..providers import ProviderError, build_provider
 from ..util import num, text
-from .render import GRADES, _esc_path, _run, _tempo, find_font, has_audio, render_timeline
+from .render import GRADES, _esc_path, _run, _tempo, find_font, has_audio, render_timeline, still_path
 
 IMG, VID, AUD = ["image", "video"], ["video"], ["audio", "video"]
 # tipo → (rótulo, ícone, saída, portas [(id, rótulo, aceita, múltipla)], grupo)
@@ -971,6 +971,7 @@ def run_out_export(eng, canvas, node):
         src = _path(eng, v)
         args: List[str] = []
         if v["kind"] == "image":
+            src = still_path(src, tmp, eng.ctl)   # GIF → primeiro quadro (o demuxer de GIF não aceita -loop como imagem parada)
             args += ["-loop", "1", "-t", f"{p['image_seconds']:.2f}"]
         args += ["-i", str(src)]
         n_a = 0
@@ -984,7 +985,7 @@ def run_out_export(eng, canvas, node):
             flt.append(f"[{label}]{_drawtext(tmp, caps, 'h*0.045', '#ffffff', 'bottom', True, wrap=40)}[v1]")
             label = "v1"
         has_a0 = v["kind"] == "video" and has_audio(src)
-        a_in = ([f"[0:a]aresample=44100,aformat=channel_layouts=stereo[b0]"] if has_a0 else [])
+        a_in = (["[0:a]aresample=44100,aformat=channel_layouts=stereo[b0]"] if has_a0 else [])
         names = (["[b0]"] if has_a0 else [])
         for i in range(n_a):
             a_in.append(f"[{i + 1}:a]aresample=44100,aformat=channel_layouts=stereo,volume={p['music_volume'] if has_a0 else 1.0}[m{i}]")
@@ -1064,6 +1065,33 @@ def run_out_gallery(eng, canvas, node):
 
 
 # --------------------------------------------------------------------------- v0.34: nós novos
+_RX_CODE = (
+    "import json,re,sys\n"
+    "d=json.load(sys.stdin)\n"
+    "out=[]\n"
+    "for m in re.finditer(d['pattern'],d['text'],re.I):\n"
+    "    v=(m.group(1) if m.groups() else m.group(0)).strip()\n"
+    "    if v and v not in out: out.append(v)\n"
+    "    if len(out)>=500: break\n"
+    "print(json.dumps(out))\n"
+)
+
+
+def _regex_values(pattern: str, text_: str, timeout: float = 4.0) -> List[str]:
+    """Os trechos que um padrão (regex) do usuário acha, com tempo limite: roda num Python à parte (`-I`) que é encerrado se passar de `timeout` segundos."""
+    import json
+    import subprocess
+    import sys
+
+    try:
+        r = subprocess.run([sys.executable, "-I", "-c", _RX_CODE], input=json.dumps({"pattern": pattern, "text": text_}), capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        raise ValueError("Esse padrão demorou demais para rodar (pode travar): simplifique-o.") from None
+    if r.returncode != 0:
+        raise ValueError("Não consegui rodar esse padrão (regex): " + (r.stderr.strip().splitlines() or ["erro"])[-1][:120])
+    return json.loads(r.stdout or "[]")
+
+
 def run_text_extract(eng, canvas, node):
     p, t = node["params"], _join_in(eng, canvas, node, "text")[:50000]
     pats = {"links": r"https?://[^\s<>\"')\]]+", "emails": r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+", "hashtags": r"#[\wÀ-ÿ]+", "numbers": r"-?\d+(?:[.,]\d+)?",
@@ -1074,20 +1102,21 @@ def run_text_extract(eng, canvas, node):
         if re.search(r"\((?:[^()]*[+*][^()]*)\)[+*{]", p["pattern"]):
             raise ValueError("Esse padrão repete um grupo que já se repete (pode travar): simplifique-o.")
         try:
-            rx = re.compile(p["pattern"], re.I)
+            re.compile(p["pattern"], re.I)
         except re.error as exc:
             raise ValueError(f"Padrão inválido: {exc}") from None
+        found = _regex_values(p["pattern"], t)   # o padrão do usuário roda num processo à parte com limite de tempo: alguns (ex.: «(a|a)*b») levam uma eternidade e o `re` não pode ser interrompido
     else:
         rx = re.compile(pats[p["what"]], re.I if p["what"] != "words_caps" else 0)
-    found = []
-    for m in rx.finditer(t):
-        v = (m.group(1) if m.groups() else m.group(0)).strip()
-        if p["what"] in ("links", "emails"):
-            v = v.rstrip(".,;:!?)»”'\"")   # a pontuação da frase não faz parte do link
-        if v and v not in found:
-            found.append(v)
-        if len(found) >= 500:
-            break
+        found = []
+        for m in rx.finditer(t):
+            v = (m.group(1) if m.groups() else m.group(0)).strip()
+            if p["what"] in ("links", "emails"):
+                v = v.rstrip(".,;:!?)»”'\"")   # a pontuação da frase não faz parte do link
+            if v and v not in found:
+                found.append(v)
+            if len(found) >= 500:
+                break
     if p["limit"]:
         found = found[:p["limit"]]
     if not found:

@@ -393,8 +393,11 @@ class App:
 
     def r_hf_search(self, req: "Request") -> None:
         q = (req.query.get("q", [""])[0] or "gguf").strip()
+        kind = req.query.get("kind", ["text"])[0] or "text"
+        if kind not in hf.GGUF_KINDS:
+            raise HttpError(400, "Tipo de modelo inválido.")
         try:
-            req.json({"results": hf.search(q, self._hf_token(), kind=hf.check_kind(req.query.get("kind", ["text"])[0] or "text"))})
+            req.json({"results": hf.search(q, self._hf_token(), kind=kind)})
         except ProviderError as exc:
             raise HttpError(502, str(exc))
 
@@ -411,6 +414,8 @@ class App:
 
         repo = req.query.get("repo", [""])[0]
         kind = req.query.get("kind", [""])[0]
+        if not hf.REPO_RE.match(repo or ""):
+            raise HttpError(400, "Repositório inválido (use o formato dono/nome).")
         try:
             tree = hf.repo_files(repo, self._hf_token())
             files = hf.group_files([f for f in tree if f["name"].lower().endswith(".gguf") and hf.FILE_RE.match(Path(f["name"]).name)], hardware_info().get("ram_gb") or 0)
