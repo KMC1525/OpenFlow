@@ -2,6 +2,22 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.30.0] — 2026-11-15
+
+### New — MiniMax H3 Image (image and editing) and the full MiniMax H3
+- **MiniMax H3 Image** (`unsloth/MiniMax-H3-Image-GGUF`, 33B): runs in OpenFlow through `sd-cli` with the card's recipe — **6 steps, CFG 1.0, `euler`, `--sigmas minimax-h3-image` and `--rng cpu`** (the last two are not optional), parameter offload to the CPU. It downloads with the model the **image VAE** (from `MiniMaxAI/MiniMax-H3-Image`, saved as `minimax-h3-image-vae.safetensors` so it does not collide with other “diffusion_pytorch_model” files) and the MiniMax H3 **Qwen3-VL-32B encoder** (Q2_K_M for Q2 denoisers, Q4_K_M for the rest). The card recommends `UD-Q4_K_XL` (13.6 GB).
+- **Editing with up to 16 references:** the images linked to the node go as `-r` and OpenFlow uses the model's convention: **`<Picture 1>`, `<Picture 2>`…** in the prompt. If your prompt already cites the images it stays as is; otherwise OpenFlow adds ("Edit <Picture 1>. …" with one reference; "Reference images: <Picture 1>, … ." with several). References also count in Generate mode.
+- **Sizes in multiples of 32** (each model token covers 32×32 pixels); when editing a single image, the size follows its aspect ratio (the card warns that a square size crops a wide reference).
+- **Separate families:** H3 image, video (text + frames) and video-by-references no longer mix by file name (`minimax_h3_image…` used to match the video family).
+- The PyPI Python library never recognises H3: it goes straight to `sd-cli` (like the v0.22 video H3). In the Unsloth list (Models → Download more models) **MiniMax H3 Image** shows as "Experimental".
+
+### Not verified
+- **I generated no images with H3 Image here** (no GPU, no network, no `sd-cli`; the model is 33B): tests cover family, recipe, companion files, `sd-cli` arguments, the `<Picture N>` convention and sizes. `sd-cli` must be recent (support landed in stable-diffusion.cpp via PR #2324).
+- The `<Picture N>` prompt rule when you do not cite them is **my choice from the card**, untested; if results look odd, cite the images in the prompt.
+- **The text encoder (≈ 18 GB) is downloaded once per model type:** using H3 image and H3 video takes two copies of it. OpenFlow does not yet share the file between folders.
+- The original diffusers pipeline (68 GB, `MiniMaxAI/MiniMax-H3-Image`) and the `MiniMax-H3-Image-PE` prompt expander (a 27B text model) were **not** included; PE can be used as a separate text model.
+- Nothing changed in the video H3 besides the family no longer catching image files.
+
 ## [0.29.0] — 2026-11-15
 
 ### New — GPU Upgrade: faster local models on NVIDIA, AMD and Intel cards (Rust core)

@@ -897,6 +897,7 @@ export default {
   'Usar {f}': 'Use {f}',
   '{f} pronto e escolhido neste nó. Execute o nó de novo.': '{f} is ready and selected on this node. Run the node again.',
   'Já há um download em andamento.': 'A download is already in progress.',
+  'Novo na v0.30: imagens de até 16 megapixels e edição com até 16 referências (<Picture 1>, <Picture 2>…); destilado em 6 passos, sem CFG. Baixa junto o VAE de imagem e o codificador Qwen3-VL-32B (o mesmo do vídeo H3). Recomendado: UD-Q4_K_XL (13,6 GB). Pesado: placa pequena usa memória da RAM.': 'New in v0.30: images up to 16 megapixels and editing with up to 16 references (<Picture 1>, <Picture 2>…); distilled to 6 steps, no CFG. Downloads the image VAE and the Qwen3-VL-32B encoder (the same as H3 video) with it. Recommended: UD-Q4_K_XL (13.6 GB). Heavy: a small card spills into RAM.',
   'Em placas pequenas (2–6 GB, notebooks) o OpenFlow deixa o cache de atenção na RAM e enche a memória da placa só com camadas do modelo; GPU integrada não é usada (ela divide a RAM com o processador).': 'On small cards (2–6 GB, laptops) OpenFlow keeps the attention cache in RAM and fills the card\'s memory with model layers only; an integrated GPU is not used (it shares RAM with the processor).',
   'Placa de vídeo (aceleração)': 'Graphics card (acceleration)',
   'cache na RAM': 'cache in RAM',

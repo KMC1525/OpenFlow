@@ -32,6 +32,8 @@ CATALOG: List[Dict[str, Any]] = [
     {"repo": "unsloth/MOSS-Image-Base-GGUF", "kind": "image", "label": "MOSS-Image Base", "size": "5,1B", "status": "ready", "hint": "A base do MOSS-Image (o SFT segue melhor as instruções)."},
     {"repo": "unsloth/flux-3-image-klein-GGUF", "kind": "image", "label": "FLUX.3 Image Klein", "size": "5,6B", "status": "alt", "use": "leejet/flux-3-image-klein-GGUF",
      "hint": "O arquivo da Unsloth é para ComfyUI/diffusers (nomes de tensores do checkpoint original): a stable-diffusion.cpp não o reconhece. Use o repositório leejet/flux-3-image-klein-GGUF (a versão «base», que segue melhor o prompt e usa 20 passos, está em leejet/flux-3-image-klein-base-GGUF)."},
+    {"repo": "unsloth/MiniMax-H3-Image-GGUF", "kind": "image", "label": "MiniMax H3 Image", "size": "33B · ≈ 8–22 GB + 13–18 GB de texto", "status": "beta",
+     "hint": "Novo na v0.30: imagens de até 16 megapixels e edição com até 16 referências (<Picture 1>, <Picture 2>…); destilado em 6 passos, sem CFG. Baixa junto o VAE de imagem e o codificador Qwen3-VL-32B (o mesmo do vídeo H3). Recomendado: UD-Q4_K_XL (13,6 GB). Pesado: placa pequena usa memória da RAM."},
     {"repo": "unsloth/ERNIE-Image-Turbo-GGUF", "kind": "image", "label": "ERNIE-Image Turbo", "size": "8B", "status": "soon", "why": "O cartão só descreve o ComfyUI-GGUF; não confirmei suporte na stable-diffusion.cpp, então o OpenFlow ainda não tem receita."},
     # ---- vídeo
     {"repo": "unsloth/Wan2.2-TI2V-5B-GGUF", "kind": "video", "label": "Wan2.2 TI2V 5B", "size": "5B", "status": "ready", "hint": "Texto ou imagem → vídeo em 720p; baixa o VAE e o UMT5-XXL junto."},
