@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 _CACHE: Optional[str] = None
 

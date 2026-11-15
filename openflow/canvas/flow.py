@@ -6,7 +6,7 @@ A IA só devolve **dados** (nós com tipo e parâmetros + ligações por chave);
 from __future__ import annotations
 
 import re
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Tuple
 
 from ..agents.runner import Runner
 from ..providers import build_provider

@@ -1,7 +1,6 @@
 """Rotas da Biblioteca 2.0 (v0.27): pastas virtuais, listagem de modelos e arquivos por pasta, busca e mover itens (ver libfolders.py)."""
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from typing import Any, Dict, List
 

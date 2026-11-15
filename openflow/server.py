@@ -16,9 +16,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from . import __version__, hf, native, team, voice
+from . import __version__, hf, native, team
 from .jobs import HttpError, Job, JobManager  # noqa: F401  (reexportados)
-from .providers import ProviderError, build_provider, describe_presets, provider_config
+from .providers import ProviderError, build_provider, describe_presets
 from .routes_library import LibraryRoutes
 from .routes_preinstalled import PreinstalledRoutes
 from .routes_projects import ProjectRoutes
@@ -107,11 +107,8 @@ class App:
         pid = body.get("id") or "demo"
         cfg = body.get("config") or {}
         override = settings["providers"].setdefault(pid, {})
-        for k in ("base_url", "model"):
-            if k in cfg and isinstance(cfg[k], str):  # campo vazio vale: testar sem modelo escolhido (ex.: LM Studio em automático) não pode herdar o salvo
-                override[k] = cfg[k].strip()
-        if cfg.get("api_key"):
-            override["api_key"] = cfg["api_key"]
+        if isinstance(cfg.get("model"), str):   # campo vazio vale: testar sem modelo escolhido não pode herdar o salvo
+            override["model"] = cfg["model"].strip()
         if "vision" in cfg:
             override["vision"] = bool(cfg["vision"])
         if cfg.get("n_ctx"):
@@ -130,8 +127,6 @@ class App:
         a("POST", r"/api/settings/reset", self.r_settings_reset)
         a("POST", r"/api/providers/test", self.r_provider_test)
         a("POST", r"/api/providers/models", self.r_provider_models)
-        a("GET", r"/api/lmstudio", self.r_lmstudio)
-        a("POST", r"/api/lmstudio/scan", self.r_lmstudio_scan)
 
         a("POST", r"/api/uploads", self.r_upload)
         a("DELETE", r"/api/uploads/(?P<uid>[\w-]+)", self.r_upload_delete)
@@ -153,8 +148,6 @@ class App:
         a("GET", r"/api/models/support", self.r_support_status)
         a("POST", r"/api/models/support/install", self.r_support_install)
 
-        a("POST", r"/api/voice/tts", self.r_tts)
-        a("POST", r"/api/voice/stt", self.r_stt)
 
         self.project_routes = ProjectRoutes(self)
         self.project_routes.register()
@@ -240,24 +233,6 @@ class App:
             req.json({"ok": True, "models": provider.list_models()})
         except ProviderError as exc:
             req.json({"ok": False, "error": str(exc), "models": []})
-
-    def r_lmstudio(self, req: "Request") -> None:
-        """Estado do LM Studio agora: servidor rodando?, modelos de chat (carregados primeiro) e o que o OpenFlow vai usar."""
-        from .providers import lmstudio
-
-        cfg = provider_config(self.store.get_settings(), "lmstudio")
-        info = lmstudio.probe(req.query.get("url", [""])[0] or cfg.get("base_url") or "", cfg.get("api_key") or "", timeout=3)
-        lmstudio.forget()  # o usuário acabou de pedir: o cache não pode esconder o que mudou (ligou o servidor, carregou um modelo)
-        info["selected"] = cfg.get("model") or (info["loaded"][0] if info["loaded"] else "")
-        info["hint"] = lmstudio.HOW_TO_START
-        req.json(info)
-
-    def r_lmstudio_scan(self, req: "Request") -> None:
-        """Procura o LM Studio de outro computador na rede local (a pedido do usuário)."""
-        from .providers import lmstudio
-
-        req.body_json()
-        req.json({"servers": lmstudio.scan()})
 
     # ----- uploads
     def r_upload(self, req: "Request") -> None:
@@ -594,25 +569,6 @@ class App:
 
         job = self.jobs.start("support_files", work)
         req.json({"job_id": job.id})
-
-    # ----- voz
-    def r_tts(self, req: "Request", pid: str = "") -> None:
-        body = req.body_json()
-        try:
-            audio, mime = voice.synthesize(self.store.get_settings(), text(body.get("text"), "", 2000), text(body.get("voice"), "", 60))
-        except ProviderError as exc:
-            raise HttpError(502, str(exc))
-        req.bytes(audio, mime)
-
-    def r_stt(self, req: "Request", pid: str = "") -> None:
-        data = req.body_bytes(30 * 1024 * 1024)
-        mime = req.headers.get("Content-Type", "audio/webm").split(";")[0]
-        ext = {"audio/webm": "webm", "audio/ogg": "ogg", "audio/mp4": "m4a", "audio/mpeg": "mp3", "audio/wav": "wav"}.get(mime, "webm")
-        try:
-            txt = voice.transcribe_bytes(self.store.get_settings(), data, f"audio.{ext}", mime, req.headers.get("X-Lang", ""))
-        except ProviderError as exc:
-            raise HttpError(502, str(exc))
-        req.json({"text": txt})
 
     # ----- web ui estática
     def serve_static(self, req: "Request") -> None:

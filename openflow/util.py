@@ -387,29 +387,3 @@ def strip_reasoning(raw: str) -> str:
 _LAN_CACHE: dict = {"t": 0.0, "ips": []}
 
 
-def lan_ips() -> list:
-    """Endereços IPv4 do computador na rede local (o primeiro é o da saída padrão), sem loopback. O resultado vale por 30 s."""
-    import socket
-    import time
-
-    if time.time() - float(_LAN_CACHE["t"]) < 30 and _LAN_CACHE["ips"]:
-        return list(_LAN_CACHE["ips"])
-    found: list = []
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.settimeout(0.2)
-        s.connect(("10.255.255.255", 1))   # UDP: não envia nada, só descobre qual interface seria usada
-        found.append(s.getsockname()[0])
-        s.close()
-    except OSError:
-        pass
-    try:
-        found.extend(i[4][0] for i in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET))
-    except OSError:
-        pass
-    out: list = []
-    for ip in found:
-        if ip and not ip.startswith(("127.", "0.", "169.254.")) and ip not in out:
-            out.append(ip)
-    _LAN_CACHE.update(t=time.time(), ips=list(out))
-    return out

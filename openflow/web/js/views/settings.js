@@ -15,7 +15,7 @@ const TABS = SETTINGS_TABS;
 export default async function render(root, ctx) {
   let tab = TABS.some(([id]) => id === ctx.tab) ? ctx.tab : 'providers';
   const body = h('div'), tabs = h('div', { class: 'tabs cfgtabs', role: 'tablist', 'aria-label': t('Configurações') });
-  const FNS = { providers, media, voice, project: projectTab, appearance, performance };
+  const FNS = { providers, media, project: projectTab, appearance, performance };
   const paintTabs = () => tabs.replaceChildren(...TABS.map(([id, l]) => h('button', { class: tab === id ? 'on' : '', role: 'tab', 'aria-selected': tab === id ? 'true' : 'false', dataset: { tab: id }, onclick: () => { tab = id; paintTabs(); paintBody(); } }, t(l))));
   const paintBody = async () => { body.replaceChildren(h('div', { class: 'spinner' })); body.replaceChildren(await (FNS[tab] || providers)()); };
   root.replaceChildren(h('div', { class: 'page narrow cfg' }, h('div', { class: 'page-h' }, h('div', null, h('h1', null, t('Configurações')), h('p', null, t('Modelos de IA, provedores de mídia, aparência e desempenho: configure uma vez e use em todos os projetos.')))), tabs, body));
@@ -31,34 +31,6 @@ const cfgCard = (title, ...kids) => h('div', { class: 'card', style: { marginBot
 const saveRow = (fn) => h('div', { class: 'row', style: { justifyContent: 'flex-end' } }, h('button', { class: 'btn primary', type: 'button', id: 'cfg-save', onclick: async () => { try { await fn(); toast(t('Salvo'), 'ok'); } catch (e) { toast(e.message, 'err'); } } }, icon('check', 15), t('Salvar')));
 
 const numInput = (obj, key, min, max, step) => h('input', { type: 'number', min, max, step: step || 1, value: obj[key], oninput: (e) => { const v = parseFloat(e.target.value); if (!Number.isNaN(v)) obj[key] = v; } });
-
-function accountBox(p, cfg, repaint) {
-  const msg = h('p', { class: 'muted small', style: { margin: '6px 0 0' } });
-  const connected = cfg.auth === 'account' && cfg.has_key;
-  if (p.oauth) {
-    const go = async () => {
-      msg.textContent = '';
-      try {
-        const r = await api('/api/auth/openrouter/start', { method: 'POST', body: {} });
-        const w = window.open(r.url, 'flow-login', 'width=520,height=720');
-        if (!w) { location.href = r.url; return; }
-        msg.textContent = t('Faça o login na janela que abriu…');
-        const done = async () => { window.removeEventListener('message', onMsg); await refreshState(); toast(t('Conta conectada'), 'ok'); renderSide(); repaint(); };
-        const onMsg = (e) => { if (e.data === 'flow-auth-ok') done(); };
-        window.addEventListener('message', onMsg);
-        const tick = setInterval(async () => { if (w.closed) { clearInterval(tick); await refreshState(); const c = (state.settings.providers || {})[p.id] || {}; if (c.auth === 'account' && c.has_key) done(); else { window.removeEventListener('message', onMsg); msg.textContent = ''; } } }, 800);
-      } catch (e) { msg.textContent = e.message; msg.className = 'err small'; }
-    };
-    return h('div', { class: 'field', dataset: { account: p.id } }, h('label', { class: 'f' }, t('Conta')),
-      h('div', { class: 'row' }, h('button', { class: 'btn' + (connected ? '' : ' primary'), type: 'button', id: 'acct-' + p.id, onclick: go }, icon('user', 14), connected ? t('Entrar de novo com a conta') : t('Entrar com a conta do {p}', { p: 'OpenRouter' })),
-        connected ? h('span', { class: 'chip on' }, t('conta conectada')) : null,
-        connected ? h('button', { class: 'btn sm danger', type: 'button', onclick: async () => { await saveSettings({ providers: { [p.id]: { api_key: null, auth: '' } } }); toast(t('Conta desconectada')); await refreshState(); repaint(); } }, t('Desconectar')) : null),
-      h('p', { class: 'muted small', style: { margin: '6px 0 0' } }, t('Login oficial (OAuth): você autoriza no site do OpenRouter e não precisa copiar chave. O uso é cobrado na sua conta de lá.')), msg);
-  }
-  return h('div', { class: 'field', dataset: { account: p.id } }, h('label', { class: 'f' }, t('Conta')),
-    h('div', { class: 'row' }, h('a', { class: 'btn', href: p.login, target: '_blank', rel: 'noopener', id: 'acct-' + p.id }, icon('user', 14), t('Entrar na conta e criar a chave'))),
-    h('p', { class: 'muted small', style: { margin: '6px 0 0' } }, t('Este provedor não deixa outros apps usarem o login da conta nem da assinatura (Claude Pro, ChatGPT Plus…): você entra no site dele, cria a chave em um clique e cola no campo abaixo.')));
-}
 
 async function providers() {
   const presets = state.presets;
@@ -97,28 +69,18 @@ async function providers() {
       res.textContent = r.ok ? '✓ ' + t('Funcionou') + ' (' + (r.ms / 1000).toFixed(1) + ' s) · ' + t('resposta:') + ' ' + r.reply : '✗ ' + r.error;
     };
     const save = async () => {
-      const patch = { base_url: draft.base_url, model: draft.model };
-      if (p.id !== 'lmstudio') patch.vision = !!draft.vision;   // no LM Studio a visão é detectada pelo tipo do modelo (vlm)
+      const patch = { model: draft.model };
+      patch.vision = !!draft.vision;
       if (p.kind === 'local_hf') patch.n_ctx = draft.n_ctx > 0 ? draft.n_ctx : 0;   // 0 = automático
-      if (draft.api_key) patch.api_key = draft.api_key;
       await saveSettings({ providers: { [p.id]: patch } }); draft.api_key = ''; toast(t('Salvo'), 'ok'); await refreshState(); renderSide(); paint();
     };
     const inputs = [];
     if (p.id === 'demo') inputs.push(h('p', { class: 'muted small', style: { margin: '10px 0 0' } }, t(p.hint)));
     else {
-      if (p.id === 'lmstudio') inputs.push(lmStudioBox(p, draft, () => modelIn));
-      if (p.oauth || p.login) inputs.push(accountBox(p, cfg, () => { paint(); }));
-      if (p.needs_key || p.kind === 'openai' || p.id === 'anthropic') inputs.push(field(t('Chave de API') + (p.needs_key ? '' : ' (' + t('opcional') + ')'),
-        h('div', { class: 'row nw' }, h('input', { type: 'password', autocomplete: 'off', placeholder: cfg.has_key ? '•••••••• (' + t('salva') + ')' : 'sk-…', oninput: (e) => { draft.api_key = e.target.value; } }),
-          cfg.has_key ? h('button', { class: 'btn sm danger', onclick: async () => { await saveSettings({ providers: { [p.id]: { api_key: null } } }); toast(t('Chave removida')); await refreshState(); paint(); } }, t('Remover')) : null),
-        p.docs ? h('a', { href: p.docs, target: '_blank', rel: 'noopener', class: 'muted' }, t('Obter chave →')) : null));
-      if (p.kind === 'openai' || p.id === 'anthropic') inputs.push(field(t('URL base'), h('input', { value: draft.base_url || p.base_url, placeholder: p.base_url || 'https://…/v1', oninput: (e) => { draft.base_url = e.target.value.trim(); } })));
-      const modelIn = h('input', { list: 'models-' + p.id, value: draft.model, placeholder: p.kind === 'local_hf' ? t('arquivo .gguf baixado') : p.id === 'lmstudio' ? t('automático: o modelo carregado no LM Studio') : t('clique em “Carregar modelos”'), oninput: (e) => { draft.model = e.target.value.trim(); } });
+      const modelIn = h('input', { list: 'models-' + p.id, value: draft.model, placeholder: t('arquivo .gguf baixado'), oninput: (e) => { draft.model = e.target.value.trim(); } });
       inputs.push(field(t('Modelo'), h('div', { class: 'row nw' }, modelIn, dl,
         p.kind !== 'local_hf' ? h('button', { class: 'btn sm', onclick: loadModels }, icon('refresh', 13), t('Carregar modelos')) : null)));
-      if (p.id === 'lmstudio') { /* visão: automática pelo tipo do modelo */ }
-      else if (p.kind !== 'local_hf') inputs.push(checkbox(t('Aceita imagens (visão)'), draft.vision, (v) => { draft.vision = v; }));
-      else {
+      {
         // janela de contexto: vazio = automático (32K nos modelos de texto pré-instalados; nos demais, conforme o hardware)
         const ctxHint = h('p', { class: 'muted small', style: { margin: '4px 0 0' } });
         const showCtx = () => {
@@ -152,96 +114,6 @@ async function providers() {
   }
   paint();
   return container;
-}
-
-function lmWhy(r) {
-  let host = ''; try { host = new URL(r.url).hostname; } catch (e) { /* ok */ }
-  const own = /^(127\.|localhost$|\[?::1)/.test(host);
-  if (own) return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '') ? t('O LM Studio não roda neste aparelho. Para usar o do seu computador, use «LM Studio no computador» abaixo (IP do computador, não 127.0.0.1).') : t(r.hint);
-  if (r.kind === 'refused') return t('O computador respondeu que a porta está fechada: no LM Studio (Developer) ligue «Serve on Local Network» — sem isso ele só aceita conexões do próprio computador — e reinicie o servidor.');
-  if (r.kind === 'timeout') return t('O computador não respondeu a tempo: libere a porta 1234 no firewall (no Windows: «Permitir um aplicativo» para o LM Studio, rede privada), e confira se o celular está no mesmo Wi-Fi (redes de visitantes isolam os aparelhos).');
-  if (r.kind === 'dns') return t('Não achei esse endereço. Digite o IP do computador (ex.: 192.168.0.10), que aparece no LM Studio em Developer, ao lado de «Serve on Local Network».');
-  if (r.kind === 'unreachable') return t('Sem caminho até esse endereço: confira se o celular está no mesmo Wi-Fi do computador e o IP digitado.');
-  return t(r.hint);
-}
-
-function pcBox(draft, detect) {
-  if (!/Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '')) return null;
-  const out = h('div', { class: 'muted small', style: { marginTop: '6px' } });
-  const addr = h('input', { id: 'lms-pc-addr', inputmode: 'url', autocapitalize: 'off', placeholder: '192.168.0.10  ·  192.168.0.10:1234', 'aria-label': t('Endereço do computador') });
-  const point = async (url) => {
-    draft.base_url = url; await saveSettings({ providers: { lmstudio: { base_url: url } } });
-    let ok = false; try { ok = (await api('/api/lmstudio?url=' + encodeURIComponent(url))).running; } catch (e) { /* o detect mostra o motivo */ }
-    if (ok) { await saveSettings({ active: { generation: 'lmstudio', characters: 'lmstudio' } }); toast(t('Conectado ao LM Studio do computador.'), 'ok'); await refreshState(); renderSide(); }   // quem conectou quer usar: o Chat e os avatares passam a usar os modelos dele
-    detect();
-  };
-  const scan = async () => {
-    out.replaceChildren(h('div', { class: 'spinner' }), ' ', t('Procurando o LM Studio na rede…'));
-    let r;
-    try { r = await api('/api/lmstudio/scan', { method: 'POST', body: {} }); } catch (e) { out.textContent = e.message; return; }
-    if (!r.servers.length) { out.textContent = t('Não achei. No computador: LM Studio → Developer → ligue «Serve on Local Network» e «Start Server»; o celular precisa estar no mesmo Wi-Fi. Ou digite o IP do computador.'); return; }
-    out.replaceChildren(...r.servers.map((sv) => h('button', { class: 'btn sm', type: 'button', onclick: () => point(sv.url) }, sv.url + ' · ' + t('{n} modelo(s)', { n: sv.models }))));
-  };
-  const manual = () => {
-    let v = addr.value.trim();
-    if (!v) { out.textContent = t('Digite o IP do computador (ex.: 192.168.0.10).'); return; }
-    const scheme = (v.match(/^(https?):\/\//i) || [, ''])[1].toLowerCase();   // https:// (túnel) é mantido; sem esquema vale http + porta 1234
-    v = v.replace(/^https?:\/\//i, '');
-    const path = /^[^/]+\/lm\/[\w-]+/.test(v) ? v.slice(v.indexOf('/')).replace(/\/(v1|api\/v0)(\/.*)?$/, '').replace(/\/$/, '') : '';   // link «…/lm/<código>» do acesso de fora de casa
-    v = v.replace(/\/.*$/, '');
-    if (!scheme && !/:\d+$/.test(v)) v += ':1234';
-    point((scheme || 'http') + '://' + v + path);
-  };
-  return h('div', { class: 'lms-pc', id: 'lms-pc', style: { marginTop: '12px', paddingTop: '10px', borderTop: '1px solid var(--line, rgba(255,255,255,.1))' } },
-    h('b', null, t('LM Studio no computador')),
-    h('p', { class: 'muted small', style: { margin: '4px 0 8px' } }, t('Use os modelos do LM Studio do seu computador por este aparelho, na mesma rede Wi-Fi.')),
-    h('p', { class: 'muted small', style: { margin: '0 0 8px' } }, t('Fora de casa, sem VPN: no computador, abra Configuração → Celular e tablet → «LM Studio fora de casa», ligue e copie o link; cole-o aqui. (Ou use o Tailscale: digite o IP 100.x.x.x ou o nome ….ts.net do computador.)')),
-    h('div', { class: 'row', style: { gap: '8px', flexWrap: 'wrap' } }, h('button', { class: 'btn sm primary', type: 'button', id: 'lms-pc-scan', onclick: scan }, icon('refresh', 13), t('Procurar na rede')), addr,
-      h('button', { class: 'btn sm', type: 'button', id: 'lms-pc-go', onclick: manual }, t('Conectar'))), out);
-}
-
-function lmStudioBox(p, draft, getModelInput) {
-  const box = h('div', { class: 'card', style: { background: 'var(--bg2, rgba(255,255,255,.03))', margin: '4px 0 12px', padding: '12px 14px' } });
-  const status = h('div', { class: 'row', style: { gap: '8px' } }), list = h('div', { class: 'row', style: { gap: '6px', flexWrap: 'wrap', marginTop: '8px' } }), note = h('p', { class: 'muted small', style: { margin: '8px 0 0' } });
-  const use = async (role) => {
-    await saveSettings({ providers: { lmstudio: { base_url: draft.base_url, model: draft.model } }, active: { [role]: 'lmstudio' } });
-    toast(role === 'characters' ? t('Os avatares vão conversar pelo LM Studio.') : t('A geração vai usar o LM Studio.'), 'ok'); await refreshState(); renderSide();
-  };
-  async function detect() {
-    status.replaceChildren(h('div', { class: 'spinner' })); list.replaceChildren(); note.textContent = '';
-    let r;
-    try { r = await api('/api/lmstudio?url=' + encodeURIComponent(draft.base_url || '')); } catch (e) { status.replaceChildren(h('span', { class: 'dim small' }, e.message)); return; }
-    const dot = h('span', { style: { width: '9px', height: '9px', borderRadius: '50%', background: r.running ? 'var(--ok)' : 'var(--dim)', display: 'inline-block' } });
-    status.replaceChildren(dot, h('b', null, r.running ? t('LM Studio detectado em {u}', { u: r.url }) : t('LM Studio não detectado em {u}', { u: r.url })), h('span', { class: 'grow' }),
-      h('button', { class: 'btn sm', onclick: detect }, icon('refresh', 13), t('Detectar de novo')),
-      r.running ? h('button', { class: 'btn sm primary', onclick: () => use('characters') }, t('Usar nos avatares')) : null,
-      r.running ? h('button', { class: 'btn sm', onclick: () => use('generation') }, t('Usar na geração')) : null);
-    if (!r.running) { note.textContent = lmWhy(r) + (r.error ? ' (' + r.error + ')' : ''); return; }
-    list.replaceChildren(...(r.models.length ? r.models.map((m) => h('button', { class: 'chip' + (draft.model === m.id || (!draft.model && r.selected === m.id) ? ' on' : ''), title: [m.loaded ? t('carregado') : t('não carregado'), m.quant, m.vision ? t('visão') : ''].filter(Boolean).join(' · '),
-      onclick: () => { draft.model = m.id; const inp = getModelInput(); if (inp) inp.value = m.id; detect(); } }, (m.loaded ? '● ' : '○ ') + m.id + (m.vision ? ' 👁' : ''))) : [h('span', { class: 'dim small' }, t('Nenhum modelo instalado: baixe um na aba «Discover» do LM Studio.'))]));
-    note.textContent = r.loaded.length ? t('● carregado agora · ○ instalado (o LM Studio pode carregar sob demanda). Sem escolher, o OpenFlow usa o modelo carregado.') : t('Nenhum modelo está carregado no LM Studio: carregue um (ou escolha um acima).');
-  }
-  box.append(status, list, note, pcBox(draft, detect)); detect();
-  return box;
-}
-
-async function voice() {
-  const v = JSON.parse(JSON.stringify(state.settings.voice));
-  const block = (key, title, extra) => {
-    const x = v[key];
-    return h('div', { class: 'card', style: { marginBottom: '16px' } }, h('h3', null, title),
-      field(t('Motor'), seg([['browser', t('Navegador (grátis)')], ['server', t('Servidor compatível com OpenAI')]], x.engine, (val) => { x.engine = val; })),
-      h('div', { class: 'grid2' }, field(t('URL base'), h('input', { value: x.base_url, placeholder: 'https://api.openai.com/v1  ·  http://localhost:8000/v1', oninput: (e) => { x.base_url = e.target.value.trim(); } })),
-        field(t('Chave de API'), h('input', { type: 'password', autocomplete: 'off', placeholder: state.settings.voice[key].api_key_set ? '•••••••• (' + t('salva') + ')' : '', oninput: (e) => { x.api_key = e.target.value; } }))),
-      h('div', { class: 'grid2' }, field(t('Modelo'), h('input', { value: x.model, oninput: (e) => { x.model = e.target.value.trim(); } })), extra(x)));
-  };
-  return h('div', null,
-    h('p', { class: 'muted', style: { marginTop: 0 } }, t('Por padrão a voz usa o navegador (reconhecimento e síntese), sem custo e em vários idiomas. Para vozes de modelos — nuvem ou 100% locais (Whisper, Kokoro, Piper… atrás de uma API compatível com OpenAI) — configure um servidor abaixo.')),
-    block('stt', t('Reconhecimento de fala (STT)'), (x) => field(t('Idioma (vazio/auto = detectar)'), h('input', { value: x.lang, oninput: (e) => { x.lang = e.target.value.trim() || 'auto'; } }))),
-    block('tts', t('Síntese de voz (TTS)'), (x) => field(t('Voz padrão'), h('input', { value: x.voice, placeholder: 'alloy', oninput: (e) => { x.voice = e.target.value; } }))),
-    h('div', { class: 'row', style: { justifyContent: 'flex-end' } }, h('button', { class: 'btn primary', onclick: async () => {
-      const clean = (x) => { const o = Object.assign({}, x); delete o.api_key_set; if (!o.api_key) delete o.api_key; return o; };
-      await saveSettings({ voice: { stt: clean(v.stt), tts: clean(v.tts) } }); await refreshState(); toast(t('Salvo'), 'ok'); } }, icon('check', 15), t('Salvar'))));
 }
 
 async function appearance() {
@@ -401,22 +273,15 @@ async function media() {
     return h('div', { class: 'card', style: { marginTop: '16px' } }, h('h3', null, t(d.label)), h('p', { class: 'muted small', style: { margin: 0 } }, t(d.hint)));
   }
   function card(p) {
-    const draft = { key: '', url: p.base_url === p.default_url ? '' : p.base_url, models: Object.assign({}, p.models) };
-    const configured = (!p.needs_key || p.has_key) && (p.id !== 'custom' || p.base_url);
+    const draft = { models: Object.assign({}, p.models) };
+    const configured = true;
     const res = h('div', { class: 'res' });
     const inUse = CAPS.filter(([cap]) => data.active[cap] === p.id).map(([, l]) => t(l));
     const body = h('div', { class: 'bd' });
     const inputs = [];
-    if (p.needs_key) inputs.push(field(t('Chave de API'), h('div', { class: 'row nw' },
-      h('input', { type: 'password', autocomplete: 'off', placeholder: p.has_key ? '•••••••• (' + t('salva') + ')' : 'sk-…', oninput: (e) => { draft.key = e.target.value; } }),
-      p.has_key ? h('button', { class: 'btn sm danger', onclick: async () => { await saveSettings({ providers: { [p.id]: { api_key: null } } }); toast(t('Chave removida')); reload(); } }, t('Remover')) : null),
-      p.docs ? h('a', { href: p.docs, target: '_blank', rel: 'noopener', class: 'muted' }, t('Obter chave →')) : null));
-    if (p.local || p.id === 'custom' || p.default_url) {
-      if (p.id !== 'local_hf' && p.id !== 'voice_settings') inputs.push(field(t('Endereço do servidor'), h('input', { value: draft.url, placeholder: p.default_url || 'http://127.0.0.1:8000/v1', oninput: (e) => { draft.url = e.target.value.trim(); } })));
-    }
     const listId = 'mm-' + p.id;
     inputs.push(h('datalist', { id: listId }));
-    const modelCaps = CAPS.filter(([cap]) => p.caps.includes(cap) && p.id !== 'voice_settings' && p.id !== 'a1111');
+    const modelCaps = CAPS.filter(([cap]) => p.caps.includes(cap));
     if (p.id === 'local_hf') inputs.push(localModels(p, draft));
     else if (modelCaps.length) inputs.push(h('div', { class: 'grid2' }, modelCaps.map(([cap, label]) => {
       const dl = h('datalist', { id: listId + cap }, ((p.suggest || {})[cap] || []).map((m) => h('option', { value: m })));
@@ -429,8 +294,7 @@ async function media() {
       catch (e) { res.className = 'res err'; res.textContent = '✗ ' + e.message; }
     };
     const save = async () => {
-      const patch = { media: { models: { [p.id]: draft.models }, urls: { [p.id]: draft.url } } };
-      if (draft.key) patch.providers = { [p.id]: { api_key: draft.key } };
+      const patch = { media: { models: { [p.id]: draft.models } } };
       await saveSettings(patch); toast(t('Salvo'), 'ok'); reload();
     };
     inputs.push(h('div', { class: 'row', style: { marginTop: '8px' } }, h('button', { class: 'btn sm primary', onclick: save }, t('Salvar')), h('button', { class: 'btn sm', onclick: async () => { await save(); test(); } }, t('Salvar e testar')),

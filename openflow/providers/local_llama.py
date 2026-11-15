@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import gc
 import os
-import threading
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Tuple
 

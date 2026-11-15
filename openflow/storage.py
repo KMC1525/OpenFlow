@@ -32,15 +32,10 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
         "content": "free",  # free (SFW e NSFW, sem filtros do OpenFlow) | sfw
         "agents": 1, "effort": "high",  # equipe: 1/2/4/8/12/16/20/24/28/32 agentes em paralelo · esforço Low … Omni (ver team.py)
     },
-    "voice": {
-        "stt": {"engine": "browser", "base_url": "", "api_key": "", "model": "whisper-1", "lang": "auto"},
-        "tts": {"engine": "browser", "base_url": "", "api_key": "", "model": "tts-1", "voice": "alloy"},
-    },
     "media": {
         # provedor padrão de cada capacidade (cada nó pode escolher outro)
-        "active": {"image": "demo", "video": "demo", "sound": "demo", "voice": "demo", "stt": "voice_settings"},  # transcrição: usa a voz das configurações
-        "models": {},  # {"openai": {"image": "gpt-image-1"}} — modelo por provedor e capacidade
-        "urls": {},  # {"a1111": "http://127.0.0.1:7860"} — endereço de servidores (locais ou compatíveis)
+        "active": {"image": "demo", "video": "demo", "sound": "demo", "voice": "demo", "stt": "local_hf"},   # transcrição: o Whisper local (precisa de openflow[media])
+        "models": {},  # {"local_hf": {"image": "stabilityai/sd-turbo"}} — modelo por provedor e capacidade
     },
     "canvas": {"template": "text_image", "agents": 1, "effort": "high"},  # equipe dos nós de texto (IA) e do planejador de fluxos
     "performance": {"mode": "auto", "idle_unload_min": 10, "device": "auto", "gpus": [], "cpu_pin": True},  # auto | light | balanced | max — veja perf.py
@@ -48,6 +43,30 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "storage": {"models_dir": "", "files_dir": ""},   # v0.33: onde guardar os modelos e os arquivos dos projetos ("" = a pasta padrão do OpenFlow; um disco externo, outro disco…)
     "hf": {"token": "", "auto_support": True, "connections": 4},  # auto_support: baixa junto do modelo o VAE, os codificadores de texto e o mmproj (ver canvas/support.py); connections: conexões simultâneas por download (1 a 8; ver dl.py)
 }
+
+
+LOCAL_MEDIA = ("demo", "local_hf", "gguf_local")   # v0.35: os únicos provedores de mídia
+LOCAL_TEXT = ("demo", "local_hf")                   # e de texto
+_AUTO = ("", "auto")
+
+
+def local_only(settings: dict) -> dict:
+    """v0.35 (sem nuvem): configurações antigas com provedores de nuvem ou servidores (OpenAI, Claude, Gemini, OpenRouter, Ollama, LM Studio…) voltam ao padrão local: os provedores e chaves de API que
+    não existem mais são ignorados (e saem do arquivo na próxima gravação) e os padrões apontam para o Demo ou o modelo local."""
+    s = settings
+    prov = s.get("providers") if isinstance(s.get("providers"), dict) else {}
+    s["providers"] = {k: v for k, v in prov.items() if k in LOCAL_TEXT and isinstance(v, dict)}
+    for k in ("voice",):
+        s.pop(k, None)
+    act = s.get("active") if isinstance(s.get("active"), dict) else {}
+    s["active"] = {r: (v if (v in LOCAL_TEXT or v in _AUTO) else "auto") for r, v in act.items()}
+    media = s.get("media") if isinstance(s.get("media"), dict) else {}
+    ma = media.get("active") if isinstance(media.get("active"), dict) else {}
+    media["active"] = {c: (v if v in LOCAL_MEDIA else ("local_hf" if c == "stt" else "demo")) for c, v in ma.items()}
+    media["models"] = {k: v for k, v in (media.get("models") or {}).items() if k in LOCAL_MEDIA}
+    media.pop("urls", None)
+    s["media"] = media
+    return s
 
 
 def conform(defaults: Any, value: Any) -> Any:
@@ -91,8 +110,6 @@ def _normalize_teams(settings: dict) -> None:
 # Caminhos (dentro de settings) que contêm segredos e nunca são enviados ao navegador.
 SECRET_PATHS = [
     ("hf", "token"),
-    ("voice", "stt", "api_key"),
-    ("voice", "tts", "api_key"),
 ]
 
 
@@ -180,6 +197,7 @@ class Store:
     def get_settings(self) -> dict:
         saved = read_json(self.settings_path, {}) or {}
         merged = conform(DEFAULT_SETTINGS, deep_merge(copy.deepcopy(DEFAULT_SETTINGS), saved if isinstance(saved, dict) else {}))
+        local_only(merged)
         _normalize_teams(merged)
         merged["ui"] = normalize_ui(merged.get("ui"))  # valor inválido (API/edição manual) volta ao padrão em vez de quebrar a interface
         return merged
@@ -221,6 +239,7 @@ class Store:
             _strip_flags(patch)
             merged = conform(DEFAULT_SETTINGS, deep_merge(current, patch))  # valor do tipo errado (API/edição manual) nunca chega ao disco
             merged["ui"] = normalize_ui(merged.get("ui"))
+            local_only(merged)
             write_json(self.settings_path, merged, private=True)
             from . import perf
 
