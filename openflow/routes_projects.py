@@ -54,6 +54,7 @@ class ProjectRoutes:
         a("POST", r"/api/media/support/download", self.r_support_download)
         a("POST", r"/api/media/sd-latest", self.r_sd_latest)
         a("POST", r"/api/media/sd-cli", self.r_sd_cli)
+        a("GET", r"/api/library/files", self.r_library_files)
         a("POST", r"/api/media/ltx2-components", self.r_ltx2_components)
         a("GET", r"/api/media/sd-native", self.r_sd_native_info)
         a("POST", r"/api/media/sd-native", self.r_sd_native)
@@ -361,6 +362,16 @@ class ProjectRoutes:
 
         job = self.app.jobs.start("support_files", work)
         req.json({"job_id": job.id, "files": [m["label"] for m in info["missing"]], "approx_gb": info["approx_gb"]})
+
+    def r_library_files(self, req) -> None:
+        """Arquivos gerados (ou enviados) de todos os projetos, para a aba «Arquivos» da Biblioteca. `?kind=image|video|audio&source=generated|upload|all&q=`."""
+        qs = req.query
+        kind = (qs.get("kind", [""])[0] or "").strip()
+        source = (qs.get("source", ["generated"])[0] or "generated").strip()
+        if kind not in ("", "image", "video", "audio") or source not in ("generated", "upload", "all"):
+            raise HttpError(400, "Filtro inválido.")
+        files = self.cs.library_files(kind, (qs.get("q", [""])[0] or "")[:100], source)
+        req.json({"files": files})
 
     def r_ltx2_components(self, req) -> None:
         """Baixa os componentes do LTX-2.x (codificador de texto Gemma, VAEs, vocoder) do repositório diffusers da Lightricks para o cache do Hugging Face. Só a pedido (botão no nó)."""

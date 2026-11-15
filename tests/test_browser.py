@@ -88,6 +88,9 @@ class BrowserTests(unittest.TestCase):
     def test_14_the_prompt_panel_does_not_hide_a_node_error_after_a_run(self):
         self.run_script("canvas_dock_reveal_ui.js")
 
+    def test_15_library_models_generated_files_and_downloads_tabs(self):
+        self.run_script("library_ui.js")
+
 
 if __name__ == "__main__":
     unittest.main()

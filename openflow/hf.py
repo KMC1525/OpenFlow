@@ -288,7 +288,7 @@ def local_models(models_dir: Path, kind: str = "text") -> List[Dict[str, Any]]:
             continue  # partes faltando: o modelo não carrega
         if "mmproj" in p.name.lower():
             continue
-        out.append({"name": p.name, "kind": kind, "size": sum(x.stat().st_size for x in parts), "parts": len(parts), **parse_quant(p.name)})
+        out.append({"name": p.name, "kind": kind, "size": sum(x.stat().st_size for x in parts), "parts": len(parts), "mtime": max(x.stat().st_mtime for x in parts), **parse_quant(p.name)})
     return out
 
 

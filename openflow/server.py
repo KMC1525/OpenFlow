@@ -136,6 +136,7 @@ class App:
         a("DELETE", r"/api/uploads/(?P<uid>[\w-]+)", self.r_upload_delete)
         a("GET", r"/api/jobs/(?P<jid>[\w-]+)", self.r_job_get)
         a("GET", r"/api/jobs", self.r_jobs)
+        a("GET", r"/api/library/downloads", self.r_downloads)
         a("GET", r"/api/jobs/(?P<jid>[\w-]+)/events", self.r_job_events)
         a("POST", r"/api/jobs/(?P<jid>[\w-]+)/cancel", self.r_job_cancel)
 
@@ -282,6 +283,28 @@ class App:
         items.sort(key=lambda j: (j.status != "running", -j.created))
         req.json({"jobs": [{"id": j.id, "kind": j.kind, "status": j.status, "events": j.total, "created": j.created} for j in items[:100]],
                   "running": sum(1 for j in items if j.status == "running")})
+
+    #: tarefas que baixam arquivos grandes (a aba «Downloads» da Biblioteca): tipo → rótulo
+    DOWNLOAD_KINDS = {"download": "Modelo", "preinstalled": "Modelo recomendado", "support_files": "Arquivos de apoio", "ltx2_components": "Componentes do LTX-2", "sd_cli": "sd-cli", "sd_latest": "sd-cli (mais novo)", "local_model": "Modelo local"}
+
+    def r_downloads(self, req: "Request") -> None:
+        """Downloads em andamento e recentes (desta sessão), com o progresso de cada um. A Biblioteca os mostra ao lado dos modelos já baixados."""
+        with self.jobs.lock:
+            items = [j for j in self.jobs.jobs.values() if j.kind in self.DOWNLOAD_KINDS]
+        items.sort(key=lambda j: (j.status != "running", -j.created))
+        out = []
+        for j in items[:50]:
+            with j.cond:
+                evs = list(j.events)
+            prog = next((e for e in reversed(evs) if e.get("type") == "progress"), None)
+            note = next((e.get("message") for e in reversed(evs) if e.get("type") == "note"), "")
+            err = next((e.get("message") for e in reversed(evs) if e.get("type") == "error"), "")
+            start = next((e for e in evs if e.get("type") == "start"), {})
+            title = j.meta.get("title") or start.get("label") or start.get("file") or start.get("model") or self.DOWNLOAD_KINDS[j.kind]
+            status = "error" if err and j.status == "done" else j.status   # um job que emitiu erro termina como «done»: a lista mostra o que de fato houve
+            out.append({"id": j.id, "kind": j.kind, "label": self.DOWNLOAD_KINDS[j.kind], "title": str(title), "repo": j.meta.get("repo", ""), "status": status, "created": j.created,
+                        "done": int((prog or {}).get("done") or 0), "total": int((prog or {}).get("total") or 0), "note": note or "", "error": err or ""})
+        req.json({"downloads": out, "running": sum(1 for d in out if d["status"] == "running")})
 
     def r_job_cancel(self, req: "Request", jid: str) -> None:
         job = self.jobs.get(jid)
@@ -441,7 +464,7 @@ class App:
                 on_done(path)
             job.emit({"type": "done", "name": path.name, "support": extra, "support_failed": failed})
 
-        return self.jobs.start("download", work)
+        return self.jobs.start("download", work, {"title": names[0], "repo": repo, "kind": kind})
 
     def r_support_status(self, req: "Request") -> None:
         """Os arquivos de apoio (VAE, codificadores de texto, mmproj) de cada modelo de imagem, vídeo e texto instalado: o que tem e o que falta. Sem rede."""

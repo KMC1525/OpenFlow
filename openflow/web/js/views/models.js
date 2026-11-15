@@ -9,6 +9,7 @@ import { checkbox, confirmDialog, debounce, fmtBytes, h, icon, toast } from '../
 // Ao baixar um modelo, o OpenFlow baixa junto o que ele precisa para rodar (a menos que isso seja desligado aqui).
 
 export default async function render(root, ctx) {
+  const embedded = !!(ctx && ctx.embedded);   // dentro da Biblioteca (aba «Modelos»): sem o cabeçalho da página
   let kind = 'image';
   const ram = state.hardware.ram_gb || 8;
   const auto = { on: state.settings.hf.auto_support !== false };
@@ -178,7 +179,8 @@ export default async function render(root, ctx) {
   };
   paintKind();
   const tokenIn = h('input', { type: 'password', autocomplete: 'off', 'aria-label': t('Token do Hugging Face'), placeholder: state.settings.hf.token_set ? '•••••••• (' + t('salvo') + ')' : 'hf_…' });
-  root.replaceChildren(h('div', { class: 'page narrow cfg' }, h('div', { class: 'page-h' }, h('div', null, h('h1', null, t('Modelos')), h('p', null, t('Baixe e gerencie modelos locais. VAEs, codificadores de texto e mmproj são instalados junto do modelo, automaticamente.')))),
+  root.replaceChildren(h('div', { class: embedded ? 'cfg' : 'page narrow cfg' }, embedded ? null : h('div', { class: 'page-h' }, h('div', null, h('h1', null, t('Modelos')), h('p', null, t('Baixe e gerencie modelos locais. VAEs, codificadores de texto e mmproj são instalados junto do modelo, automaticamente.')))),
+    h('div', { class: 'card', style: { marginBottom: '16px' } }, h('h3', null, t('Baixados')), installed),
     h('div', { class: 'card', style: { marginBottom: '16px' } }, h('h3', null, t('Recomendados')),
       h('p', { class: 'muted small', style: { marginTop: 0 } }, t('Um modelo de texto e um de imagem, já com a quantização definida. O de imagem vem com o VAE e o codificador de texto de que precisa.')), preBox),
     h('div', { class: 'card', style: { marginBottom: '16px' }, id: 'md-unsloth' }, h('h3', null, t('Modelos da Unsloth')),
@@ -187,7 +189,6 @@ export default async function render(root, ctx) {
       h('div', { class: 'row nw', style: { marginTop: '10px' } }, h('div', { class: 'search', style: { maxWidth: 'none', flex: 1 } }, icon('search', 17), q), h('button', { class: 'btn', type: 'button', onclick: search }, t('Buscar'))),
       h('div', { style: { marginTop: '12px' } }, results), files),
     prog,
-    h('div', { class: 'card', style: { marginBottom: '16px' } }, h('h3', null, t('Instalados')), installed),
     h('div', { class: 'card' }, h('h3', null, t('Token do Hugging Face (opcional)')), h('p', { class: 'muted small', style: { marginTop: 0 } }, t('Necessário apenas para modelos restritos (gated).')),
       h('div', { class: 'row nw' }, tokenIn, h('button', { class: 'btn', type: 'button', onclick: async () => { if (tokenIn.value) { await saveSettings({ hf: { token: tokenIn.value } }); await refreshState(); toast(t('Salvo'), 'ok'); } } }, t('Salvar'))))));
   await Promise.all([paintInstalled(), paintPre()]);

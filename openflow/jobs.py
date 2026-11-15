@@ -37,6 +37,7 @@ class Job:
         self._cancel = threading.Event()
         self.created = time.time()
         self.result: Optional[dict] = None
+        self.meta: dict = {}   # rótulo e origem (ex.: download: título e repositório), para a aba Downloads da Biblioteca
 
     def emit(self, ev: dict) -> None:
         with self.cond:
@@ -78,8 +79,9 @@ class JobManager:
         self.lock = threading.Lock()
         self.store = store
 
-    def start(self, kind: str, fn: Callable[[Job], Optional[dict]]) -> Job:
+    def start(self, kind: str, fn: Callable[[Job], Optional[dict]], meta: Optional[dict] = None) -> Job:
         job = Job(kind)
+        job.meta = dict(meta or {})
         with self.lock:
             for jid in [j for j, x in self.jobs.items() if x.status != "running" and time.time() - x.created > 3600]:
                 self.jobs.pop(jid, None)
