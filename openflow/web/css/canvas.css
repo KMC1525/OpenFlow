@@ -192,8 +192,6 @@
 /* v0.17.3: seletor de modelo dos nós */
 .mpick select{flex:1;min-width:0;max-width:100%}.mpick input{margin-top:6px;width:100%}.mpick input.hidden{display:none}
 
-/* caixa de prompt (gerar fluxo com IA) embaixo do canvas; recolhe para uma barra fina */
-@media (max-width:700px){
 /* Style Folder: pastas e subpastas (v0.1) */
 .cv-node .sf-bar{margin-bottom:6px}
 .cv-node .sf-root{margin-bottom:4px}
