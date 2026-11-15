@@ -242,6 +242,23 @@ def repo_files(repo: str, token: str = "") -> List[Dict[str, Any]]:
     return out
 
 
+def pick_equivalent(name: str, groups: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """A opção de um repositório equivalente (de outro autor) à quantização do arquivo `name`: a mesma família (Q4_K_M ≈ Q4_K), senão a de bits mais próximos, senão a recomendada."""
+    if not groups:
+        return None
+    cur = parse_quant(name)
+
+    def fam(q: str) -> str:
+        return re.sub(r"_[SML]$", "", (q or "").upper())
+
+    same = [g for g in groups if cur["quant"] and fam(g.get("quant", "")) == fam(cur["quant"])]
+    if same:
+        return next((g for g in same if g["quant"].upper() == cur["quant"].upper()), same[0])
+    if cur["bits"]:
+        return min(groups, key=lambda g: (abs(int(g.get("bits") or 0) - cur["bits"]), not g.get("recommended")))
+    return next((g for g in groups if g.get("recommended")), groups[0])
+
+
 def list_files(repo: str, token: str = "", ram_gb: float = 0) -> List[Dict[str, Any]]:
     files = [f for f in repo_files(repo, token) if f["name"].lower().endswith(".gguf") and FILE_RE.match(Path(f["name"]).name)]
     return group_files(files, ram_gb)

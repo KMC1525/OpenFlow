@@ -2,6 +2,15 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.20.0] — 2026-11-15
+
+### Corrigido
+- **O erro do FLUX.3 (e o botão dele) ficava escondido atrás do painel «Gerar fluxo com IA»:** na sua captura a mensagem «A stable-diffusion.cpp não reconhece o formato deste arquivo…» termina exatamente onde o painel cobre o nó — o botão da v0.18 estava embaixo dele e você só via o texto. Agora, depois de uma execução com erro, o canvas **sobe o nó para acima do painel** (se o nó for mais alto que a tela, mostra o fim dele, que é onde ficam o erro e os botões), sem mexer em quem não é coberto.
+- **O erro agora se resolve com um clique:** o botão passou de «Abrir … em Modelos» a **«Baixar e usar flux3-image-klein-Q4_K.gguf (3,3 GB)»**. Ele escolhe sozinho o arquivo **equivalente** à quantização que você estava usando no repositório compatível (Q4_K_M → Q4_K; Q5_K_M → Q5_K; Q8_0 → Q8_0), mostra o tamanho antes de baixar, baixa com progresso (e o VAE/codificador que faltarem), **passa a usar o arquivo novo neste nó** (e como padrão de imagem) e avisa «Execute o nó de novo». Se o arquivo já está baixado, o botão vira «Usar …». «Abrir … em Modelos» continua ao lado, para quem quer escolher outra quantização.
+
+### Ainda não verificado
+- Não baixei o arquivo do `leejet` de verdade nem gerei com ele (sem rede/modelo/sd-cli aqui); os testes simulam o Hugging Face e conferem a escolha da quantização equivalente, o download, a troca do modelo do nó e o painel. Que o arquivo do `leejet` carregue com o seu `sd-cli` e com o VAE/codificador que você já tem continua sem teste meu.
+
 ## [0.19.0] — 2026-11-15
 
 ### Corrigido (nó Texto ligado aos nós Imagem e Vídeo)

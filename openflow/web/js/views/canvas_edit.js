@@ -435,6 +435,19 @@ export default async function render(root, ctx, cid) {
     else if (ev.type === 'error') toast(ev.message, 'err');
     else if (ev.type === 'cancelled') toast(t('Execução cancelada.'));
   }
+  // Puxa o canvas para que o nó apareça inteiro acima do painel «Gerar fluxo com IA» (o painel cobria o fim do nó: a mensagem de erro e os botões dela ficavam escondidos).
+  function revealNode(id) {
+    const ne = el[id], dock = document.getElementById('cv-dock');
+    if (!ne || !surface.isConnected) return;
+    const area = surface.getBoundingClientRect(), r = ne.getBoundingClientRect();
+    const dk = dock && dock.getBoundingClientRect();
+    const covers = dk && dk.width > 0 && dk.height > 0 && r.right > dk.left && r.left < dk.right;   // só atrapalha se o painel está embaixo do nó
+    const limit = Math.min(area.bottom, covers ? dk.top : area.bottom) - 14;
+    if (r.bottom <= limit) return;
+    const room = limit - area.top, dy = r.height <= room ? Math.min(r.bottom - limit, Math.max(0, r.top - area.top - 10)) : r.bottom - limit;   // cabendo, mantém o topo na tela; nó mais alto que o espaço: o fim (erro e botões) é o que importa
+    if (dy <= 0) return;
+    view.y -= dy; applyView(); drawEdges(); dirty(1500);
+  }
   async function finishRun() {
     const sum = S.summary;
     S.job = ''; setBusy(false);
@@ -442,6 +455,7 @@ export default async function render(root, ctx, cid) {
     const msgs = Object.fromEntries(Object.entries(S.states).filter(([, x]) => x.state === 'error').map(([id, x]) => [id, x.message]));
     await reload();
     for (const [id, m] of Object.entries(msgs)) { const n = nodeById(id); if (n && !n.result.error) { n.result.state = 'error'; n.result.error = m; refreshNode(id); } }
+    for (const id of Object.keys(msgs)) revealNode(id);   // o painel «Gerar fluxo com IA» não pode cobrir o erro e os botões dele
     if (errs.length) toast(t('{n} nó(s) com erro. Veja a mensagem no nó.', { n: errs.length }), 'err');
     else if (sum) toast(sum.ran ? t('Pronto: {n} nó(s) gerado(s).', { n: sum.ran }) + (sum.cached ? ' ' + t('{n} vieram do cache.', { n: sum.cached }) : '') : t('Nada a gerar: tudo já está atualizado.'), 'ok');
   }
