@@ -397,6 +397,12 @@ class App:
             raise HttpError(400, str(exc))
         sizes = {n: int(body["sizes"].get(n, 0)) for n in names} if isinstance(body.get("sizes"), dict) and all(isinstance(v, (int, float)) for v in body["sizes"].values()) else {}
         auto = self._auto_support() and body.get("support") is not False
+        job = self._download_job(repo, names, sizes, dest, kind, auto)
+        req.json({"job_id": job.id})
+
+    def _download_job(self, repo: str, names: List[str], sizes: Dict[str, int], dest: Path, kind: str, auto: bool, on_done: Optional[Callable[[Path], None]] = None) -> Job:
+        """A tarefa de download de um modelo (e dos arquivos de apoio dele). `on_done(caminho)` roda depois do download (ex.: passar a usar o modelo no nó)."""
+        from .canvas import support
 
         def work(job: Job) -> None:
             job.emit({"type": "start", "file": names[0], "parts": len(names)})
@@ -423,10 +429,11 @@ class App:
                     extra, failed = res["installed"], res["failed"]
                     for f in failed:   # o modelo já está baixado: a falha dos apoios não o desfaz (o botão «Baixar os arquivos de apoio» refaz)
                         job.emit({"type": "note", "message": f"Não baixou {f['label']}: {f['error']}"})
+            if on_done:
+                on_done(path)
             job.emit({"type": "done", "name": path.name, "support": extra, "support_failed": failed})
 
-        job = self.jobs.start("download", work)
-        req.json({"job_id": job.id})
+        return self.jobs.start("download", work)
 
     def r_support_status(self, req: "Request") -> None:
         """Os arquivos de apoio (VAE, codificadores de texto, mmproj) de cada modelo de imagem, vídeo e texto instalado: o que tem e o que falta. Sem rede."""

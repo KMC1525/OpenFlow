@@ -54,6 +54,8 @@ class ProjectRoutes:
         a("POST", r"/api/media/support/download", self.r_support_download)
         a("POST", r"/api/media/sd-latest", self.r_sd_latest)
         a("POST", r"/api/media/sd-cli", self.r_sd_cli)
+        a("GET", r"/api/media/sd-native", self.r_sd_native_info)
+        a("POST", r"/api/media/sd-native", self.r_sd_native)
         a("GET", r"/api/media/hub/search", self.r_hub_search)
         a("POST", r"/api/media/hub/use", self.r_hub_use)
         a("GET", r"/api/media/local/state", self.r_local_state)
@@ -390,6 +392,51 @@ class ProjectRoutes:
 
         job = self.app.jobs.start("sd_cli", work)
         req.json({"job_id": job.id})
+
+    def _sd_native_pick(self, model: str):
+        """Para um GGUF que a stable-diffusion.cpp não reconhece (versão ComfyUI/diffusers): (repositório de referência, opção equivalente à quantização atual) — ex.: Q4_K_M → Q4_K do leejet."""
+        from . import hf
+        from .canvas import support
+        from .util import hardware_info
+
+        nat = support.sd_native_for(model)
+        if not nat:
+            raise HttpError(404, "Não conheço uma versão compatível com a stable-diffusion.cpp para este modelo.")
+        try:
+            groups = hf.list_files(nat["repo"], self.app._hf_token(), hardware_info().get("ram_gb") or 0)
+        except Exception as exc:  # noqa: BLE001 — sem rede / Hugging Face fora do ar
+            raise HttpError(502, f"Não consegui consultar {nat['repo']} no Hugging Face: {exc}")
+        pick = hf.pick_equivalent(model, groups)
+        if not pick:
+            raise HttpError(404, f"{nat['repo']} não tem arquivos GGUF utilizáveis.")
+        return nat, pick
+
+    def r_sd_native_info(self, req) -> None:
+        """O que o botão do nó vai baixar: o arquivo equivalente do repositório compatível (nome, tamanho, quantização)."""
+        model = text(req.query.get("model", [""])[0], "", 200)
+        nat, pick = self._sd_native_pick(model)
+        req.json({"repo": nat["repo"], "file": pick["name"], "size": pick["size"], "quant": pick["quant"], "installed": (self.store.models_dir / "image" / pick["name"]).is_file()})
+
+    def r_sd_native(self, req) -> None:
+        """Baixa (com o VAE e o codificador de texto que faltarem) o GGUF compatível com a stable-diffusion.cpp equivalente ao que o nó usa e passa a usá-lo nesse nó — o botão «Baixar e usar» do erro «não reconhece o formato»."""
+        from . import hf
+
+        b = req.body_json()
+        b = b if isinstance(b, dict) else {}
+        model, cid, nid = text(b.get("model"), "", 200), text(b.get("canvas"), "", 40), text(b.get("node"), "", 40)
+        running = self.app.jobs.running("download")
+        if running:
+            raise HttpError(409, json.dumps({"job_id": running.id}))
+        nat, pick = self._sd_native_pick(model)
+        dest = hf.kind_dir(self.store.models_dir, "image", create=True)
+
+        def use(path) -> None:   # depois de baixar: o modelo vira o do nó (e o padrão das imagens)
+            self.store.save_settings({"media": {"active": {"image": "gguf_local"}, "models": {"gguf_local": {"image": path.name}}}})
+            if cid and nid:
+                self.cs.patch_node_params(cid, nid, {"provider": "gguf_local", "model": path.name})
+
+        job = self.app._download_job(nat["repo"], list(pick["files"]), {n: int(sz) for n, sz in (pick.get("sizes") or {}).items()}, dest, "image", self.app._auto_support(), use)
+        req.json({"job_id": job.id, "file": pick["name"]})
 
     def r_sd_latest(self, req) -> None:
         """Compila a stable-diffusion-cpp-python mais nova do GitHub (`flow libs --sd-latest`) quando o modelo não é reconhecido pela que veio do PyPI. Só a pedido da pessoa (botão no nó); leva minutos."""

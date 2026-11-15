@@ -85,6 +85,9 @@ class BrowserTests(unittest.TestCase):
     def test_13_text_node_linked_to_image_and_video_shows_the_linked_text(self):
         self.run_script("canvas_text_link_ui.js")
 
+    def test_14_the_prompt_panel_does_not_hide_a_node_error_after_a_run(self):
+        self.run_script("canvas_dock_reveal_ui.js")
+
 
 if __name__ == "__main__":
     unittest.main()

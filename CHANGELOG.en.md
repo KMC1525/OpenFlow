@@ -2,6 +2,15 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.20.0] — 2026-11-15
+
+### Fixed
+- **The FLUX.3 error (and its button) was hidden behind the "Generate a flow with AI" panel:** in your screenshot the message "stable-diffusion.cpp does not recognise the format of this file…" ends exactly where the panel covers the node — the v0.18 button was under it and you only saw the text. Now, after a run with an error, the canvas **moves the node above the panel** (if the node is taller than the screen it shows its end, which is where the error and buttons are), without touching nodes that are not covered.
+- **The error now resolves with one click:** the button went from "Open … in Models" to **"Download and use flux3-image-klein-Q4_K.gguf (3.3 GB)"**. It picks the **equivalent** of the quantization you were using in the compatible repository (Q4_K_M → Q4_K; Q5_K_M → Q5_K; Q8_0 → Q8_0), shows the size before downloading, downloads with progress (and any missing VAE/encoder), **starts using the new file on this node** (and as the default image model) and says "Run the node again". If the file is already downloaded, the button becomes "Use …". "Open … in Models" stays beside it, for those who want another quantization.
+
+### Not verified yet
+- I did not really download the `leejet` file nor generate with it (no network/model/sd-cli here); the tests simulate Hugging Face and check the equivalent quantization choice, the download, the node's model switch and the panel. That the `leejet` file loads with your `sd-cli` and the VAE/encoder you already have is still untested by me.
+
 ## [0.19.0] — 2026-11-15
 
 ### Fixed (Text node linked to Image and Video nodes)

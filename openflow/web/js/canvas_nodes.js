@@ -435,8 +435,25 @@ export function nodeResult(c, n) {
     const repoHit = /\[\[flow-sd-repo:([^\]]+)\]\]/.exec(error);   // o arquivo é para o ComfyUI/diffusers: oferece abrir o repositório compatível com a stable-diffusion.cpp
     const tools = /\[\[flow-sd-tools\]\]/.test(error), cli = tools || /\[\[flow-sd-cli\]\]/.test(error);   // «tools»: faltam git/compilador: o botão instala o que falta e compila; «cli»:   // sem compilar: baixa o executável pronto (sd-cli) da stable-diffusion.cpp
     box.append(h('div', { class: 'err' }, error.replace(/\s*\[\[flow-support:[^\]]+\]\]/, '').replace(/\s*\[\[flow-sd-update\]\]/, '').replace(/\s*\[\[flow-sd-cli\]\]/, '').replace(/\s*\[\[flow-sd-tools\]\]/, '').replace(/\s*\[\[flow-sd-repo:[^\]]+\]\]/, '')));
-    if (repoHit) {
-      box.append(h('button', { class: 'btn sm primary nodrag', type: 'button', id: 'sdrepo-' + n.id, style: { marginTop: '6px' }, onclick: async () => { const { go } = await import('./main.js'); go('models', { repo: repoHit[1], kind: 'image' }); } }, icon('download', 13), t('Abrir {r} em Modelos', { r: repoHit[1] })));
+    if (repoHit) {   // o arquivo é para o ComfyUI/diffusers: um clique baixa o equivalente compatível com a stable-diffusion.cpp e passa a usá-lo neste nó
+      const rb = h('button', { class: 'btn sm primary nodrag', type: 'button', id: 'sdnative-' + n.id, style: { marginTop: '6px', marginRight: '6px' } }, icon('download', 13), t('Baixar a versão compatível'));
+      const label = (info) => t('Baixar e usar {f} ({s})', { f: info.file, s: (info.size / 1024 ** 3).toFixed(1) + ' GB' });
+      let info = null;
+      api('/api/media/sd-native?model=' + encodeURIComponent(n.params.model || '')).then((i) => { info = i; rb.lastChild.textContent = ' ' + (i.installed ? t('Usar {f}', { f: i.file }) : label(i)); }).catch(() => { /* sem rede: o botão fica com o rótulo genérico */ });
+      rb.onclick = async () => {
+        rb.disabled = true;
+        try {
+          const r = await api('/api/media/sd-native', { method: 'POST', body: { model: n.params.model || '', canvas: c.cv && c.cv.id, node: n.id } });
+          events('/api/jobs/' + r.job_id + '/events', (ev) => {
+            if (ev.type === 'note') rb.lastChild.textContent = ' ' + ev.message.slice(0, 40);
+            else if (ev.type === 'progress' && ev.total) rb.lastChild.textContent = ' ' + Math.round(100 * ev.done / ev.total) + '%';
+            else if (ev.type === 'done') { c.change(n, 'provider', 'gguf_local'); c.change(n, 'model', ev.name, true); toast(t('{f} pronto e escolhido neste nó. Execute o nó de novo.', { f: ev.name }), 'ok'); }
+            else if (ev.type === 'error') { toast(ev.message, 'err'); rb.disabled = false; }
+            else if (ev.type === 'cancelled') { rb.disabled = false; }
+          });
+        } catch (e) { rb.disabled = false; toast(e.status === 409 ? t('Já há um download em andamento.') : e.message, 'err'); }
+      };
+      box.append(rb, h('button', { class: 'btn sm nodrag', type: 'button', id: 'sdrepo-' + n.id, style: { marginTop: '6px' }, onclick: async () => { const { go } = await import('./main.js'); go('models', { repo: repoHit[1], kind: 'image' }); } }, t('Abrir {r} em Modelos', { r: repoHit[1] })));
     }
     if (cli) {
       const cb = h('button', { class: 'btn sm primary nodrag', type: 'button', id: 'sdcli-' + n.id, style: { marginTop: '6px', marginRight: '6px' } }, icon('download', 13), tools ? t('Instalar o que falta e compilar o sd-cli') : t('Baixar o executável pronto (sem compilar)'));
