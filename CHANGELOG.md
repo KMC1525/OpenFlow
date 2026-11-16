@@ -2,6 +2,19 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.67.0] — 2026-11-16
+
+### Corrigido — «could not convert string to float: 'E aí e aí e aí…»» na Dublagem
+- **A causa, na imagem:** o seletor «Modelo» da própria **Dublagem** (o modelo de **voz**) estava com `openai/whisper-small`, que é um modelo de **transcrição**. O texto da fala foi entregue a um modelo que espera áudio, e a conversão falhou com o texto inteiro dentro da mensagem. O Whisper estava na lista porque o Hugging Face local mostrava **todo modelo baixado em todas as listas** (som, voz, transcrição, imagem…), exceto os 3D.
+- **As listas agora separam por tipo:** o seletor de voz não mostra mais o Whisper nem o MusicGen; o de transcrição só mostra modelos de transcrição (ou de tipo desconhecido); o de sons, os de sons e músicas; e as listas de imagem e vídeo não mostram modelos de áudio. O tipo vem do **nome** do modelo (Whisper, wav2vec, Bark, MMS-TTS, Orpheus, CSM, MusicGen, AudioLDM, Stable Audio…); um nome que o OpenFlow não reconhece **continua aparecendo e funcionando como antes**.
+- **Mensagem clara no lugar do erro enigmático:** se um modelo de tipo errado chega ao carregador (um projeto que já estava salvo assim, por exemplo), o nó diz *«'openai/whisper-small' é um modelo de transcrição (fala → texto), não de voz (texto → fala). No campo «Modelo» do nó… escolha um modelo de voz (Bark, MMS-TTS, Orpheus ou CSM)…»*. O mesmo vale para sons e para transcrição. E «Usar» na barra de pesquisa recusa o modelo de tipo errado.
+- **Laços de repetição do Whisper:** o texto repetido «E aí e aí e aí…» por dezenas de vezes é a alucinação típica do Whisper em trechos sem fala. Uma palavra repetida 12 vezes ou mais seguidas, ou uma frase de até 6 palavras repetida 6 vezes ou mais, fica com duas repetições na transcrição, nas legendas e na dublagem. Repetições normais (letra de música, «la la la la», «Eu te amo» ×4) ficam como estão.
+
+### Ainda não verificado
+- **Não rodei o Whisper nem o transformers de verdade** (o Hugging Face não é acessível daqui): o caso da imagem foi reproduzido mandando o modelo errado ao carregador local, que o recusa antes de qualquer biblioteca. Que o erro original do transformers (`float(...)` com o texto) vinha mesmo do Whisper recebendo o texto é a conclusão mais provável (o modelo da imagem era o Whisper, e o texto da mensagem é o texto que ia ser falado), **não uma execução do erro**.
+- O tipo do modelo vem do **nome**: um modelo de voz com nome que contenha «whisper» seria tratado como de transcrição, e um repositório sem nome reconhecível não é filtrado nem bloqueado.
+- A limpeza de repetições usa limites fixos (12 palavras iguais; 6 repetições de uma frase curta): um laço mais curto que isso, ou uma alucinação que não se repete, **não é detectada**; o Whisper segue podendo inventar texto em trechos sem fala.
+
 ## [0.66.0] — 2026-11-16
 
 ### Corrigido — «got multiple values for keyword argument 'local_files_only'» na transcrição

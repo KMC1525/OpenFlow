@@ -596,6 +596,11 @@ class ProjectRoutes:
             model = Path(model).name
         elif not REPO_RE.match(model):
             raise HttpError(400, "Informe o modelo no formato dono/nome.")
+        from .canvas import modelkind
+
+        why = modelkind.mismatch(cap, model) if provider == "local_hf" else ""
+        if why:   # v0.67: um modelo de transcrição não vira o modelo de voz (e assim por diante)
+            raise HttpError(400, why)
         node_type = {"image": "image", "video": "video", "sound": "sound", "voice": "voice", "stt": "transcribe", "text": "llm", "model3d": "model3d"}[cap]
         if cap == "text":   # modelo de texto GGUF baixado: provedor «Hugging Face GGUF (embutido)» da conversa
             if not (self.store.models_dir / Path(model).name).is_file():

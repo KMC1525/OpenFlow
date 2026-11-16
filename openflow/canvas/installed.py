@@ -13,6 +13,7 @@ from typing import Any, Dict, List
 
 from .. import hf
 from .media import MEDIA_PRESETS, media_config
+from . import modelkind
 from .localmodels import MARKER, PRECISIONS
 
 
@@ -66,6 +67,8 @@ def installed(settings: Dict[str, Any], models_dir: Path, cap: str) -> List[Dict
 
         for d in downloaded_hf_models():
             if bool(mesh3d.family(d["model"])) != (cap == "model3d"):   # modelos 3D só na lista 3D (e fora das listas de imagem, som…)
+                continue
+            if modelkind.kind_of(d["model"]) not in ("", cap):   # v0.67: o Whisper baixado não é opção de voz, nem o MusicGen de transcrição…
                 continue
             items.append({"provider": "local_hf", "model": d["model"], "label": d["model"], "size": 0, "detail": d["precision"] + " · Hugging Face local", "match": d["model"] in known})
     return items
