@@ -2,6 +2,23 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.44.0] — 2026-11-16
+
+### Removido — configurações legadas ou inúteis
+- **Texto (IA):** saíram o botão «Carregar modelos» (nunca aparecia nos provedores que sobraram), os campos escondidos de endereço, chave de API e «vision» (o cartão passou a gravar só o **modelo** e a **janela de contexto**), os rótulos «local» e «geração» (virou «em uso») e restos de código do tempo da nuvem.
+- **Imagem, vídeo, som e voz:** saíram o aviso «sem chave», o ponto de «configurado», o selo «local» (todos os provedores são locais) e a palavra «conexão» do teste.
+- **Aparência:** o texto de «Padrões da aparência» não fala mais de chaves e avatares; o texto do núcleo Rust não fala mais de «agentes».
+- **Arquivo de configurações:** a seção `generation` (temperatura, tokens e «content» herdados do Chat do ASTA, que ninguém lia), a seção `voice`, as chaves de API, os endereços e o `vision` dos provedores e o `media.urls` saem do `settings.json` na próxima gravação; arquivos antigos continuam carregando. A exportação/importação de configurações e o «Restaurar padrões» deixaram de tratar dessas seções.
+- **API:** `GET /api/state` e `/api/media/providers` não trazem mais `needs_key`, `has_key`, `base_url`, `docs`, `login`, `oauth` e afins; a rota `POST /api/providers/models` saiu; os provedores de mídia perderam `key`, `base`, `need_key` e `need_url`.
+- Em «Modelo» dos nós: «Configurar provedores e chaves…» virou «Configurar provedores…» e «Sem modelo da nuvem», «Sem modelo (Demo)».
+
+### Mantido de propósito
+- **Token do Hugging Face** (modelos restritos), conexões por download, «baixar junto o VAE…», Desempenho (CPU, GPU, Rust), Aparência (tema, cor, escala, densidade, fonte, animações, idioma), Projetos e a escolha de precisão dos downloads em Imagem, vídeo, som e voz: tudo isso é lido pelo app.
+
+### Ainda não verificado
+- Não revisei a tela a tela de todas as combinações de idioma (a checagem de traduções cobre os textos novos).
+- Ficaram fora desta limpeza campos internos sem tela (por exemplo `server.max_upload_mb`, que o app lê).
+
 ## [0.43.0] — 2026-11-16
 
 ### Novo — acompanhar os downloads de modelos dentro do Canvas

@@ -2,6 +2,23 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.44.0] — 2026-11-16
+
+### Removed — legacy or useless settings
+- **Text (AI):** gone are the “Load models” button (it never showed for the remaining providers), the hidden address, API-key and “vision” fields (the card now saves only the **model** and the **context window**), the “local” and “generation” labels (now “in use”) and leftover code from the cloud era.
+- **Image, video, sound and voice:** gone are the “no key” warning, the “configured” dot, the “local” badge (every provider is local) and the word “connection” in the test.
+- **Appearance:** the “Appearance defaults” text no longer mentions keys and avatars; the Rust core text no longer mentions “agents”.
+- **Settings file:** the `generation` section (temperature, tokens and “content” inherited from ASTA's Chat, which nobody read), the `voice` section, API keys, addresses and `vision` of providers and `media.urls` leave `settings.json` on the next save; old files still load. Settings export/import and “Restore defaults” no longer handle those sections.
+- **API:** `GET /api/state` and `/api/media/providers` no longer carry `needs_key`, `has_key`, `base_url`, `docs`, `login`, `oauth` and the like; the `POST /api/providers/models` route is gone; media providers lost `key`, `base`, `need_key` and `need_url`.
+- In the nodes' “Model” list: “Set up providers and keys…” became “Set up providers…” and “No cloud model” became “No model (Demo)”.
+
+### Kept on purpose
+- **Hugging Face token** (gated models), connections per download, “download the VAE… along”, Performance (CPU, GPU, Rust), Appearance (theme, color, scale, density, font, animations, language), Projects and the precision choice of downloads in Image, video, sound and voice: all of it is read by the app.
+
+### Not verified yet
+- I did not review the screens in every language combination (the translation check covers the new texts).
+- Internal fields without a screen were left out of this cleanup (for example `server.max_upload_mb`, which the app reads).
+
 ## [0.43.0] — 2026-11-16
 
 ### New — follow model downloads inside the Canvas
