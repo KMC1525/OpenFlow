@@ -52,9 +52,11 @@ class FamilyTests(unittest.TestCase):
         (d / "qwen-image-2.1-Q4_K_M.gguf").write_bytes(b"g")
         info = support.missing(d, "qwen-image-2.1-Q4_K_M.gguf")
         self.assertEqual([(m["key"], m["repo"], m["file"]) for m in info["missing"]],
-                         [("vae_path", "unsloth/Qwen-Image-2.1-FP8", "vae/qwen_image_2.1_vae_bf16.safetensors"), ("llm_path", "unsloth/Qwen3-VL-8B-Instruct-GGUF", "Qwen3-VL-8B-Instruct-UD-Q4_K_XL.gguf")])
+                         [("vae_path", "unsloth/Qwen-Image-2.1-FP8", "vae/qwen_image_2.1_vae_bf16.safetensors"), ("llm_path", "unsloth/Qwen3-VL-8B-Instruct-GGUF", "Qwen3-VL-8B-Instruct-UD-Q4_K_XL.gguf"),
+                          ("llm_vision_path", "unsloth/Qwen3-VL-8B-Instruct-GGUF", "mmproj-F16.gguf")])   # v0.55: o mmproj, para editar
         (d / "qwen_image_2.1_vae_bf16.safetensors").write_bytes(b"v")
         (d / "Qwen3-VL-8B-Instruct-UD-Q4_K_XL.gguf").write_bytes(b"t")
+        self.assertEqual([m["key"] for m in support.missing(d, "qwen-image-2.1-Q4_K_M.gguf")["missing"]], ["llm_vision_path"])   # o codificador não é o mmproj, e vice-versa
         (d / "Qwen3-VL-8B-Instruct-mmproj-F16.gguf").write_bytes(b"x")   # o mmproj não é o codificador
         self.assertEqual(support.missing(d, "qwen-image-2.1-Q4_K_M.gguf")["missing"], [])
         (d / "Wan2.2-TI2V-5B-Q4_K_M.gguf").write_bytes(b"g")
@@ -107,12 +109,13 @@ class GGUFTests(TmpCase):
     def test_qwen_image_2_1_accepts_reference_images_for_editing(self):
         from PIL import Image  # noqa: F401  (só roda com Pillow; sem ele o teste é pulado)
         mod, loads, runs, _ = self.fake()
-        self.put("image", "qwen-image-2.1-Q4_K_M.gguf", "qwen_image_2.1_vae_bf16.safetensors", "Qwen3-VL-8B-Instruct-UD-Q4_K_XL.gguf")
+        self.put("image", "qwen-image-2.1-Q4_K_M.gguf", "qwen_image_2.1_vae_bf16.safetensors", "Qwen3-VL-8B-Instruct-UD-Q4_K_XL.gguf", "Qwen3-VL-8B-Instruct-mmproj-F16.gguf")   # editar exige o mmproj (v0.55)
         p = self.prov(image="qwen-image-2.1-Q4_K_M.gguf")
         self.assertEqual(p.max_refs(), 4)
         with mock.patch.dict(sys.modules, {"stable_diffusion_cpp": mod}):
             p.image("troque o fundo", refs=[(PNG, "image/png")])
         self.assertTrue(runs[0]["ref_images"])
+        self.assertTrue(loads[0]["llm_vision_path"].endswith("Qwen3-VL-8B-Instruct-mmproj-F16.gguf"))
 
     def test_z_image_turbo_runs_8_steps_without_cfg(self):
         mod, loads, runs, _ = self.fake()
