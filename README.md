@@ -2,195 +2,97 @@
 
 # OpenFlow
 
-**Creative AI in node flows — images, videos, sounds and voices — in a simple, open, local-first app.**
+**Creative AI in node flows — images, videos, sounds, voices and 3D — local, open and simple.**
 
-Inspired by ElevenLabs Flow and much lighter than ComfyUI: connect a few nodes, see every result right on the node, and edit the final video without leaving the app. Runs on your computer, with models from companies (API) or fully local ones.
+Connect a few nodes, see each result on the node, edit the final video without leaving the app. Everything runs on your computer with local models from Hugging Face. No accounts, no API keys, no telemetry.
 
-[Install](#install) · [The `flow` command](#the-flow-command) · [Projects](#projects--the-home-screen) · [Nodes](#the-nodes) · [Style Folder](#style-folder--folders-and-subfolders) · [Models](#models--support-files-install-themselves) · [Providers](#ai-providers) · [Rust core](#rust-core) · [Development](#development) · [Changelog](CHANGELOG.en.md) · [Português](README.pt-BR.md)
+[Install](#install) · [Use](#use) · [Nodes](#nodes) · [Models](#models) · [Settings](#settings) · [Data](#your-data) · [Development](#development) · [Changelog](CHANGELOG.en.md) · [Português](README.pt-BR.md)
 
-`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Rust core` · `no required dependencies` · `v0.45.0`
+`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Rust core` · `v0.46.0`
 
 </div>
 
 ---
 
-## What it is
-
-OpenFlow is the creative-flow side of [ASTA](https://github.com/KMC1525/ASTA) (its *Canvas* mode), turned into an app of its own that does **one thing**: creating with AI through a flow of connected nodes. It keeps ASTA's Python + Rust architecture and drops everything that is not about creating.
-
-- 🗂️ **Starts on your projects.** The first screen lists **all your projects** with a **search bar** that looks into names, descriptions and the texts inside the nodes (accent- and case-insensitive).
-- 🧩 **A simple node flow.** Every node has one output, typed inputs and a result you see on the node. Text, image, video, sound, voice, transcription, 30 utility nodes (they run on ffmpeg and Python — no model needed) and a built-in video **Editor** with MP4 export.
-- 🎨 **Style for the whole project.** A *Style Prompt* and a *Style Folder* apply to every generator. The Style Folder now has **folders and subfolders, which you can rename**.
-- 📦 **Models install with everything they need.** VAEs, text encoders and `mmproj` files are downloaded **automatically, together with the model**.
-- 🦀 **Rust core** (std only, loaded through `ctypes`): audio synthesis, run order of the flow, local-model planning, memory release… with a pure-Python mirror of every function.
-- ⌨️ **One command on every system: `flow`.** Install, update and run from the terminal on Linux, macOS and Windows.
-- 🔒 **Local-first and private.** Your projects are plain folders (`project.json` + `assets/`); no telemetry; the server listens on `127.0.0.1`; no cloud accounts or API keys: everything runs on your machine.
+OpenFlow is the *Canvas* mode of [ASTA](https://github.com/KMC1525/ASTA) turned into an app of its own: Python (standard library only) + a small Rust core, plain HTML/CSS/JS interface, one `flow` command.
 
 ## Install
 
 One command installs **and** updates (your data in `~/.openflow` is never touched):
 
-**Linux and macOS**
-
 ```bash
-curl -fsSL https://raw.githubusercontent.com/KMC1525/OpenFlow/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/KMC1525/OpenFlow/main/install.sh | sh        # Linux / macOS
 ```
-
-**Windows (PowerShell)**
 
 ```powershell
-irm https://raw.githubusercontent.com/KMC1525/OpenFlow/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/KMC1525/OpenFlow/main/install.ps1 | iex             # Windows
 ```
 
-Then open a **new terminal** and run:
+Open a new terminal and run `flow`. The installer sets up an isolated environment, Python 3.9+ if missing, the optional libraries, the pre-installed models (it **asks** before several GB) and the Rust core (ready-made library checked by SHA-256). With pip: `pip install "openflow @ https://github.com/KMC1525/OpenFlow/archive/refs/heads/main.zip"`.
 
-```bash
-flow
-```
+Useful variables: `OPENFLOW_EXTRAS=all|none|docs,media,local` · `OPENFLOW_MODELS=ask|all|text|image|none` · `OPENFLOW_RUST=yes|ask|no` · `OPENFLOW_PYTHON=auto|keep` · `OPENFLOW_SOURCE=<url|folder>` · `OPENFLOW_FORCE=1` · `OPENFLOW_HOME` · `OPENFLOW_LANG=pt|en`.
 
-The installer creates an isolated environment (venv), installs Python 3.9+ if it is missing (apt, dnf, yum, pacman, zypper, apk, Homebrew or winget), installs OpenFlow, the optional libraries, offers the pre-installed models and sets up the Rust core (downloads the ready-made library from the Release and checks its SHA-256; compiles on your machine only if that fails). Anything already installed is **not** installed again.
-
-| Variable | What it does |
-|---|---|
-| `OPENFLOW_EXTRAS=all\|none\|docs,media,local` | Optional libraries (default `all`; `none` installs only OpenFlow). One that fails never aborts the install. |
-| `OPENFLOW_MODELS=ask\|all\|text\|image\|none` | Pre-installed models. Without the variable the installer **asks** (yes/no) before downloading several GB. |
-| `OPENFLOW_RUST=yes\|ask\|no` | Rust core (default `yes`). |
-| `OPENFLOW_PYTHON=auto\|keep` | `keep` never touches the system Python. |
-| `OPENFLOW_SOURCE=<url\|folder>` | Install from another source (a fork, a local checkout). |
-| `OPENFLOW_FORCE=1` | Reinstall even if the version is current. |
-| `OPENFLOW_HOME`, `OPENFLOW_APP_DIR`, `OPENFLOW_BIN_DIR` | Where data, program and the `flow` command live. |
-| `OPENFLOW_LANG=pt\|en` | Language of terminal messages (default: your computer's language). |
-
-If you prefer pip: `pip install "openflow @ https://github.com/KMC1525/OpenFlow/archive/refs/heads/main.zip"` gives you the same `flow` command (without the installer's extras).
-
-## The `flow` command
+## Use
 
 | Command | What it does |
 |---|---|
-| `flow` · `flow run` | Opens OpenFlow in your browser (`--port`, `--host`, `--home`, `--no-browser`, `--no-update`). On start it checks for updates (once a day, only for installs made by the official installer; `--no-update` skips it). |
-| `flow setup` (alias `flow install`) | Finishes an installation: optional libraries, pre-installed models and the Rust core. Safe to repeat. |
-| `flow update` | Updates Python, OpenFlow, **all** its libraries (to the newest versions, plus the GitHub stable-diffusion.cpp and `sd-cli`) and the Rust core, installing what is missing to build (git, C/C++ compiler; asks for your `sudo` password) and installing/updating `sd-cli` (`--core`, `--no-python`, `--extras`, `--force`, `--rust`). |
-| `flow models list\|install\|support` | Pre-installed models; `support` checks every installed model and downloads the VAE, text encoder or `mmproj` it is missing. |
-| `flow libs` | Installs/updates the optional libraries (`--sd-cli`, `--sd-latest` for new image models). |
-| `flow native status\|build\|setup\|install\|update` | The Rust core and Rust itself. |
-| `flow folder` | Opens the data folder (`--print` shows the path). |
-| `flow doctor` · `flow version` | Diagnostics and version. |
+| `flow` | Opens OpenFlow in the browser (`--port`, `--host`, `--home`, `--no-browser`, `--no-update`). |
+| `flow update` | Updates OpenFlow, its libraries (incl. stable-diffusion.cpp) and the Rust core. |
+| `flow setup` | Finishes an installation: libraries, pre-installed models, Rust core. Safe to repeat. |
+| `flow libs` · `flow models` · `flow native` | Optional libraries · pre-installed models and support files · the Rust core. |
+| `flow doctor` · `flow version` · `flow folder` | Diagnostics · version · open the data folder. |
 
-## Projects — the home screen
+The first screen lists your **projects** with a search bar (names, descriptions and node texts; `/` focuses it). `Ctrl/⌘+K` opens the command palette, `Alt+N` creates a project, `?` lists the shortcuts. The **Library** keeps your models and generated files in virtual folders (drag and drop, search, downloads, storage usage, external drives).
 
-OpenFlow opens on **Projects**: every project as a card (thumbnail, name, nodes, files, date).
+## Nodes
 
-- **Search bar** (press `/` anywhere on the screen): finds projects by **name, description and the texts inside nodes** (prompts, lines, titles, style-folder names). All words must appear; accents and case are ignored; the card says where it matched and highlights the match. No result? One click creates a project with the name you typed.
-- **Sort** by most recent, name, oldest or most files (remembered).
-- Menu on every card: open, rename, duplicate, download (`.zip`) and delete.
-- `Ctrl/⌘ + K` opens the command palette (screens, projects and actions); `Alt + N` creates a project; `?` lists the shortcuts.
-- Accessible by design: real links and buttons, labels for screen readers, visible focus, keyboard-only use, light/dark/automatic theme, interface size 90–150 %, reduced motion.
-
-## The nodes
-
-Every node has **one output**, **typed inputs** and a **result you can see on the node**. Results are cached by a hash of parameters, inputs, styles and model: only what changed runs again.
+Every node has one output, typed inputs and a result shown on the node. Results are cached by a hash of parameters, inputs, styles and model: only what changed runs again.
 
 | Group | Nodes |
 |---|---|
-| **Text** | Text · AI text · Transcribe · Text template · Join texts · Edit text · Pick a piece · Refine with AI |
-| **Image** | Image (generate or **edit**, with several references) · Resize · Filters and color · Text on image · Collage · Video frame · **Character sheet** · **Comic page** |
-| **Video** | Video (from text or a start image) · Cut · Join clips · Speed · Video look · Images to video |
-| **Sound** | Sound (effects or music) · Voice (text to speech) · Cut · Mix · Effects · Audio from video · Repeat |
-| **Input** | Media · Style Prompt · **Style Folder** · Color/gradient · Silence · Link (URL) · Random text · Date and project |
-| **3D** | **3D model** (text or image → GLB/OBJ, with local Shap-E, TripoSR or Hunyuan3D-2 models; viewer on the node) |
-| **Output** | **Editor** (video editor: tracks, bin, preview, split/trim, fades, captions, MP4) · Final video · GIF · Final audio · Final image · Gallery |
+| **Text** | Text · AI text · Transcribe · Template · Join · Edit · Pick · Refine with AI · Extract · Count |
+| **Image** | Image (generate or **edit**, several references) · Resize · Filters · Text · Collage · Frame · Crop · Watermark · **Character sheet** · **Comic page** |
+| **Video** | Video (from text or image) · Cut · Join · Speed · Look · Slideshow · Reframe · Loop · Audio |
+| **Sound** | Sound · Voice · Cut · Mix · Effects · Audio from video · Loop · Remove silence |
+| **Input** | Media · Style Prompt · **Style Folder** · Color · Silence · URL · Random text · Date · Pattern |
+| **3D** | **3D model** (text or image → GLB/OBJ; viewer on the node) |
+| **Output** | **Editor** (tracks, split/trim, fades, captions, MP4) · Final video · GIF · Audio · Image · Thumbnail · Gallery |
 
-Extras: `@` mentions of images, videos and sounds of the project inside prompts; a model picker on every media node (installed local models); the **only** place to search and download models — the Hugging Face **model search bar** in the Canvas editor (GGUF quantizations or the original diffusers/transformers format, recommended catalog, or paste an `owner/name` address) — with a **downloads indicator** next to it that follows every model download (progress, speed, time left, cancel); templates to start fast.
+The Style Prompt and Style Folder (folders and subfolders, renameable) apply to every generator. `@` mentions bring the project's images, videos and sounds into prompts.
 
-## Style Folder — folders and subfolders
+## Models
 
-The **Style Folder** node holds the images, videos and audio that define the look of the project. In v0.1+ it is organized like a file manager:
+**All model search and download happens in the model search bar at the top of the Canvas editor**, with a downloads indicator next to it (progress, speed, time left, cancel). Click it to see the recommended models, search Hugging Face by type, or paste an `owner/name` address. For image and video choose **GGUF** (pick the quantization: bits, size, quality, fits your RAM?) or the **original** diffusers format; text is GGUF only; sound, voice, transcription and 3D use the original format.
 
-- **New folder** (at the node root) and **New subfolder** (inside any folder), up to **6 levels** and 60 folders per node.
-- **Rename** a folder with the pencil button, by double-clicking its name, and confirm with `Enter` (`Esc` cancels). Names are unique among sibling folders (`Light`, `Light (2)`…).
-- **Move files** between folders with the *Move to…* button on each thumbnail (keyboard-friendly) or by dragging them onto a folder. Drop files from your computer straight onto a folder to upload them there.
-- **Turn a folder on/off** (the eye button): an off folder stays in the project but leaves the style, along with everything inside it.
-- Folder names are part of the style: when OpenFlow describes your references (with your vision model, or from their dominant colors) it passes `Characters/Faces/ref1.png` and the folder structure, so *Characters*, *Lighting* or *Backgrounds* mean something to the model. Renaming a folder or moving a file refreshes the description and marks the nodes that use it as outdated.
+- **Support files come along:** VAE, text encoders and `mmproj` are downloaded with the model (switch off in *Settings → Performance → Model downloads*).
+- **Providers:** only local ones — *Hugging Face local* (diffusers, transformers), *GGUF local* (llama.cpp for text, stable-diffusion.cpp for image/video) and an offline *Demo*. 3D: Shap-E, TripoSR, Hunyuan3D-2.
+- Known families: Qwen-Image 2.1 (incl. ChatR Labs Uncensored Omni), FLUX.1/2/3, Z-Image, Wan, MiniMax H3, LTX-2.x, MOSS-Image and more.
 
-Old projects open unchanged (a Style Folder without folders works as before).
+## Settings
 
-## Models — support files install themselves
-
-Open **Library** (it replaced the old *Models* screen; `#/models` still works) — a Google-Drive-style screen with **folders and subfolders** (virtual: nothing moves on disk) for AI models and generated files, search across all folders, drag-and-drop to organise, and three sections: **AI models** (downloaded models in folders; “Download more models” opens the catalogue: recommended ones, Unsloth list, Hugging Face search), **Generated files** (everything your nodes produced, across all projects, with type/source filters, search, download and delete) and **Downloads** (what is downloading now with progress and cancel, recent ones, and all downloaded models). To install and manage local models (GGUF, via llama.cpp and stable-diffusion.cpp):
-
-- **Recommended:** a small text model and an image model (Z-Image), with quantization already chosen. The image model comes with its VAE and text encoder.
-- **Search on Hugging Face** by type (Text, Image, Video, Sound, Voice, Other); you see **every quantization** (bits, size, quality, whether it fits your RAM, the recommended one) and choose which to download.
-- **Support files come along, automatically.** When you download a model, OpenFlow also downloads what it needs to run:
-
-  | File | When |
-  |---|---|
-  | **VAE** | Image/video models of a known family (FLUX.1 Krea/FLUX.2/3, Qwen-Image and Qwen-Image-Edit, Krea 2, Bria FIBO 2.0, MOSS-Image, Z-Image, Wan 2.1/2.2 incl. A14B and I2V…) from the right repositories, or a VAE the model's own repository ships next to it. |
-  | **Text encoders** (`clip_l`, `t5xxl`, `umt5`, Qwen3/Mistral/Qwen-VL as LLM encoders…) | Same rule as the VAE. |
-  | **`mmproj`** (vision projector) | Text/vision models whose repository has `mmproj-*.gguf`; the best one is chosen (F16, BF16, Q8_0, F32) and saved as `<model>.mmproj.gguf` so two models never share the wrong projector. |
-
-  Before downloading, the screen shows **what will come along** and its size. Downloads resume, never repeat what is already in the folder, and a support file that fails never undoes the model — the screen says what is missing and **Install what is missing** (or `flow models support`) fixes it. Deleting a model deletes its `mmproj`. You can switch this off (checkbox on the screen, or `hf.auto_support` in the settings).
-- **Installed** shows each model with ✓ VAE · ✓ Text encoder · ⚠ missing …
-
-With the optional `local` library, a model that has an `mmproj` next to it is loaded with image input (best effort: it depends on the installed `llama-cpp-python` knowing the model's family; otherwise it keeps working as text-only).
-
-## AI providers
-
-**Text** (AI text node, style description): embedded Hugging Face GGUF models (llama.cpp) and **Demo** (offline).
-
-**Media** (set per type in *Settings → Image, video and sound*, and overridable on every node): **Hugging Face local** (diffusers + transformers), **GGUF local** (stable-diffusion.cpp) and **Demo** (offline: procedural images, synthesized sound, Ken Burns video — needs `ffmpeg`).
-
-**3D** (3D model node): **Hugging Face local** — Shap-E (`openai/shap-e`, text and image), TripoSR and Hunyuan3D-2 (image; text goes through an image first) — and **Demo** (procedural shapes). Download the model in *Settings → Image, video and sound*; TripoSR and Hunyuan3D-2 need their own libraries (the node tells you the `pip install`).
-
-Since v0.35 there are **no cloud, frontier or local-server providers** (OpenAI, Claude, Gemini, ElevenLabs, Ollama, LM Studio, A1111…): only local models downloaded from Hugging Face. Old settings are migrated and old API keys are ignored.
-
-## Rust core
-
-OpenFlow keeps ASTA's architecture: orchestration and the HTTP server stay in Python (standard library only), on top of a small **Rust library** (`openflow/native`, std only, loaded with `ctypes`). It does the heavy lifting: audio synthesis for the Demo, the **run order** of the flow, **local-model planning** (reads GGUF/safetensors headers and the free RAM/VRAM to choose context size, GPU layers, threads and cache), a plan for several local agents, media analysis (loudness, silences, tempo) and memory release. **Every Rust function has an equivalent in Python** (`openflow/native/__init__.py`), so OpenFlow works without the library — just slower. `flow native setup` downloads the ready-made library (checked by SHA-256) and compiles locally only if needed; `flow doctor` shows its state.
+**Text (AI)** model and context window · **Image, video, sound and voice** default model per type · **Projects** starting template · **Appearance** theme, color, size, font, language · **Performance** mode, CPU/GPU (several GPUs, hybrid CPU+GPU), RAM-class planner for 16 GB machines (DDR4/DDR5), download connections, Hugging Face token (gated models).
 
 ## Your data
 
-Everything lives in `~/.openflow` (or `OPENFLOW_HOME`), in open formats:
-
-```
-settings.json                     settings (never exported with secrets)
-projects/<id>/project.json        nodes, connections, style folders
-projects/<id>/assets/             generated and uploaded media
-models/ (image/ video/ …)         GGUF models and their support files
-native/                           the Rust library
-```
-
-No telemetry. The server listens on `127.0.0.1` and checks `Host`/`Origin`. Inputs (files, archives, URLs, AI output) are treated as untrusted; the AI only produces **data** (validated JSON), never code. Updates and uninstalling never delete your projects.
-
-## Repository layout
-
-```
-openflow/
-  cli.py · server.py · storage.py · routes_projects.py · routes_preinstalled.py
-  canvas/        engine, node schema, media providers, store, support files (VAE/encoders/mmproj)
-  providers/     text AI providers (local Hugging Face, Demo)
-  native/        the Rust core + its Python mirror
-  web/           the interface (plain HTML/CSS/JS, no build step)
-install.sh · install.ps1     installers (Linux/macOS · Windows)
-tests/                       Python, Node/Playwright and Rust tests
-```
+Everything is in `~/.openflow` (or `OPENFLOW_HOME`, or the folders you choose in the Library), in open formats: `settings.json` · `projects/<id>/project.json` + `assets/` · `models/` · `native/`. No telemetry; the server listens on `127.0.0.1` and checks `Host`/`Origin`; inputs (files, archives, URLs, model output) are untrusted; updating or uninstalling never deletes your projects.
 
 ## Development
 
 ```bash
 git clone https://github.com/KMC1525/OpenFlow && cd OpenFlow
 python -m pip install -e .
-python -m openflow --no-browser --no-update      # or: flow
-python -m unittest discover -s tests -t .        # full suite
+python -m openflow --no-browser --no-update
+python -m unittest discover -s tests -t .                  # full suite (browser tests need Node + Playwright)
 cargo test --release --manifest-path openflow/native/Cargo.toml
-node tests/js/i18n_check.mjs                     # every UI phrase has an English translation
+node tests/js/i18n_check.mjs                               # every UI phrase has an English translation
 ```
 
-Browser tests need Node, Playwright and Chromium (`NODE_PATH` pointing at your `playwright` install). Python 3.9 compatible code (no `match`, no runtime `X | Y`). Every UI and terminal string is Portuguese-first with an English translation (`openflow/web/js/en.js`, `openflow/term_en.py`); tests enforce it.
+The Rust core (`openflow/native`) does audio synthesis, run order, local-model and RAM planning, CPU/GPU detection and memory release; **every function has a Python mirror**, so OpenFlow works without it, just slower. UI and terminal strings are Portuguese-first with English translations (`openflow/web/js/en.js`, `openflow/term_en.py`); Python 3.9-compatible code.
 
-## Honest limits (v0.45.0)
+## Honest limits
 
-Verified here (Linux, Python 3.13): the full Python test suite (the full suite), the Chromium browser tests, the Rust tests, and `install.sh` end to end against a local checkout. **Not verified:** `install.ps1` on a real Windows machine and `install.sh` on macOS (CI jobs are written but were not run); Rust core builds for macOS/Windows/ARM; real downloads of VAEs, text encoders and `mmproj` from Hugging Face (tests simulate the downloads — file names of the curated and example repositories were checked against Hugging Face listings); inference with real GGUF models and GPUs; vision input through `mmproj` with a real model; cloud providers with real keys (tests use fake servers). Performance numbers are not benchmarked.
+Verified on Linux (Python 3.13): the Python suite, the Chromium tests, the Rust tests and `install.sh`. **Not verified:** `install.ps1` on real Windows, macOS, Rust builds for macOS/Windows/ARM, real model downloads from Hugging Face (tests simulate them), inference with real models and GPUs, and speed on real 16 GB machines. Each release's changelog lists what it did not verify.
 
-## License and credits
+## License
 
-[MIT](LICENSE). OpenFlow derives from the Canvas mode of [ASTA](https://github.com/KMC1525/ASTA) (same author). Inspired by ElevenLabs Flow. Models, libraries and services keep their own licenses: llama.cpp, stable-diffusion.cpp, diffusers, transformers, ffmpeg and the model authors on Hugging Face.
+[MIT](LICENSE). Derived from [ASTA](https://github.com/KMC1525/ASTA) (same author), inspired by ElevenLabs Flow. Models, libraries and tools keep their own licenses (llama.cpp, stable-diffusion.cpp, diffusers, transformers, ffmpeg and the model authors).
