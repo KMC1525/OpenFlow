@@ -47,7 +47,7 @@ PALETTE = [("Texto", ["text", "llm", "transcribe", "text_template", "text_join",
            ("Vídeo", ["video", "vid_trim", "vid_join", "vid_speed", "vid_look", "vid_slideshow", "vid_reframe", "vid_loop", "vid_audio"]),
            ("Som", ["sound", "voice", "aud_trim", "aud_mix", "aud_fx", "aud_from_video", "aud_loop", "aud_silence_cut"]),
            ("Input", ["upload", "style_prompt", "style_folder", "in_color", "in_silence", "in_url", "in_random", "in_vars", "in_pattern"]),
-           ("3D", ["model3d"]),
+           ("3D", ["model3d", "tex3d", "rig3d", "anim3d"]),
            ("Output", ["editor", "out_export", "out_gif", "out_audio", "out_image", "out_thumbnail", "out_gallery"])]
 
 
@@ -57,7 +57,7 @@ def compatible(out_type: str, accepts: List[str]) -> bool:
     if out_type in accepts:
         return True
     if out_type == "media":
-        return any(a in accepts for a in ("image", "video", "audio", "media"))
+        return any(a in accepts for a in ("image", "video", "audio", "media", "model3d"))   # v0.58: um GLB/OBJ enviado no nó Mídia liga nas portas de modelo 3D
     return out_type in ("image", "video", "audio") and "media" in accepts
 
 

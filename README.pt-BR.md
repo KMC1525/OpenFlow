@@ -8,7 +8,7 @@ Ligue alguns nós, veja cada resultado no próprio nó e edite o vídeo final se
 
 [Instalar](#instalar) · [Usar](#usar) · [Nós](#nós) · [Modelos](#modelos) · [Configurações](#configurações) · [Seus dados](#seus-dados) · [Desenvolvimento](#desenvolvimento) · [Changelog](CHANGELOG.md) · [English](README.md)
 
-`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Núcleo Rust` · `v0.57.0`
+`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Núcleo Rust` · `v0.58.0`
 
 </div>
 
@@ -55,7 +55,7 @@ Cada nó tem uma saída, entradas tipadas e um resultado visível nele. Os resul
 | **Vídeo** | Vídeo (de texto ou imagem) · Cortar · Juntar · Velocidade · Visual · Imagens em vídeo · Proporção · Repetir · Áudio |
 | **Som** | Som · Voz · Cortar · Misturar · Efeitos · Áudio do vídeo · Repetir · Tirar silêncios |
 | **Input** | Mídia · Style Prompt · **Style Folder** · Cor · Silêncio · Link · Sorteio de texto · Data · Padrão |
-| **3D** | **Modelo 3D** (texto ou imagem → GLB/OBJ; visualizador no nó) |
+| **3D** | **Modelo 3D** (texto ou imagem → GLB/OBJ; visualizador no nó) · **Textura 3D** (imagem ou padrão pronto, com projeção) · **Esqueleto 3D** (esqueleto e pele automáticos) · **Animação 3D** (girar, pular, ondular, andar, acenar…; toca no visualizador) |
 | **Output** | **Editor** (trilhas, dividir/cortar, fades, legendas, MP4) · Vídeo final · GIF · Áudio · Imagem · Miniatura · Galeria |
 
 O Style Prompt e o Style Folder (pastas e subpastas, renomeáveis) valem para todos os geradores. Menções com `@` trazem imagens, vídeos e sons do projeto para dentro dos prompts.

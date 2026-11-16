@@ -39,12 +39,16 @@ class EveryNodeTests(unittest.TestCase):
         vid = cls.cs.add_asset(cls.cid, v.read_bytes(), "mp4", "video", name="v.mp4", mime="video/mp4", provider="upload")
         a = ff("a.mp3", ["-f", "lavfi", "-i", "sine=frequency=880:duration=3", "-c:a", "libmp3lame"])
         aud = cls.cs.add_asset(cls.cid, a.read_bytes(), "mp3", "audio", name="a.mp3", mime="audio/mpeg", provider="upload")
+        from openflow.canvas import mesh3d
+
+        glb = cls.cs.add_asset(cls.cid, mesh3d.encode(mesh3d.demo_mesh("vaso"), "glb"), "glb", "model3d", name="vaso.glb", mime="model/gltf-binary", provider="upload")
         cls.src = {
             "text": {"id": "s_text", "type": "text", "params": {"text": "Uma floresta ao amanhecer, névoa suave. Contato ana@ex.com #luz 12"}},
             "image": {"id": "s_image", "type": "upload", "params": {"files": [img["id"]]}},
             "video": {"id": "s_video", "type": "upload", "params": {"files": [vid["id"]]}},
             "audio": {"id": "s_audio", "type": "upload", "params": {"files": [aud["id"]]}},
             "style": {"id": "s_style", "type": "style_prompt", "params": {"text": "aquarela suave"}},
+            "model3d": {"id": "s_model3d", "type": "upload", "params": {"files": [glb["id"]]}},     # v0.58: os nós 3D (textura, esqueleto, animação) pedem um modelo
         }
 
     def graph_for(self, t):
@@ -52,7 +56,7 @@ class EveryNodeTests(unittest.TestCase):
         nodes = {"x": {"id": "x", "type": t, "x": 0, "y": 0, "params": PARAMS.get(t, {})}}
         edges = []
         for pid, _label, accepts, multi in spec["ins"]:
-            kind = "style" if pid == "style" else next((k for k in ("text", "image", "video", "audio") if k in accepts), "image" if "media" in accepts else None)
+            kind = "style" if pid == "style" else next((k for k in ("text", "image", "video", "audio", "model3d") if k in accepts), "image" if "media" in accepts else None)
             if kind is None:
                 continue
             if kind == "text" and t in ("image", "video", "sound", "voice", "model3d", "llm") and pid not in ("prompt", "text"):

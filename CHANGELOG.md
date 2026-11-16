@@ -2,6 +2,31 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.58.0] — 2026-11-16
+
+### Novo — 3D 2: textura, esqueleto e animação de modelos 3D
+Três nós novos no grupo **3D** da paleta. Eles se encadeiam (**Modelo 3D → Textura 3D → Esqueleto 3D → Animação 3D**) e cada um **preserva o que o anterior fez**: a textura segue até o fim, o esqueleto também, e o arquivo final é um GLB com tudo. Qualquer GLB ou OBJ enviado pelo nó **Mídia** também pode entrar (antes o nó Mídia não ligava em portas de modelo 3D).
+- **Textura 3D:** põe uma textura no modelo, com uma **imagem ligada** (ex.: gerada por um nó Imagem) ou, sem imagem, um **padrão procedural** (xadrez, listras, tijolos, ruído, degradê, madeira) entre duas cores. Projeções: caixa (cada face por um lado), plana, cilíndrica e esférica — nas cilíndricas/esféricas os triângulos que cruzam a emenda são refeitos para a textura não «voltar». Controles: repetições, rotação, tamanho do padrão, matiz, metálico, aspereza e se as cores do modelo ficam junto.
+- **Esqueleto 3D:** cria um esqueleto automático e prende a malha a ele (pele com até 4 juntas por vértice, mistura suave): **Humanoide** (21 juntas pelas proporções do modelo, em pé e olhando para a frente), **Coluna** (corrente vertical) e **Corrente** (ao longo do maior eixo: cobras, caudas). A suavidade da mistura é ajustável.
+- **Animação 3D:** cria uma animação **em laço** e a grava no GLB (tocável em outros programas): para o modelo todo — girar, pular, flutuar, pulsar, balançar — e, com esqueleto, **ondular** (todas as juntas, em fase deslocada), **andar** e **acenar** (esqueleto humanoide) e **respirar**. Duração e intensidade são ajustáveis; uma animação por modelo (a nova substitui a antiga).
+- **Visualizador 3D:** agora mostra a **textura** (a cor de cada face pelo mapa, no centro da face), desenha o **esqueleto** por cima (liga/desliga) e **toca a animação** do arquivo (pele calculada no navegador; botão Pausar/Tocar). Lê também GLBs com esqueleto e animação feitos fora do OpenFlow.
+- **Núcleo (`model3d_ops.py`):** lê GLB/OBJ por inteiro (geometria, cores, UV, textura, esqueleto, animação) e grava GLB 2.0 completo; inclui a referência em Python da pose, usada para conferir o visualizador.
+
+### Testado
+- `tests/test_3d_nodes_v058.py` (28 testes): leitura e gravação (GLB, OBJ com UV, GLB de fora com transformações), esqueletos (contagem de juntas, pesos válidos, cada membro preso às suas juntas num boneco de caixas, limites), animações (laço fechado, erros amigáveis sem esqueleto, juntas certas de andar/acenar/respirar, GLB válido), texturas (UVs, emendas, padrões, imagem embutida, pele copiada nos vértices duplicados), os nós no motor encadeados com imagem de textura (e as mensagens de erro) e o visualizador **rodando em Node**: ele precisa dar a mesma pose que a referência em Python em todas as animações, em vários instantes.
+- Teste de navegador (`model3d_v058_ui.js`): paleta, formulários, a cadeia inteira em um projeto, texto das juntas/animação/textura no visualizador, Pausar/Tocar (quadro parado × animação andando) e o liga/desliga do esqueleto.
+- O teste que roda todos os tipos de nó passou a incluir um modelo 3D de entrada.
+
+### Corrigido no caminho
+- O nó **Mídia** não podia ser ligado a portas de modelo 3D: agora pode (Python e interface).
+
+### Ainda não verificado
+- **Modelos reais:** testei com a malha de demonstração, com um boneco de caixas e com GLBs montados à mão; não com modelos gerados pelo Shap-E, TripoSR ou Hunyuan3D, nem com personagens baixados da internet. O esqueleto é **procedural e aproximado** (proporções da caixa do modelo; o «Humanoide» supõe um corpo em pé, olhando para +z, braços ao lado, e avisa quando o modelo é mais largo que alto): em personagens reais os pesos podem pedir ajuste manual, que o OpenFlow não tem.
+- **Outros programas:** o GLB gravado segue a especificação (validado pelas contagens, tipos e referências), mas não o abri no Blender, no Three.js nem em outro visualizador.
+- **Limites:** uma só pele; juntas sem rotação de repouso; todas as malhas do arquivo viram uma só ao passar por um dos nós; animações de arquivos de fora entram como trilhas de junta (interpolação cúbica vira linear); o esqueleto automático aceita até 400 mil vértices (junto com os pesos, pode levar minutos em malhas grandes); o visualizador só toca a animação de malhas de até 60 mil vértices.
+- **Textura no visualizador** é uma prévia (uma cor por face); o arquivo leva a textura inteira. OBJ não leva textura (só o GLB resultante).
+- Não há renderização da animação em vídeo (só no visualizador e no GLB) nem pintura manual de pesos; também não testei no Windows e no macOS.
+
 ## [0.57.0] — 2026-11-16
 
 ### Corrigido — «falta de memória» ao gerar com o Qwen-Image 2.1 (e outros modelos pelo sd-cli)

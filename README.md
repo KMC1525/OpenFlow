@@ -8,7 +8,7 @@ Connect a few nodes, see each result on the node, edit the final video without l
 
 [Install](#install) · [Use](#use) · [Nodes](#nodes) · [Models](#models) · [Settings](#settings) · [Data](#your-data) · [Development](#development) · [Changelog](CHANGELOG.en.md) · [Português](README.pt-BR.md)
 
-`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Rust core` · `v0.57.0`
+`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Rust core` · `v0.58.0`
 
 </div>
 
@@ -55,7 +55,7 @@ Every node has one output, typed inputs and a result shown on the node. Results 
 | **Video** | Video (from text or image) · Cut · Join · Speed · Look · Slideshow · Reframe · Loop · Audio |
 | **Sound** | Sound · Voice · Cut · Mix · Effects · Audio from video · Loop · Remove silence |
 | **Input** | Media · Style Prompt · **Style Folder** · Color · Silence · URL · Random text · Date · Pattern |
-| **3D** | **3D model** (text or image → GLB/OBJ; viewer on the node) |
+| **3D** | **3D model** (text or image → GLB/OBJ; viewer on the node) · **3D texture** (image or procedural pattern, with projection) · **3D skeleton** (automatic rig and skin) · **3D animation** (spin, bounce, sway, walk, wave…; plays in the viewer) |
 | **Output** | **Editor** (tracks, split/trim, fades, captions, MP4) · Final video · GIF · Audio · Image · Thumbnail · Gallery |
 
 The Style Prompt and Style Folder (folders and subfolders, renameable) apply to every generator. `@` mentions bring the project's images, videos and sounds into prompts.
