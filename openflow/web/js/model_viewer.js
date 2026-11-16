@@ -1,43 +1,101 @@
 // v0.37 — visualizador 3D sem bibliotecas: lê GLB (uma malha) ou OBJ e desenha com um renderizador de software no <canvas> (arrastar gira, roda aproxima, giro automático até tocar).
 import { h } from './ui.js';
 
+// glTF 2.0 (GLB): todas as malhas da cena (não só a primeira), com a transformação de cada nó (matriz ou T/R/S), índices de 8/16/32 bits, cores normalizadas (COLOR_0 em
+// byte/short) e primitivas sem índices ou em tiras/leques (v0.53). Pontos e linhas não são superfície e ficam de fora.
+const COMPONENT = { 5120: [Int8Array, 'getInt8', 127], 5121: [Uint8Array, 'getUint8', 255], 5122: [Int16Array, 'getInt16', 32767], 5123: [Uint16Array, 'getUint16', 65535], 5125: [Uint32Array, 'getUint32', 1], 5126: [Float32Array, 'getFloat32', 1] };
+const NCOMP = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 };
+
+function matMul(a, b) { const o = new Array(16).fill(0); for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) for (let k = 0; k < 4; k++) o[c * 4 + r] += a[k * 4 + r] * b[c * 4 + k]; return o; }
+function nodeMatrix(n) {
+  if (Array.isArray(n.matrix) && n.matrix.length === 16) return n.matrix;
+  const [x, y, z, w] = n.rotation && n.rotation.length === 4 ? n.rotation : [0, 0, 0, 1], [sx, sy, sz] = n.scale || [1, 1, 1], [tx, ty, tz] = n.translation || [0, 0, 0];
+  return [(1 - 2 * (y * y + z * z)) * sx, 2 * (x * y + z * w) * sx, 2 * (x * z - y * w) * sx, 0, 2 * (x * y - z * w) * sy, (1 - 2 * (x * x + z * z)) * sy, 2 * (y * z + x * w) * sy, 0,
+    2 * (x * z + y * w) * sz, 2 * (y * z - x * w) * sz, (1 - 2 * (x * x + y * y)) * sz, 0, tx, ty, tz, 1];
+}
+
 export function parseGLB(buf) {
   const dv = new DataView(buf);
   if (dv.byteLength < 28 || dv.getUint32(0, true) !== 0x46546C67) throw new Error('não é um GLB');
-  const jl = dv.getUint32(12, true);
-  const doc = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 20, jl)));
-  const bo = 20 + jl + 8;
-  const prim = doc.meshes[0].primitives[0];
+  let json = null, binOff = 0;
+  for (let o = 12; o + 8 <= dv.byteLength;) {   // percorre os blocos (o BIN não precisa vir colado no JSON)
+    const len = dv.getUint32(o, true), type = dv.getUint32(o + 4, true);
+    if (type === 0x4E4F534A && !json) json = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, o + 8, Math.min(len, dv.byteLength - o - 8))));
+    else if (type === 0x004E4942 && !binOff) binOff = o + 8;
+    o += 8 + len;   // os tamanhos dos blocos já vêm múltiplos de 4
+  }
+  if (!json || !json.meshes || !json.meshes.length) throw new Error('GLB sem malha');
+  const doc = json;
   const read = (ai) => {
-    const a = doc.accessors[ai], v = doc.bufferViews[a.bufferView];
-    const n = a.count, comp = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 }[a.type];
-    const base = bo + (v.byteOffset || 0) + (a.byteOffset || 0);
-    const T = { 5126: Float32Array, 5125: Uint32Array, 5123: Uint16Array, 5121: Uint8Array }[a.componentType];
-    const out = new T(n * comp);
+    const a = doc.accessors[ai], n = a.count, comp = NCOMP[a.type], [T, getter, max] = COMPONENT[a.componentType] || [];
+    if (!T || !comp) throw new Error('tipo de dado não suportado');
+    const out = new Float32Array(n * comp);
+    if (a.bufferView === undefined) return { data: out, comp };   // sem dados (zeros)
+    const v = doc.bufferViews[a.bufferView], base = binOff + (v.byteOffset || 0) + (a.byteOffset || 0);
     const size = T.BYTES_PER_ELEMENT * comp, stride = v.byteStride || size;
     for (let i = 0; i < n; i++) for (let k = 0; k < comp; k++) {
-      const o = base + i * stride + k * T.BYTES_PER_ELEMENT;
-      out[i * comp + k] = T === Float32Array ? dv.getFloat32(o, true) : T === Uint32Array ? dv.getUint32(o, true) : T === Uint16Array ? dv.getUint16(o, true) : dv.getUint8(o);
+      const x = dv[getter](base + i * stride + k * T.BYTES_PER_ELEMENT, true);
+      out[i * comp + k] = a.normalized ? Math.max(x / max, -1) : x;   // cores em byte/short vêm «normalizadas»: 0–255 → 0–1
     }
     return { data: out, comp };
   };
-  const pos = read(prim.attributes.POSITION).data;
-  let idx = prim.indices !== undefined ? read(prim.indices).data : Uint32Array.from({ length: pos.length / 3 }, (_, i) => i);
-  let col = null;
-  if (prim.attributes.COLOR_0 !== undefined) { const c = read(prim.attributes.COLOR_0); col = { data: c.data, comp: c.comp }; }
-  return { pos, idx, col };
+  const pos = [], idx = [], col = [];
+  let anyCol = false;
+  const addPrim = (prim, m) => {
+    if (prim.mode !== undefined && ![4, 5, 6].includes(prim.mode)) return;
+    const P = read(prim.attributes.POSITION).data, nv = P.length / 3, base = pos.length / 3;
+    for (let i = 0; i < nv; i++) {
+      const x = P[i * 3], y = P[i * 3 + 1], z = P[i * 3 + 2];
+      pos.push(m[0] * x + m[4] * y + m[8] * z + m[12], m[1] * x + m[5] * y + m[9] * z + m[13], m[2] * x + m[6] * y + m[10] * z + m[14]);
+    }
+    let ix = prim.indices !== undefined ? Array.from(read(prim.indices).data) : Array.from({ length: nv }, (_, i) => i);
+    const tris = [];
+    const mode = prim.mode === undefined ? 4 : prim.mode;
+    if (mode === 4) for (let i = 0; i + 2 < ix.length; i += 3) tris.push(ix[i], ix[i + 1], ix[i + 2]);
+    else if (mode === 5) for (let i = 0; i + 2 < ix.length; i++) i % 2 ? tris.push(ix[i + 1], ix[i], ix[i + 2]) : tris.push(ix[i], ix[i + 1], ix[i + 2]);
+    else for (let i = 1; i + 1 < ix.length; i++) tris.push(ix[0], ix[i], ix[i + 1]);
+    for (const t of tris) idx.push(t < nv ? base + t : base);   // índice fora da lista não derruba o desenho
+    if (prim.attributes.COLOR_0 !== undefined) {
+      const c = read(prim.attributes.COLOR_0); anyCol = true;
+      for (let i = 0; i < nv; i++) col.push(c.data[i * c.comp], c.data[i * c.comp + 1], c.data[i * c.comp + 2]);
+    } else {
+      const f = prim.material !== undefined && doc.materials && doc.materials[prim.material] && doc.materials[prim.material].pbrMetallicRoughness && doc.materials[prim.material].pbrMetallicRoughness.baseColorFactor;
+      for (let i = 0; i < nv; i++) col.push(f ? f[0] : 0.78, f ? f[1] : 0.78, f ? f[2] : 0.8);   // sem cor por vértice: a cor do material (ou um cinza)
+    }
+  };
+  const seen = new Set();
+  const visit = (ni, parent) => {
+    if (seen.has(ni) || !doc.nodes || !doc.nodes[ni]) return;   // ciclo (arquivo malformado)
+    seen.add(ni);
+    const n = doc.nodes[ni], m = matMul(parent, nodeMatrix(n));
+    if (n.mesh !== undefined && doc.meshes[n.mesh]) for (const prim of doc.meshes[n.mesh].primitives) addPrim(prim, m);
+    for (const c of n.children || []) visit(c, m);
+    seen.delete(ni);
+  };
+  const I = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+  const scene = (doc.scenes && doc.scenes[doc.scene || 0]) || null;
+  if (doc.nodes && doc.nodes.length) {
+    const roots = scene ? scene.nodes || [] : doc.nodes.map((_, i) => i);
+    for (const r of roots) visit(r, I);
+  }
+  if (!pos.length) for (const mesh of doc.meshes) for (const prim of mesh.primitives) addPrim(prim, I);   // sem nós: as malhas soltas
+  if (!pos.length || !idx.length) throw new Error('GLB sem superfície');
+  return { pos: Float32Array.from(pos), idx: Uint32Array.from(idx), col: anyCol || col.length ? { data: Float32Array.from(col), comp: 3 } : null };
 }
 
 export function parseOBJ(text) {
   const pos = [], col = [], idx = [];
   let colored = true;
-  for (const ln of text.split('\n')) {
-    if (ln.startsWith('v ')) { const p = ln.trim().split(/\s+/).slice(1).map(Number); pos.push(p[0], p[1], p[2]); if (p.length >= 6) col.push(p[3], p[4], p[5]); else colored = false; }
+  for (const ln of text.split(/\r?\n/)) {
+    if (ln.startsWith('v ')) { const p = ln.trim().split(/\s+/).slice(1).map(Number); pos.push(p[0] || 0, p[1] || 0, p[2] || 0); if (p.length >= 6) col.push(p[3], p[4], p[5]); else colored = false; }
     else if (ln.startsWith('f ')) {
-      const f = ln.trim().split(/\s+/).slice(1).map((s) => parseInt(s, 10) - 1);
+      const n = pos.length / 3;
+      const f = ln.trim().split(/\s+/).slice(1).map((s) => { const i = parseInt(s, 10); return i < 0 ? n + i : i - 1; });   // índice negativo conta a partir do último vértice
+      if (f.some((i) => !(i >= 0 && i < n))) continue;
       for (let i = 1; i + 1 < f.length; i++) idx.push(f[0], f[i], f[i + 1]);
     }
   }
+  if (!pos.length || !idx.length) throw new Error('OBJ sem malha');
   return { pos: Float32Array.from(pos), idx: Uint32Array.from(idx), col: colored && col.length === pos.length ? { data: Float32Array.from(col), comp: 3 } : null };
 }
 

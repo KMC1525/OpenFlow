@@ -2,6 +2,29 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.53.0] — 2026-11-16
+
+### Corrigido — melhorias gerais 6 (sons, vozes e modelos 3D)
+Gerei sons (efeitos e música, de 1 a 120 s, 16 descrições, caracteres estranhos), vozes (0,5×–2×, textos vazios de letras, longos e com emoji) e modelos 3D (GLB e OBJ, 11 prompts, 2 sementes) pelo provedor de demonstração, conferi os arquivos de saída, e li o código dos provedores locais e do visualizador 3D. Os defeitos achados:
+- **Voz de demonstração muda com números e símbolos:** um texto como «123» ou «50% de $20» saía em silêncio total. Cada dígito agora vira uma sílaba, e símbolos viram um chiado curto. Textos longos eram cortados em silêncio nos 1.200 primeiros caracteres; agora vão até 3.000.
+- **Música de 1 s saía com 2 s** no provedor de demonstração; agora respeita a duração.
+- **Áudio de modelo local com NaN/infinito** virava ruído estourado (e o pico NaN passava despercebido), e uma saída vazia quebrava com erro técnico. Agora os valores inválidos viram silêncio e a saída vazia dá uma mensagem clara. Pedir mais de 30 s de som a um modelo local (que gera até 30 s) agora avisa no log do nó em vez de encurtar em silêncio.
+- **GLB válido recusado no envio:** um arquivo sem índices (comum em exportadores), com várias malhas ou com bytes sobrando no fim era rejeitado como «não é um modelo 3D GLB válido». A validação agora conta todas as malhas, aceita primitivas sem índices e ignora pontos e linhas.
+- **OBJ não podia ser enviado:** só GLB entrava. Agora um OBJ de texto com malha (vértices numéricos e faces que apontam para vértices existentes, incluindo quadriláteros e índices negativos) entra como modelo 3D; um OBJ quebrado recebe uma mensagem clara.
+- **Visualizador 3D mostrava só a primeira malha, sem a posição dos nós:** um GLB com várias peças (como saem do Blender e do trimesh) aparecia incompleto ou desalinhado. Agora lê todas as malhas da cena com a transformação de cada nó (matriz ou posição/rotação/escala), índices de 8/16/32 bits, tiras e leques de triângulos, cores em byte/short normalizadas (antes estouravam para branco), a cor do material quando não há cor por vértice, e acha o bloco de dados sem supor que vem colado ao JSON. OBJ com índices negativos, CRLF e faces inválidas também é lido.
+- **Imagem com transparência no 3D:** o TripoSR e o Hunyuan3D separam o objeto do fundo pela transparência, mas a imagem ligada chegava já achatada sobre branco (desde a v0.51). Agora recebem o recorte com transparência quando ele existe; o Shap-E segue com RGB.
+
+### Testado
+- `tests/test_3d_audio_v053.py` (18 testes): validação de GLB/OBJ, envio pela API, o leitor do visualizador (rodando de verdade com Node em GLBs sem índices, em tira/leque, uint16, com duas instâncias/pai com escala, cores normalizadas e cor de material, OBJ negativo/CRLF), voz com números, música de 1 s, áudio com NaN e transparência. Sem a correção, 15 falham.
+- A bateria de sons/vozes/3D do provedor de demonstração (cerca de 120 casos de som, 30 de voz e 44 de 3D) terminou sem outros defeitos além dos abaixo.
+
+### Ainda não verificado
+- **Nenhum modelo local real foi executado** (MusicGen, Kokoro/Orpheus, Shap-E, TripoSR, Hunyuan3D): as correções neles (alfa, NaN, aviso de 30 s) vêm da leitura do código e de testes das funções, não de uma geração de verdade.
+- No provedor de demonstração, o efeito sonoro curto (laser, explosão) tem a duração própria do efeito e não a do nó; é como ele foi desenhado, e não mudei.
+- O visualizador desenha uma malha com texturas apenas com a cor do material (não aplica texturas); GLB com animações, esqueletos ou KHR_draco_mesh_compression não é suportado e mostra o erro.
+- OBJ dentro de um ZIP/RAR enviado ainda não é reconhecido (só o envio direto).
+- Não há edição de modelos 3D no Canvas (o nó gera, o visualizador mostra): não criei uma.
+
 ## [0.52.0] — 2026-11-16
 
 ### Corrigido — melhorias gerais 5 (imagens e vídeos)

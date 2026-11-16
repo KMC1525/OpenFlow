@@ -2,6 +2,29 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.53.0] — 2026-11-16
+
+### Fixed — general improvements 6 (sounds, voices and 3D models)
+I generated sounds (effects and music, 1 to 120 s, 16 descriptions, odd characters), voices (0.5×–2×, letterless, long and emoji texts) and 3D models (GLB and OBJ, 11 prompts, 2 seeds) with the demo provider, checked the output files, and read the code of the local providers and the 3D viewer. The defects found:
+- **Demo voice silent on numbers and symbols:** a text like “123” or “50% of $20” came out in total silence. Each digit now becomes a syllable, and symbols become a short hiss. Long texts were silently cut at the first 1,200 characters; now up to 3,000.
+- **A 1 s music clip came out at 2 s** on the demo provider; it now honors the duration.
+- **Local-model audio with NaN/infinity** became blown-out noise (and a NaN peak went unnoticed), and an empty output crashed with a technical error. Now invalid values become silence and an empty output gives a clear message. Asking a local model (which generates up to 30 s) for more than 30 s of sound now says so in the node log instead of silently shortening it.
+- **A valid GLB refused on upload:** a file without indices (common in exporters), with several meshes or with trailing bytes was rejected as “not a valid GLB 3D model”. Validation now counts every mesh, accepts primitives without indices and ignores points and lines.
+- **OBJ could not be uploaded:** only GLB was accepted. Now a text OBJ with a mesh (numeric vertices and faces pointing at existing vertices, including quads and negative indices) enters as a 3D model; a broken OBJ gets a clear message.
+- **The 3D viewer showed only the first mesh, without the nodes' placement:** a multi-part GLB (as exported by Blender and trimesh) looked incomplete or misaligned. Now it reads every mesh in the scene with each node's transform (matrix or translation/rotation/scale), 8/16/32-bit indices, triangle strips and fans, normalized byte/short colors (they used to blow out to white), the material color when there is no per-vertex color, and finds the data chunk without assuming it follows the JSON. OBJ with negative indices, CRLF and invalid faces is also read.
+- **Transparent image into 3D:** TripoSR and Hunyuan3D separate the object from the background by transparency, but the connected image arrived already flattened over white (since v0.51). They now receive the cut-out with transparency when it exists; Shap-E stays on RGB.
+
+### Tested
+- `tests/test_3d_audio_v053.py` (18 tests): GLB/OBJ validation, upload through the API, the viewer's reader (really run with Node on GLBs without indices, strip/fan, uint16, two instances/parent with scale, normalized colors and material color, negative/CRLF OBJ), voice with numbers, a 1 s music clip, NaN audio and transparency. Without the fix, 15 fail.
+- The demo-provider sound/voice/3D battery (about 120 sound cases, 30 voice and 44 3D) ended with no defects other than the ones below.
+
+### Not verified yet
+- **No real local model was run** (MusicGen, Kokoro/Orpheus, Shap-E, TripoSR, Hunyuan3D): the fixes in them (alpha, NaN, 30 s notice) come from reading the code and testing the functions, not from a real generation.
+- On the demo provider, a short sound effect (laser, explosion) has the effect's own duration rather than the node's; that is how it was designed and I did not change it.
+- The viewer draws a textured mesh with the material color only (no textures); a GLB with animations, skeletons or KHR_draco_mesh_compression is not supported and shows the error.
+- An OBJ inside an uploaded ZIP/RAR is still not recognized (direct upload only).
+- There is no 3D model editing in the Canvas (the node generates, the viewer shows): I did not create one.
+
 ## [0.52.0] — 2026-11-16
 
 ### Fixed — general improvements 5 (images and videos)

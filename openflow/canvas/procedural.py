@@ -286,7 +286,7 @@ def music(prompt: str, duration: float = 20.0, seed: int = 0) -> bytes:
     sc = SCALE[scale_name]
     root = 48 + rnd.randrange(0, 7)
     beat = 60.0 / bpm
-    total = int(min(120.0, max(2.0, duration)) * SR)
+    total = int(min(120.0, max(1.0, duration)) * SR)
     hz = lambda n: 440.0 * 2 ** ((n - 69) / 12)  # noqa: E731
     note = lambda deg, octv: root + sc[deg % len(sc)] + 12 * (deg // len(sc) + octv)  # noqa: E731
     prog = [0, 5, 3, 4] if scale_name == "major" else [0, 5, 2, 4]
@@ -309,6 +309,7 @@ def music(prompt: str, duration: float = 20.0, seed: int = 0) -> bytes:
     return wav_bytes(out)
 
 
+_BABBLE_MAX = 3000   # caracteres falados (o balbucio é gerado em Python puro: mais que isso demoraria demais)
 VOWELS = {"a": (800, 1200), "e": (500, 1800), "i": (320, 2300), "o": (500, 900), "u": (330, 800)}
 
 
@@ -318,7 +319,7 @@ def babble(text: str, speed: float = 1.0, seed: int = 0) -> bytes:
     base = 150 + (seed_of("pitch", text[:12], seed) % 90)
     sylls = max(1.0, speed)
     out: List[float] = []
-    for ch in text.lower()[:1200]:
+    for ch in text.lower()[:_BABBLE_MAX]:
         if ch in VOWELS or ch in "áàâãéêíóôõúü":
             v = {"á": "a", "à": "a", "â": "a", "ã": "a", "é": "e", "ê": "e", "í": "i", "ó": "o", "ô": "o", "õ": "o", "ú": "u", "ü": "u"}.get(ch, ch)
             f1, f2 = VOWELS[v]
@@ -331,7 +332,13 @@ def babble(text: str, speed: float = 1.0, seed: int = 0) -> bytes:
                 seg.append(s)
             e = _env(n, 0.01, 0.03)
             out += [a * b for a, b in zip(seg, e)]
-        elif ch.isalpha():
+        elif ch.isdigit():   # números: uma sílaba por dígito (antes a voz de demonstração ficava muda com «123»)
+            f1, f2 = list(VOWELS.values())[int(ch) % 5]
+            f0 = base * (1 + 0.1 * (int(ch) - 4.5) / 4.5)
+            n = int(0.085 / sylls * SR)
+            e = _env(n, 0.01, 0.03)
+            out += [(0.5 * math.sin(2 * math.pi * f0 * (i / SR)) + 0.25 * math.sin(2 * math.pi * f1 * (i / SR)) * math.exp(-(i / SR) * 18)) * e[i] for i in range(n)]
+        elif ch.isalpha() or ch in "$%&@#+=*/\\<>_~^|":
             out += _noise(0.03 / sylls, rnd, 0.22, 0.6, 20)
         elif ch in ".!?":
             out += [0.0] * int(SR * 0.28 / sylls)

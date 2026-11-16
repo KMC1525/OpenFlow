@@ -142,17 +142,78 @@ def encode(mesh: Mesh, fmt: str = "glb", fit: bool = True) -> bytes:
 
 
 def glb_info(data: bytes) -> Dict[str, Any]:
-    """Confere um GLB (cabeçalho, JSON e contagens): {vertices, triangles, colors}. Levanta ValueError se não for um GLB válido."""
+    """Confere um GLB (cabeçalho, JSON e contagens): {vertices, triangles, colors}. Levanta ValueError se não for um GLB válido.
+
+    Conta todas as malhas do arquivo (não só a primeira) e aceita primitivas sem índices (a lista de vértices já é a de triângulos) e bytes sobrando depois do último bloco (v0.53)."""
     if len(data) < 28 or data[:4] != b"glTF":
         raise ValueError("não é um GLB")
     magic, ver, total = struct.unpack("<4sII", data[:12])
     n, kind = struct.unpack("<II", data[12:20])
-    if ver != 2 or kind != 0x4E4F534A or total != len(data):
+    if ver != 2 or kind != 0x4E4F534A or total > len(data) or 20 + n > total:
         raise ValueError("GLB inválido")
     doc = json.loads(data[20:20 + n])
-    prim = doc["meshes"][0]["primitives"][0]
     acc = doc["accessors"]
-    return {"vertices": acc[prim["attributes"]["POSITION"]]["count"], "triangles": acc[prim["indices"]]["count"] // 3, "colors": "COLOR_0" in prim["attributes"]}
+    verts = tris = 0
+    colors = False
+    for mesh in doc["meshes"]:
+        for prim in mesh["primitives"]:
+            if prim.get("mode", 4) not in (4, 5, 6):   # pontos e linhas não são superfície
+                continue
+            count = acc[prim["attributes"]["POSITION"]]["count"]
+            n_idx = acc[prim["indices"]]["count"] if prim.get("indices") is not None else count
+            verts += count
+            tris += n_idx // 3 if prim.get("mode", 4) == 4 else max(0, n_idx - 2)
+            colors = colors or "COLOR_0" in prim["attributes"]
+    if not verts or not tris:
+        raise ValueError("GLB sem malha")
+    return {"vertices": verts, "triangles": tris, "colors": colors}
+
+
+def obj_info(data: bytes) -> Dict[str, Any]:
+    """Confere um OBJ de texto: {vertices, triangles, colors}. Levanta ValueError se não for um OBJ com malha (vértices numéricos e faces que apontam para vértices existentes)."""
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        raise ValueError("não é um OBJ") from None
+    verts = 0
+    faces: List[List[int]] = []
+    colors = True
+    for ln in text.splitlines():
+        parts = ln.split()
+        if not parts or parts[0].startswith("#"):
+            continue
+        if parts[0] == "v":
+            if len(parts) < 4:
+                raise ValueError("vértice incompleto")
+            nums = [float(x) for x in parts[1:7]]
+            if any(x != x or x in (float("inf"), float("-inf")) for x in nums):
+                raise ValueError("vértice inválido")
+            colors = colors and len(parts) >= 7
+            verts += 1
+        elif parts[0] == "f":
+            if len(parts) < 4:
+                raise ValueError("face incompleta")
+            faces.append([int(x.split("/")[0]) for x in parts[1:]])
+    if verts < 3 or not faces:
+        raise ValueError("OBJ sem malha")
+    for f in faces:
+        for i in f:
+            if i == 0 or abs(i) > verts:
+                raise ValueError("face aponta para um vértice que não existe")
+    return {"vertices": verts, "triangles": sum(len(f) - 2 for f in faces), "colors": colors}
+
+
+def looks_like_obj(data: bytes) -> bool:
+    """Pelos primeiros bytes: texto com linhas «v x y z» e «f …» (o OBJ não tem assinatura; só vale depois de `obj_info` confirmar)."""
+    head = data[:4096]
+    if b"\x00" in head:
+        return False
+    try:
+        t = head.decode("utf-8", "ignore")
+    except Exception:  # noqa: BLE001
+        return False
+    lines = [ln.split() for ln in t.splitlines() if ln.strip() and not ln.lstrip().startswith("#")]
+    return len(lines) >= 3 and sum(1 for x in lines if x[0] == "v" and len(x) >= 4) >= 2
 
 
 # --------------------------------------------------------------------------- malha de demonstração (offline)
