@@ -76,6 +76,6 @@ def resolve(settings: Dict[str, Any], role: str, models_dir: Optional[Path]) -> 
     if model:
         reason = f"O modelo local {model} está instalado, mas falta a biblioteca llama-cpp-python: rode  flow libs --extras local  e reinicie o OpenFlow."
     else:
-        reason = "Não há modelo de texto local instalado: baixe um na Biblioteca (Modelos de IA → Baixar mais modelos)."
+        reason = "Não há modelo de texto local instalado: baixe um pela barra de pesquisa de modelos dentro de um projeto (Canvas)."
     provider = build_provider(settings, "demo", models_dir)
     return provider, _info("demo", provider, True, reason)

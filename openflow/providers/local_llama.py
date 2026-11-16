@@ -224,7 +224,7 @@ class LocalLlamaProvider(Provider):
     def _model_path(self) -> Path:
         name = self.model
         if not name:
-            raise ProviderError("Baixe e selecione um modelo GGUF em Configuração → Modelos locais.")
+            raise ProviderError("Baixe um modelo GGUF pela barra de pesquisa de modelos dentro de um projeto (Canvas) e selecione-o no nó ou em Configurações → Texto (IA).")
         path = Path(name)
         if not path.is_absolute():
             path = self.models_dir / name

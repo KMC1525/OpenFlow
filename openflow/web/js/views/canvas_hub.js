@@ -1,10 +1,13 @@
 import { api, events } from '../api.js';
 import { t } from '../i18n.js';
+import { ROLE_LABEL } from '../labels.js';
 import { fill, h, icon, toast } from '../ui.js';
 
 // Barra de pesquisa de modelos no topo do Canvas (Hugging Face): procura, mostra TODAS as quantizações de cada modelo, baixa e passa a usar — no nó selecionado e como padrão do tipo.
 const CAPS = [['image', 'Imagem'], ['video', 'Vídeo'], ['sound', 'Som'], ['voice', 'Voz'], ['stt', 'Transcrição'], ['model3d', '3D'], ['text', 'Texto']];
-const GGUF_CAPS = ['image', 'video', 'text'];   // os únicos com provedor GGUF no OpenFlow; os outros usam o formato original (fp32/fp16/bf16)
+const GGUF_CAPS = ['image', 'video', 'text'];   // os únicos com provedor GGUF no OpenFlow
+const BOTH_CAPS = ['image', 'video'];   // escolhem entre GGUF e o formato original (diffusers: fp32/fp16/bf16); o texto roda só GGUF (llama.cpp) e som, voz, transcrição e 3D só o formato original
+const REPO_RE = /^[A-Za-z0-9][\w.-]{0,95}\/[A-Za-z0-9][\w.-]{0,95}$/;
 const NODE_OF = { image: 'image', video: 'video', sound: 'sound', voice: 'voice', stt: 'transcribe', text: 'llm', model3d: 'model3d' };
 const QUALITY = { very_low: 'qualidade muito baixa', low: 'qualidade baixa', good: 'boa qualidade', very_good: 'ótima qualidade', high: 'alta qualidade', lossless: 'quase sem perdas', original: 'original' };
 const PREC_HINT = { fp32: 'Maior e mais lento; funciona em qualquer computador', fp16: 'Metade do tamanho; ideal com placa de vídeo', bf16: 'Como o fp16, com a faixa do fp32' };
@@ -13,16 +16,19 @@ const compact = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? Math.
 
 // c: { cid, selected(): nó selecionado | null, onUsed(res, node) }
 export function modelSearchBar(c) {
-  const st = { cap: 'image', fmt: 'gguf', q: '', results: null, open: null, busy: false, err: '' };
-  const capSel = h('select', { id: 'hub-cap', title: t('Tipo de modelo'), onchange: (e) => { st.cap = e.target.value; if (!GGUF_CAPS.includes(st.cap)) st.fmt = 'original'; syncFmt(); if (st.q) search(); } }, CAPS.map(([v, l]) => h('option', { value: v }, t(l))));
-  const fmtSel = h('select', { id: 'hub-fmt', title: t('Formato'), onchange: (e) => { st.fmt = e.target.value; if (st.q) search(); } }, h('option', { value: 'gguf' }, t('GGUF · quantizações')), h('option', { value: 'original' }, t('Original · fp32/fp16/bf16')));
-  const syncFmt = () => { fmtSel.value = st.fmt; fmtSel.disabled = !GGUF_CAPS.includes(st.cap); };
+  const st = { cap: 'image', fmt: 'gguf', q: '', results: null, open: null, busy: false, err: '', cat: null, pre: null };
+  const capSel = h('select', { id: 'hub-cap', title: t('Tipo de modelo'), onchange: (e) => { st.cap = e.target.value; st.fmt = st.cap === 'text' ? 'gguf' : BOTH_CAPS.includes(st.cap) ? st.fmt : 'original'; st.results = null; st.open = null; syncFmt(); if (st.q) search(); else paint(); } }, CAPS.map(([v, l]) => h('option', { value: v }, t(l))));
+  const fmtSel = h('select', { id: 'hub-fmt', title: t('Formato'), onchange: (e) => { st.fmt = e.target.value; st.results = null; st.open = null; if (st.q) search(); else paint(); } }, h('option', { value: 'gguf' }, t('GGUF · quantizações')), h('option', { value: 'original' }, t('Original · fp32/fp16/bf16')));
+  const syncFmt = () => { fmtSel.value = st.fmt; fmtSel.disabled = !BOTH_CAPS.includes(st.cap); };
   const input = h('input', { type: 'search', id: 'hub-q', placeholder: t('Buscar modelos no Hugging Face…'), 'aria-label': t('Buscar modelos no Hugging Face'), autocomplete: 'off', onkeydown: (e) => { if (e.key === 'Enter') { st.q = input.value.trim(); search(); } else if (e.key === 'Escape') close(); }, onfocus: () => { openPanel(); } });
   const panel = h('div', { class: 'cv-hub-panel hidden', id: 'hub-panel' });
   const filters = h('div', { class: 'hub-filters' }, h('label', { class: 'dim small' }, t('Tipo'), ' ', capSel), h('label', { class: 'dim small' }, t('Formato'), ' ', fmtSel));
   const root = h('div', { class: 'cv-hub', role: 'search' }, input, h('button', { class: 'btn icon sm', type: 'button', id: 'hub-go', title: t('Buscar'), 'aria-label': t('Buscar modelos'), onclick: () => { st.q = input.value.trim(); search(); } }, icon('search', 15)), panel);
   syncFmt();
   const openPanel = () => { panel.classList.remove('hidden'); paint(); };
+  input.addEventListener('focus', () => { if (panel.classList.contains('hidden')) openPanel(); });   // ao clicar na barra já aparecem os recomendados
+  // outras partes do app (avisos dos nós) pedem uma busca aqui: «flow:hub» { q, cap, fmt }
+  window.addEventListener('flow:hub', (e) => { if (!root.isConnected) return; const d = (e && e.detail) || {}; if (d.cap && CAPS.some(([v]) => v === d.cap)) { st.cap = d.cap; capSel.value = d.cap; } if (d.fmt) st.fmt = d.fmt; st.fmt = st.cap === 'text' ? 'gguf' : BOTH_CAPS.includes(st.cap) ? st.fmt : 'original'; syncFmt(); input.focus(); if (d.q) { input.value = d.q; st.q = d.q; search(); } else openPanel(); });
   const close = () => panel.classList.add('hidden');
   document.addEventListener('pointerdown', (e) => { if (!root.isConnected) return; if (!root.contains(e.target)) close(); });
 
@@ -31,7 +37,7 @@ export function modelSearchBar(c) {
     if (!st.q) return toast(t('Escreva o nome ou o assunto do modelo (ex.: flux, sdxl, whisper, wan).'));
     const my = ++searchSeq;
     st.busy = true; st.err = ''; st.open = null; openPanel();
-    try { const r = await api(`/api/media/hub/search?q=${encodeURIComponent(st.q)}&cap=${st.cap}&format=${st.fmt}`); if (my !== searchSeq) return; st.results = r.results; st.fmt = r.format; syncFmt(); } catch (e) { if (my !== searchSeq) return; st.err = e.message; st.results = []; }
+    try { const r = await api(`/api/media/hub/search?q=${encodeURIComponent(st.q)}&cap=${st.cap}&format=${st.fmt}`); if (my !== searchSeq) return; st.results = r.results; st.fmt = r.format; syncFmt(); if (REPO_RE.test(st.q) && !st.results.some((x) => x.id.toLowerCase() === st.q.toLowerCase())) st.results = [{ id: st.q, downloads: 0, likes: 0 }].concat(st.results); if (REPO_RE.test(st.q) && st.results.length === 1) st.open = st.results[0].id; } catch (e) { if (my !== searchSeq) return; st.err = e.message; st.results = []; }
     st.busy = false; paint();
   }
 
@@ -61,9 +67,11 @@ export function modelSearchBar(c) {
     try {
       if (st.fmt === 'gguf') {
         const kind = st.cap, have = await downloaded(kind);
-        const r = await api('/api/hf/files?repo=' + encodeURIComponent(repo));
+        const r = await api('/api/hf/files?repo=' + encodeURIComponent(repo) + '&kind=' + encodeURIComponent(kind));
         if (!r.files.length) return fill(slot, h('div', { class: 'muted small' }, t('Este repositório não tem arquivos GGUF utilizáveis.')));
-        const draw = () => fill(slot, h('div', { class: 'muted small', style: { marginBottom: '6px' } }, t('{n} quantização(ões): menos bits = arquivo menor e mais rápido, com algum custo de qualidade.', { n: r.files.length })),
+        const extras = () => [r.compat ? h('div', { class: 'errbox', style: { marginBottom: '8px' } }, t(r.compat.text)) : null,
+          (r.support || []).length ? h('div', { class: 'comes small', style: { marginBottom: '6px' } }, icon('layers', 14), ' ', t('Vem junto, automaticamente:'), ' ', r.support.map((x) => h('span', { class: 'chip on', title: x.label }, t(ROLE_LABEL[x.role] || x.role) + (x.size ? ' · ' + bytes(x.size) : '')))) : null];
+        const draw = () => fill(slot, ...extras(), h('div', { class: 'muted small', style: { marginBottom: '6px' } }, t('{n} quantização(ões): menos bits = arquivo menor e mais rápido, com algum custo de qualidade.', { n: r.files.length })),
           r.files.map((f) => {
             const row = h('div', { class: 'hub-q', dataset: { quant: f.quant || '', file: f.name } });
             const mine = have.has(f.name.split('/').pop());
@@ -102,7 +110,40 @@ export function modelSearchBar(c) {
     } catch (e) { fill(slot, h('div', { class: 'errbox' }, e.message)); }
   }
 
+  // Recomendados: modelos prontos para instalar (um clique) e o catálogo da Unsloth/ChatR Labs (GGUF) — tudo pesquisado e baixado aqui, pela barra do Canvas
+  async function loadRecs() {
+    if (!st.cat) { try { st.cat = (await api('/api/unsloth/catalog')).models; } catch (e) { st.cat = []; } }
+    if (!st.pre) { try { st.pre = (await api('/api/preinstalled')).models; } catch (e) { st.pre = []; } }
+  }
+  function recs() {
+    const box = h('div', { class: 'hub-recs', id: 'hub-recs' });
+    if (!st.cat || !st.pre) { loadRecs().then(() => { if (st.results === null && !panel.classList.contains('hidden')) paint(); }); return h('div', { class: 'muted small', style: { padding: '12px' } }, h('span', { class: 'spinner' }), ' ', t('Carregando os recomendados…')); }
+    const pre = st.pre.filter((m) => m.kind === st.cap), cat = st.fmt === 'gguf' ? st.cat.filter((m) => m.kind === st.cap) : [];
+    const chip = { ready: [t('Funciona'), 'chip on'], alt: [t('Use outro repositório'), 'chip'], beta: [t('Experimental'), 'chip on'], soon: [t('Ainda não'), 'chip'] };
+    if (pre.length) box.append(h('div', { class: 'hub-head muted small' }, t('Prontos para instalar')), ...pre.map((m) => {
+      const area = h('div');
+      const act = m.installed ? h('span', { class: 'chip on' }, '✓ ' + t('Instalado')) : h('button', { class: 'btn sm primary', type: 'button', dataset: { act: 'preinstall', id: m.id }, onclick: async () => {
+        let jid; try { jid = (await api('/api/preinstalled/install', { method: 'POST', body: { id: m.id } })).job_id; } catch (e) { return toast(e.message, 'err'); }
+        progressRow(area, t('Baixando {n}…', { n: m.label }), jid, (ok) => { if (ok) { st.pre = null; c.onUsed({ cap: st.cap }, null); } paint(); });
+      } }, icon('download', 13), t('Instalar'));
+      return h('div', { class: 'hub-rec' }, h('div', { class: 'row nw', style: { gap: '8px' } }, h('div', { class: 'grow', style: { minWidth: 0 } }, h('div', { class: 'row', style: { gap: '8px', flexWrap: 'wrap' } }, h('b', null, m.label), h('span', { class: 'chip solid' }, m.quant), h('span', { class: 'dim small' }, bytes(m.size))),
+        h('div', { class: 'dim small' }, t(m.hint))), act), area);
+    }));
+    if (cat.length) box.append(h('div', { class: 'hub-head muted small' }, t('Catálogo recomendado (GGUF)')), ...cat.map((m) => {
+      const go = (repo) => { input.value = repo; st.q = repo; search(); };
+      return h('div', { class: 'hub-rec', dataset: { repo: m.repo } }, h('div', { class: 'row nw', style: { gap: '8px' } }, h('div', { class: 'grow', style: { minWidth: 0 } },
+        h('div', { class: 'row', style: { gap: '8px', flexWrap: 'wrap' } }, h('b', null, m.label), h('span', { class: chip[m.status][1] }, chip[m.status][0]), h('span', { class: 'chip' }, m.size)),
+        h('div', { class: 'dim small' }, m.status === 'soon' ? t(m.why) : t(m.hint)), h('div', { class: 'mono dim', style: { fontSize: '11px' } }, m.repo)),
+        m.status === 'ready' || m.status === 'beta' ? h('button', { class: 'btn sm', type: 'button', dataset: { act: 'rec-open' }, onclick: () => go(m.repo) }, t('Ver quantizações'))
+          : m.status === 'alt' ? h('button', { class: 'btn sm primary', type: 'button', onclick: () => go(m.use) }, t('Abrir {r}', { r: m.use })) : null));
+    }));
+    box.append(h('div', { class: 'hub-head muted small' }, st.cap === 'text' ? t('O texto usa só GGUF (llama.cpp). Escreva o nome ou o endereço dono/nome do modelo e aperte Enter.')
+      : BOTH_CAPS.includes(st.cap) ? t('Escreva o nome ou o endereço dono/nome do modelo e aperte Enter. Em «Formato» escolha GGUF (quantizações) ou Original (diffusers).') : t('Escreva o nome ou o endereço dono/nome do modelo e aperte Enter (som, voz, transcrição e 3D usam o formato original).')));
+    return box;
+  }
+
   function paint() {
+    if (st.results === null && !st.busy && !st.err) { fill(panel, filters, recs()); return; }
     const hint = st.fmt === 'gguf' ? t('GGUF: cada arquivo é uma quantização do mesmo modelo; você escolhe qual baixar.') : t('Formato original (diffusers/transformers): você escolhe a precisão antes do download.');
     fill(panel, filters, h('div', { class: 'hub-head muted small' }, hint),
       st.busy ? h('div', { class: 'muted small', style: { padding: '12px' } }, h('span', { class: 'spinner' }), ' ', t('Procurando…')) : st.err ? h('div', { class: 'errbox', style: { margin: '8px' } }, st.err)

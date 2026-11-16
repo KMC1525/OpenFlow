@@ -2,6 +2,21 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.42.0] — 2026-11-16
+
+### Changed — searching and downloading models is now only through the Canvas search bar
+- **The Canvas model search bar** (top of the editor) gained everything the Library's models screen had: clicking it shows the **recommended models** ("ready to install" ones and the GGUF catalog of Unsloth and partners, such as ChatR Labs); you can **paste an `owner/name` address** (the repository opens directly, even if the search does not list it); the quantization list shows the incompatible-repository warning and what **comes along** (VAE, text encoder, mmproj).
+- **Non-GGUF format:** image and video choose between **GGUF** (quantizations) and **Original** (diffusers, with fp32/fp16/bf16 precision); sound, voice, transcription and 3D use the original format; **text only runs GGUF** (llama.cpp), so its format is locked to GGUF.
+- **Library:** the "Download more models" button, the model search/download screen (`views/models.js`) and the `GET /api/hf/search` route are gone. The Library only stores, organizes, uses and deletes models and files; the Downloads tab still shows progress.
+- Warnings that used to send you to the Library/Models (node without the downloaded model, stable-diffusion.cpp-compatible repository, welcome, server messages) now open or point to the Canvas search bar.
+- **Settings → Performance → Model downloads:** connections per download, "download the VAE/encoders/mmproj along" and the Hugging Face token (gated models) moved here from the removed models screen.
+- Fixed: the Rust core text still said "Agents, storage and memory" (agents went away in v0.40).
+
+### Not verified yet
+- Real Hugging Face searches did not run here (no network in this environment): the browser tests use simulated API responses.
+- Text models in the original (transformers) format do not run in OpenFlow, so text only searches GGUF.
+- Model downloading is still also available in Settings → Image, video, sound and voice (each provider's precision choice) and in the `flow setup` recommended models: only the Library lost search and download.
+
 ## [0.41.0] — 2026-11-16
 
 ### New — ChatR Labs · Qwen-Image 2.1 Uncensored Omni Quantized

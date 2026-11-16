@@ -217,6 +217,21 @@ function gpuCard(pf, hw) {
     })));
 }
 
+// Downloads de modelos (v0.42): a tela «Modelos» saiu da Biblioteca — a pesquisa e o download ficam na barra de pesquisa do Canvas; aqui ficam os ajustes que valem para todos eles
+function downloadsCard() {
+  const tokenIn = h('input', { type: 'password', autocomplete: 'off', id: 'hf-token', 'aria-label': t('Token do Hugging Face'), placeholder: state.settings.hf.token_set ? '•••••••• (' + t('salvo') + ')' : 'hf_…' });
+  return cfgCard(t('Downloads de modelos'),
+    h('p', { class: 'muted small', style: { marginTop: 0 } }, t('Os modelos se pesquisam e baixam pela barra de pesquisa dentro de um projeto (Canvas). Aqui ficam os ajustes dos downloads.')),
+    h('div', { class: 'field' }, h('label', { class: 'f', for: 'md-conn' }, t('Conexões por download')),
+      h('select', { id: 'md-conn', 'aria-label': t('Conexões por download'), onchange: async (e) => { await saveSettings({ hf: { connections: Number(e.target.value) } }); toast(t('Salvo'), 'ok'); } },
+        [1, 2, 4, 6, 8].map((n) => h('option', { value: n, selected: n === (state.settings.hf.connections || 4) }, String(n)))),
+      h('div', { class: 'hint' }, t('Cada arquivo grande é baixado por várias conexões ao mesmo tempo (e retoma sozinho se a internet cair). Mais conexões costumam ser mais rápidas; use menos se a sua internet ficar lenta para o resto.'))),
+    checkbox(t('Baixar junto o VAE, os codificadores de texto e o mmproj que o modelo precisa (recomendado)'), state.settings.hf.auto_support !== false, async (v) => { await saveSettings({ hf: { auto_support: v } }); }),
+    h('div', { class: 'field', style: { marginTop: '12px' } }, h('label', { class: 'f', for: 'hf-token' }, t('Token do Hugging Face (opcional)')), h('div', { class: 'row nw' }, tokenIn,
+      h('button', { class: 'btn', type: 'button', id: 'hf-token-save', onclick: async () => { if (tokenIn.value) { await saveSettings({ hf: { token: tokenIn.value } }); await refreshState(); tokenIn.value = ''; toast(t('Salvo'), 'ok'); } } }, t('Salvar'))),
+      h('div', { class: 'hint' }, t('Necessário apenas para modelos restritos (gated).'))));
+}
+
 async function performance() {
   const pf = Object.assign({ mode: 'auto', idle_unload_min: 10 }, state.settings.performance || {});
   const nat = state.native || {};
@@ -233,12 +248,13 @@ async function performance() {
       h('p', { class: 'muted small', style: { marginBottom: 0 } }, t('Seu hardware: {t}', { t: hw.tier }) + ' · ' + hw.cpus + ' CPU · ' + (hw.ram_gb ? hw.ram_gb + ' GB RAM' : '—') + ' · ' + (hw.gpu || t('não detectada (NVIDIA)')))),
     gpuCard(pf, hw),
     cpuCard(pf),
+    downloadsCard(),
     gpuAccelCard(hw),
     cfgCard(t('Núcleo Rust'),
       h('dl', { class: 'kv', style: { margin: 0 } }, h('dt', null, t('Núcleo Rust')), h('dd', null, nat.active ? h('span', { class: 'chip on' }, t('ativo')) : h('span', { class: 'muted' }, t('inativo — usando Python puro'))),
         h('dt', null, 'Rust (cargo)'), h('dd', null, nat.cargo ? t('encontrado') : t('não encontrado (opcional)')),
         h('dt', null, t('Carga de modelos locais')), h('dd', { id: 'nat-models' }, nat.models ? h('span', { class: 'chip on' }, t('otimizada')) : h('span', { class: 'muted' }, t('padrão (recompile o núcleo: flow native setup)'))),
-        h('dt', null, t('Agentes, armazenamento e memória')), h('dd', { id: 'nat-ops' }, nat.ops ? h('span', { class: 'chip on' }, t('otimizados')) : h('span', { class: 'muted' }, t('padrão (atualize o núcleo: flow native setup)'))),
+        h('dt', null, t('Armazenamento e memória')), h('dd', { id: 'nat-ops' }, nat.ops ? h('span', { class: 'chip on' }, t('otimizados')) : h('span', { class: 'muted' }, t('padrão (atualize o núcleo: flow native setup)'))),
         h('dt', null, t('Processador')), h('dd', null, (nat.cores ? t('{p} núcleos físicos · {l} threads', { p: nat.cores[0], l: nat.cores[1] }) : '—') + ((nat.features || []).length ? ' · ' + nat.features.join(' ').toUpperCase() : '')),
         nat.last && nat.last.llm ? h('dt', null, t('Último modelo de texto')) : null,
         nat.last && nat.last.llm ? h('dd', { id: 'nat-llm' }, nat.last.llm.model + ' · ' + t('contexto {c}', { c: nat.last.llm.n_ctx }) + ' · ' + (nat.last.llm.n_gpu_layers === -1 ? t('tudo na GPU') : nat.last.llm.n_gpu_layers > 0 ? t('{n} camadas na GPU', { n: nat.last.llm.n_gpu_layers }) : t('na CPU')) + ' · ' + t('{n} threads', { n: nat.last.llm.n_threads }) + (nat.last.llm.kv_q8 ? ' · ' + t('cache em 8 bits') : '')) : null,
@@ -357,7 +373,7 @@ function localModels(p, draft) {
       // versões menores (8 e 4 bits, fp8…) feitas pela comunidade: o download encolhe de verdade; usar uma delas troca o modelo escolhido por aquele repositório
       api('/api/media/local/quants?model=' + encodeURIComponent(model)).then((q) => {
         const vs = q.variants || [];
-        if (!vs.length) { quants.replaceChildren(h('div', { class: 'small dim' }, t('Não há versões menores deste modelo na Hugging Face. Para modelos de texto, use as versões GGUF em Modelos locais.'))); return; }
+        if (!vs.length) { quants.replaceChildren(h('div', { class: 'small dim' }, t('Não há versões menores deste modelo na Hugging Face. Para modelos de texto, use as versões GGUF pela barra de pesquisa de modelos do Canvas.'))); return; }
         quants.replaceChildren(h('b', { class: 'small' }, t('Quantizações menores (da comunidade)')), h('div', { class: 'small dim' }, t('Pesos já comprimidos (8 ou 4 bits): download e memória bem menores, com algum custo de qualidade. Feitas por terceiros, não pelo OpenFlow.')),
           ...vs.map((v) => h('div', { class: 'quant qv', dataset: { quant: v.id } },
             h('div', { class: 'grow' }, h('div', { class: 'row', style: { gap: '8px' } }, h('b', { class: 'mono small' }, v.id), h('span', { class: 'chip' }, v.kind)), h('div', { class: 'dim small' }, t(v.note))),

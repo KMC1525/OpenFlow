@@ -55,9 +55,6 @@ class BrowserTests(unittest.TestCase):
     def test_03_style_folder_subfolders_rename_move_toggle_delete(self):
         self.run_script("style_folder_ui.js")
 
-    def test_04_models_screen_installed_support_files_and_hugging_face_search(self):
-        self.run_script("models_ui.js")
-
     def test_05_flow_editor_and_video_timeline(self):
         self.run_script("canvas_ui.js")
 
@@ -90,6 +87,9 @@ class BrowserTests(unittest.TestCase):
 
     def test_17_3d_model_node_viewer_and_library(self):
         self.run_script("model3d_ui.js")
+
+    def test_20_model_search_only_in_the_canvas_bar_and_library_has_none(self):
+        self.run_script("hub_v042_ui.js")
 
     def test_19_the_ai_flow_generator_and_the_team_picker_are_gone(self):
         self.run_script("no_flow_ai_ui.js")

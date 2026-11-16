@@ -513,7 +513,7 @@ export function nodeResult(c, n) {
           });
         } catch (e) { rb.disabled = false; toast(e.status === 409 ? t('Já há um download em andamento.') : e.message, 'err'); }
       };
-      box.append(rb, h('button', { class: 'btn sm nodrag', type: 'button', id: 'sdrepo-' + n.id, style: { marginTop: '6px' }, onclick: async () => { const { go } = await import('./main.js'); go('library', { repo: repoHit[1], kind: 'image' }); } }, t('Abrir {r} em Modelos', { r: repoHit[1] })));
+      box.append(rb, h('button', { class: 'btn sm nodrag', type: 'button', id: 'sdrepo-' + n.id, style: { marginTop: '6px' }, onclick: async () => { window.dispatchEvent(new CustomEvent('flow:hub', { detail: { q: repoHit[1], cap: 'image', fmt: 'gguf' } })); } }, t('Abrir {r} na barra de pesquisa', { r: repoHit[1] })));
     }
     if (cli) {
       const cb = h('button', { class: 'btn sm primary nodrag', type: 'button', id: 'sdcli-' + n.id, style: { marginTop: '6px', marginRight: '6px' } }, icon('download', 13), tools ? t('Instalar o que falta e compilar o sd-cli') : t('Baixar o executável pronto (sem compilar)'));
@@ -567,7 +567,7 @@ export function nodeResult(c, n) {
       };
       box.append(btn);
     }
-    if (/ainda não foi baixado|not been downloaded/i.test(error)) box.append(h('button', { class: 'btn sm primary nodrag', type: 'button', style: { marginTop: '6px' }, onclick: () => window.dispatchEvent(new CustomEvent('flow:go', { detail: { route: 'config', ctx: { tab: 'media' } } })) }, icon('download', 13), t('Baixar o modelo agora')));   // abre Configuração → Mídia na escolha da precisão
+    if (/ainda não foi baixado|not been downloaded/i.test(error)) box.append(h('button', { class: 'btn sm primary nodrag', type: 'button', style: { marginTop: '6px' }, onclick: () => window.dispatchEvent(new CustomEvent('flow:hub', { detail: { q: (n.params.model || '').includes('/') ? n.params.model : '', cap: CAP[n.type] === 'stt' ? 'stt' : (CAP[n.type] || ''), fmt: 'original' } })) }, icon('download', 13), t('Baixar o modelo agora')));   // abre a barra de pesquisa de modelos do Canvas (no repositório do nó, se ele tem um)
   }
   if (st.state === 'running' || st.state === 'queued') return box;
   const imgs = items.filter((a) => a.kind === 'image');
