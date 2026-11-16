@@ -2,6 +2,24 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.56.0] — 2026-11-16
+
+### Fixed — generating and editing with Qwen-Image 2.1 (ChatR Labs “Uncensored Omni Quantized”)
+I read the model card (the ChatR Labs recipe) and OpenFlow's generate/edit path (sd-cli and library) and tested each point with a simulated sd-cli:
+- **Unreadable error message:** when sd-cli failed, the screen showed the last 500 characters of the log with the progress bars (`| | ######## 98/98 - 739MB/s`) mixed in, hiding the cause (this was the case in the screenshot). Now the message drops the bars and the leading `---`/`|` of the lines, shows the error lines (`[E] …`) first and only then the log's final context.
+- **Vision-projector error with an explanation:** if sd-cli still answers “requires Qwen3-VL vision weights / --llm_vision”, the node now says what is missing (the Qwen3-VL mmproj, ≈ 1.2 GB), where the “Download the support files” button is and the file's name in the folder.
+- **Reference limit taken from the wrong model:** when generating through sd-cli, the maximum number of references came from the **default model in settings**, not the model chosen in the node. With a default model that takes 1 image (e.g. Z-Image) and Qwen-Image 2.1 (4 images) in the node, only the first reference was used, silently. Now the node's model rules.
+- **Negative prompt:** the card says an omitted or empty negative turns true CFG off and tells you to use a single space. If the node's negative is empty, OpenFlow now sends a space (this family only; other models do not change), both to sd-cli (`-n`) and to the library.
+
+### Tested
+- `tests/test_qwen21_bugs_v056.py` (8 tests): the message built from the screenshot's log (no bars, error first, size cap), a real failing program run, the reference limit with a default model different from the node's, the negative (empty, spaces only, filled, other family), sd-cli's arguments and the projector message. Without the fix, 7 fail.
+
+### Not verified yet
+- **I did not run Qwen-Image 2.1 for real** (nor sd-cli): everything was tested up to the command line and with simulated answers. I do not know whether, in sd-cli, a one-space negative changes the result compared with an empty one (the card talks about the diffusers pipeline); it is the author's recipe and harmless.
+- **Sampler:** the card recommends `er_sde` with the `simple` scheduler (ComfyUI); OpenFlow stays on `euler`, because I did not confirm your sd-cli version has `er_sde`. If it does, you can switch in “extra” (`sample_method`).
+- **Resolution:** the card recommends 768×1152 or 1024×1024; the node's proportions are as usual.
+- Extremely thin reference images (80:1) still have their aspect limited to 256 px on the short side (as in v0.51).
+
 ## [0.55.0] — 2026-11-16
 
 ### Fixed — Qwen-Image 2.1 (Uncensored Omni Quantized) when editing images

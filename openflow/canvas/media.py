@@ -1534,7 +1534,7 @@ class GGUFMedia(MediaProvider):
         k = min(1.0, float(_max_side()) / max(w, h))
         mult = 32 if _H3_IMAGE.search(path.name) else 16   # MiniMax H3 Image: cada token cobre 32×32 pixels
         w, h = max(256, int(w * k) // mult * mult), max(256, int(h * k) // mult * mult)
-        pil = _pil_refs(refs, self.max_refs("")) if refs else []
+        pil = _pil_refs(refs, self.max_refs(path.name)) if refs else []   # o limite é o do modelo escolhido NO NÓ (antes valia o do modelo padrão das configurações)
         if refs and not pil:
             raise ProviderError("Não consegui ler as imagens de referência ligadas ao nó (formato não suportado).")
         ref_png: List[bytes] = []
@@ -1558,6 +1558,9 @@ class GGUFMedia(MediaProvider):
             except ProviderError as exc:
                 if str(exc) == "cancelado":
                     self.ctl.check()   # o trabalho foi cancelado: levanta o cancelamento de verdade
+                if re.search(r"requires Qwen3-VL vision weights|--llm_vision", str(exc)):   # o sd-cli pede o projetor de visão do Qwen3-VL (v0.56): explica e oferece baixar, em vez do log cru
+                    raise ProviderError(f"O {(support.family_of(path.name) or {}).get('label') or 'modelo'} precisa do projetor de visão (mmproj) do Qwen3-VL para editar com imagem de referência, e o sd-cli não o recebeu. "
+                                        f"Use o botão «Baixar os arquivos de apoio» no nó (≈ 1,2 GB), ou ponha na pasta {path.parent} o arquivo Qwen3-VL-8B-Instruct-mmproj-F16.gguf. [[flow-support:{path.name}]]") from None
                 if "get sd version from file failed" in str(exc):   # o sd-cli atual não conhece o formato do arquivo: diz qual versão do modelo serve (em vez do log cru do sd-cli)
                     raise self._layout_error(path) from None
                 raise
@@ -1588,6 +1591,8 @@ class GGUFMedia(MediaProvider):
         user_load = extra.pop("load", None) or {}
         load = {**base.get("load", {}), **user_load}
         fam_img = support.family_of(path.name)
+        if fam_img and fam_img.get("negative_default") and not (negative or "").strip():   # a receita do modelo pede um negativo de UM espaço: negativo vazio desliga o CFG verdadeiro
+            negative = fam_img["negative_default"]
         if not refs and fam_img and fam_img.get("edit_needs"):   # só gerar com texto: o projetor de visão (≈ 1,2 GB) não é carregado — ele só serve para ler imagens de referência
             load = {k: v for k, v in load.items() if k not in fam_img["edit_needs"] or k in user_load}
         if refs:   # editar (ou usar imagens de referência): a stable-diffusion.cpp exige, no Qwen-Image 2.1, o projetor de visão do Qwen3-VL — sem ele o sd-cli falha com «requires Qwen3-VL vision weights» (v0.55)

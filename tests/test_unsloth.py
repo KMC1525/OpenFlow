@@ -78,8 +78,8 @@ class GGUFTests(TmpCase):
             def __init__(self, **kw):
                 loads.append(kw)
 
-            def generate_image(self, prompt, width, height, seed, cfg_scale=1.0, sample_steps=20, sample_method="euler", flow_shift=0.0, ref_images=None, init_image=None):
-                runs.append(dict(prompt=prompt, width=width, height=height, cfg_scale=cfg_scale, sample_steps=sample_steps, ref_images=ref_images))
+            def generate_image(self, prompt, width, height, seed, cfg_scale=1.0, sample_steps=20, sample_method="euler", flow_shift=0.0, ref_images=None, init_image=None, negative_prompt=""):
+                runs.append(dict(prompt=prompt, width=width, height=height, cfg_scale=cfg_scale, sample_steps=sample_steps, ref_images=ref_images, negative_prompt=negative_prompt))
                 return [Img()]
 
             def generate_video(self, prompt, width, height, seed, video_frames=1, cfg_scale=1.0, sample_steps=20, init_image=None):   # sem flow_shift: a versão «antiga» da biblioteca
@@ -105,6 +105,7 @@ class GGUFTests(TmpCase):
         d = self.tmp / "image"
         self.assertEqual((loads[0]["diffusion_model_path"], loads[0]["vae_path"], loads[0]["llm_path"]), (str(d / "qwen-image-2.1-turbo-Q4_K_M.gguf"), str(d / "qwen_image_2.1_vae_bf16.safetensors"), str(d / "Qwen3-VL-8B-Instruct-UD-Q4_K_XL.gguf")))
         self.assertEqual((runs[0]["cfg_scale"], runs[0]["sample_steps"]), (1.0, 8))
+        self.assertEqual(runs[0]["negative_prompt"], " ")   # v0.56: a receita do Qwen-Image 2.1 pede um negativo de um espaço (vazio desliga o CFG verdadeiro)
 
     def test_qwen_image_2_1_accepts_reference_images_for_editing(self):
         from PIL import Image  # noqa: F401  (só roda com Pillow; sem ele o teste é pulado)

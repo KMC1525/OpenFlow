@@ -456,6 +456,21 @@ def progress_text(line: str) -> str:
     return (line.split("\r")[-1] if "\r" in line else line).strip()
 
 
+def _is_progress(line: str) -> bool:
+    """Linha da barra de progresso («| | ######## 98/98 - 739MB/s»): não diz nada sobre o motivo da falha."""
+    return bool(re.search(r"#{3,}|={5,}", line) and re.search(r"\d+/\d+", line))
+
+
+def failure_text(tail: Sequence[str], limit: int = 600) -> str:
+    """O resumo de uma falha do sd-cli para a tela (v0.56): sem as barras de progresso (que enchiam a mensagem e escondiam a causa), com as linhas de erro («[E] …») primeiro e, depois, o contexto final do log."""
+    lines = [re.sub(r"^[-\s|]+", "", ln).strip() for ln in tail if not _is_progress(ln)]   # sem o «---» e o «|» que o sd-cli põe no começo das linhas
+    lines = [ln for ln in lines if ln]
+    errors = [ln for ln in lines if re.search(r"\[E\]|\berror\b|\bfailed\b", ln, re.I)]
+    rest = [ln for ln in lines[-4:] if ln not in errors]
+    text = " | ".join(errors[-4:] + (["…"] if errors and rest else []) + rest if errors else lines[-6:])
+    return (text if len(text) <= limit else "…" + text[-limit:]) or "sem mensagem (veja o terminal onde o OpenFlow roda)"
+
+
 def run(args: Sequence[str], exe: Path, cancelled: Callable[[], bool] = lambda: False, note: Callable[[str], None] = lambda m: None, timeout: float = 7200) -> str:
     """Roda o sd-cli (com cancelamento) e devolve as últimas linhas do log; levanta ProviderError com o motivo se falhar."""
     tail: List[str] = []
@@ -492,7 +507,7 @@ def run(args: Sequence[str], exe: Path, cancelled: Callable[[], bool] = lambda: 
                 pass
             raise GlibcError(why)
         oom = " O sistema o encerrou por falta de memória (RAM): use uma resolução ou quantização menores, ou feche outros programas." if p.returncode in (-9, 137) else ""
-        raise ProviderError(f"O sd-cli falhou (código {p.returncode}):{oom} " + " | ".join(tail)[-500:])
+        raise ProviderError(f"O sd-cli falhou (código {p.returncode}):{oom} " + failure_text(tail))
     return "\n".join(tail)
 
 
