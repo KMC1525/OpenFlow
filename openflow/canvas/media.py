@@ -353,6 +353,25 @@ def _local_import(*names: str, extra: str = "media") -> List[Any]:
         raise ProviderError(f'Modelos locais precisam das bibliotecas opcionais ({exc.name}). Instale com:  pip install "openflow[' + extra + ']"  (ou rode: flow libs)') from None
 
 
+def _hf_pipeline(tf: Any, task: str, model: str, dtype: Any) -> Any:
+    """`transformers.pipeline` só com arquivos já baixados (nada é baixado em silêncio). Versões novas do transformers repassam `local_files_only` sozinhas ao carregar a configuração, e repeti-lo em `model_kwargs`
+    dá «got multiple values for keyword argument 'local_files_only'» (v0.66: a transcrição do Whisper falhava assim): nesse caso o modo offline vai pela variável HF_HUB_OFFLINE, que vale para todas as versões."""
+    try:
+        return tf.pipeline(task, model=model, torch_dtype=dtype, model_kwargs={"local_files_only": True})
+    except TypeError as exc:
+        if "local_files_only" not in str(exc):
+            raise
+    old = os.environ.get("HF_HUB_OFFLINE")
+    os.environ["HF_HUB_OFFLINE"] = "1"
+    try:
+        return tf.pipeline(task, model=model, torch_dtype=dtype)
+    finally:
+        if old is None:
+            os.environ.pop("HF_HUB_OFFLINE", None)
+        else:
+            os.environ["HF_HUB_OFFLINE"] = old
+
+
 def _pick_cuda(torch: Any) -> None:
     """Com várias placas: torna «cuda» a escolhida com mais memória livre (Configurações → Desempenho → GPUs). O torch numera as placas como o nvidia-smi quando CUDA_DEVICE_ORDER=PCI_BUS_ID."""
     try:
@@ -914,7 +933,7 @@ class LocalHFMedia(MediaProvider):
         model = self._pick("sound", model, "facebook/musicgen-small")
         (tf,) = _local_import("transformers")
         ready = self._ready(model)
-        pipe = _local_load("sound", model, lambda: tf.pipeline("text-to-audio", model=model, torch_dtype=ready["dtype"], model_kwargs={"local_files_only": True}))
+        pipe = _local_load("sound", model, lambda: _hf_pipeline(tf, "text-to-audio", model, ready["dtype"]))
         if duration > 30:
             self.ctl.note("Os modelos de som locais geram até 30 s de uma vez: o resultado terá 30 s (use «Repetir áudio» ou o Editor para alongar).")
         self.ctl.note("Gerando som localmente…")
@@ -1010,7 +1029,7 @@ class LocalHFMedia(MediaProvider):
             return self._voice_csm(text, voice, model, extra)
         (tf,) = _local_import("transformers")
         ready = self._ready(model)
-        pipe = _local_load("voice", model, lambda: tf.pipeline("text-to-speech", model=model, torch_dtype=ready["dtype"], model_kwargs={"local_files_only": True}))
+        pipe = _local_load("voice", model, lambda: _hf_pipeline(tf, "text-to-speech", model, ready["dtype"]))
         self.ctl.note("Sintetizando voz localmente…")
         res = pipe(text, **(extra or {}))
         return Media(_wav_from_array(res["audio"], res["sampling_rate"]), "audio/wav")
@@ -1024,7 +1043,7 @@ class LocalHFMedia(MediaProvider):
         model = self._pick("stt", model, "openai/whisper-small")
         (tf,) = _local_import("transformers")
         ready = self._ready(model)
-        pipe = _local_load("stt", model, lambda: tf.pipeline("automatic-speech-recognition", model=model, torch_dtype=ready["dtype"], model_kwargs={"local_files_only": True}))
+        pipe = _local_load("stt", model, lambda: _hf_pipeline(tf, "automatic-speech-recognition", model, ready["dtype"]))
         with tempfile.TemporaryDirectory() as tmp:
             p = Path(tmp) / ("audio." + (MIME_EXT.get(mime, "") or (filename.rsplit(".", 1)[-1] if "." in filename else "wav")))
             p.write_bytes(data)

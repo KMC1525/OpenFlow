@@ -2,6 +2,16 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.66.0] — 2026-11-16
+
+### Corrigido — «got multiple values for keyword argument 'local_files_only'» na transcrição
+- **O erro da imagem:** ao dublar ou transcrever com o **Whisper local**, o nó falhava com *«Erro inesperado: transformers.models.auto.configuration_auto.AutoConfig.from_pretrained() got multiple values for keyword argument 'local_files_only'»*. O transformers novo já passa `local_files_only` sozinho ao carregar a configuração do modelo, e o OpenFlow o repassava de novo em `model_kwargs`. Agora o carregamento tenta como antes e, se o transformers recusar o argumento repetido, **repete o carregamento com o modo offline pela variável `HF_HUB_OFFLINE`** (valendo só durante o carregamento e devolvida como estava), que funciona em todas as versões. Nada é baixado em silêncio, como antes.
+- **Onde vale:** transcrição (Whisper — nós Transcrição, Legendas e Dublagem, e o nó Transcrever), **voz** (Bark, MMS-TTS) e **sons/músicas** (MusicGen): os três carregavam o modelo do mesmo jeito e tinham o mesmo risco com o transformers novo.
+
+### Ainda não verificado
+- **Não rodei o Whisper nem o transformers de verdade:** os testes usam um `transformers` de mentira que recusa o argumento repetido exatamente como na mensagem. Que o Whisper carregue, transcreva e dê os tempos com o transformers novo (e se aparece outro erro depois deste) **não foi medido**.
+- A mensagem continua aparecendo como «Erro inesperado» quando o carregamento falha por outro motivo (por exemplo, modelo não baixado ou biblioteca ausente têm mensagem própria; outros erros do transformers, não).
+
 ## [0.65.0] — 2026-11-16
 
 ### Novo — Barra de pesquisa de modelos de som, música e SFX (Hugging Face)
