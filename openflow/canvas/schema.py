@@ -32,7 +32,7 @@ NODE_TYPES: Dict[str, Dict[str, Any]] = {
     "sound": {"label": "Som", "icon": "audio", "out": "audio", "ins": [("prompt", "Prompt", ["text"], True), ("style", "Estilo", ["style"], True)]},
     "music": {"label": "Música", "icon": "audio", "out": "audio", "ins": [("prompt", "Descrição", ["text"], True), ("lyrics", "Letra", ["text"], True), ("style", "Estilo", ["style"], True)]},
     "sfx": {"label": "SFX", "icon": "audio", "out": "audio", "ins": [("prompt", "Descrição", ["text"], True)]},
-    "dub": {"label": "Dublagem", "icon": "mic", "out": "media", "ins": [("media", "Vídeo ou áudio", ["video", "audio"], False), ("script", "Roteiro", ["text"], True)]},
+    "dub": {"label": "Dublagem", "icon": "mic", "out": "media", "ins": [("media", "Vídeo ou áudio", ["video", "audio"], False), ("script", "Roteiro", ["text"], True), ("voices", "Vozes", ["audio"], True)]},
     "transcript": {"label": "Transcrição", "icon": "doc", "out": "text", "ins": [("media", "Vídeo ou áudio", ["video", "audio"], False)]},
     "sub": {"label": "Legendas", "icon": "doc", "out": "text", "ins": [("media", "Vídeo ou áudio", ["video", "audio"], False), ("text", "Texto ou legendas", ["text"], True)]},
     "voice": {"label": "Voz", "icon": "mic", "out": "audio", "ins": [("text", "Fala", ["text"], True), ("style", "Estilo", ["style"], True)]},
@@ -230,7 +230,7 @@ def _speech_params(ntype: str, p: Dict[str, Any], prov: str, model: str) -> Dict
                 "lines": int(num(p.get("lines"), 2, 1, 3)), "max_seconds": round(num(p.get("max_seconds"), 6, 1, 15), 1), "offset": round(num(p.get("offset"), 0, -30, 30), 2), "duration": int(num(p.get("duration"), 0, 0, 36000)),
                 "provider": prov, "model": model}
     return {"language": _lang(p.get("language"), "en", ("keep",)), "source_language": _lang(p.get("source_language"), "auto", ("auto",)), "voice": text(p.get("voice"), "", 80), "speed": round(num(p.get("speed"), 1, 0.5, 2), 2),
-            "mix": "duck" if p.get("mix") == "duck" else "replace", "original_volume": round(num(p.get("original_volume"), 0.15, 0, 1), 2), "fit": p.get("fit", True) is not False, "provider": prov, "model": model,
+            "assign": "alternate" if p.get("assign") == "alternate" else "labels", "mix": "duck" if p.get("mix") == "duck" else "replace", "original_volume": round(num(p.get("original_volume"), 0.15, 0, 1), 2), "fit": p.get("fit", True) is not False, "provider": prov, "model": model,
             "extra": _json_dict(p.get("extra"))}
 
 

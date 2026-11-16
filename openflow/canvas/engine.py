@@ -200,8 +200,11 @@ class CanvasEngine:
         if self._ix_for is not canvas or self._ix.get("n") != size:
             into: Dict[Tuple[str, str], List[str]] = {}
             preds: Dict[str, List[str]] = {}
+            kinds = {n["id"]: n["type"] for n in canvas["nodes"]}
             for e in canvas["edges"]:
                 into.setdefault((e["to"], e["port"]), []).append(e["from"])
+                if e["port"] == "voices" and kinds.get(e["to"]) == "dub":   # v0.63: um nó Voz ligado à Dublagem só dá a voz (configuração): a Dublagem não espera por ele nem falha se ele falhar
+                    continue
                 preds.setdefault(e["to"], []).append(e["from"])
             self._ix_for = canvas
             self._ix = {"n": size, "nodes": {n["id"]: n for n in canvas["nodes"]}, "assets": {a["id"]: a for a in canvas["assets"]}, "into": into, "preds": preds}
@@ -212,6 +215,10 @@ class CanvasEngine:
 
     def _assets(self, canvas: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
         return self._index(canvas)["assets"]
+
+    def _feeds_dub(self, canvas: Dict[str, Any], node: Dict[str, Any]) -> bool:
+        """Este nó está ligado à porta «Vozes» de uma Dublagem?"""
+        return any(e["from"] == node["id"] and e["port"] == "voices" and (self._node(canvas, e["to"]) or {}).get("type") == "dub" for e in canvas["edges"])
 
     def _asset_bytes(self, a: Dict[str, Any]) -> Optional[bytes]:
         p = self.cs.asset_path(self.cid, a["file"])
@@ -428,6 +435,9 @@ class CanvasEngine:
             ports: Dict[str, Any] = {}
             for pid_, _label, _acc, _multi in NODE_TYPES[t]["ins"]:
                 if pid_ == "style":
+                    continue
+                if t == "dub" and pid_ == "voices":   # as vozes valem pelos seus ajustes (voz, velocidade, modelo, estilo), não pelo áudio de exemplo que o nó Voz gerou
+                    ports[pid_] = speech.profile_signature(self, canvas, node)
                     continue
                 items = []
                 for src in self._edges_to(canvas, node["id"], pid_):
@@ -761,6 +771,8 @@ class CanvasEngine:
         if t == "voice":
             speech = "\n\n".join(x for x in (self.inputs(canvas, node, "text")["text"], p["text"].strip()) if x)
             if not speech:
+                if self._feeds_dub(canvas, node):   # v0.63: ligado à Dublagem, o nó Voz sem texto só define a voz: não há o que gerar (e não é erro)
+                    return {"assets": [], "text": "", "warnings": ["Este nó Voz só define a voz da Dublagem a que está ligado (sem texto, ele não gera áudio)."]}
                 raise ValueError("O nó Voz precisa de um texto para falar.")
             m = prov.voice(speech, voice=p["voice"], speed=p["speed"], model=p["model"], extra=p["extra"], instructions=style.render(speech))
             return {"assets": [self._save(node, m, "audio", self._title(node, "Voz"), speech, pid, model)], "text": "", "warnings": warnings}

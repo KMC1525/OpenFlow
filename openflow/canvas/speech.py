@@ -248,6 +248,44 @@ def mux(eng: Any, src_path: Path, kind: str, track: Path, out: Path, mode: str, 
     raise last or ProviderError("O ffmpeg não conseguiu juntar a dublagem ao vídeo.")
 
 
+def voice_profiles(eng: Any, canvas: Dict[str, Any], node: Dict[str, Any], warnings: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+    """As vozes ligadas à porta «Vozes» da Dublagem (v0.63), na ordem das conexões. Cada nó Voz vira um perfil: o nome do personagem (o título do nó, ou o nome da voz, ou «Voz 1», «Voz 2»…), o provedor e o
+    modelo dele, a voz, a velocidade e o estilo. O que não é um nó Voz é ignorado (com aviso)."""
+    out: List[Dict[str, Any]] = []
+    for src in eng._edges_to(canvas, node["id"], "voices"):
+        vn = eng._node(canvas, src)
+        if not vn:
+            continue
+        if vn["type"] != "voice":
+            if warnings is not None:
+                warnings.append(f"«{vn.get('title') or vn['type']}» não é um nó Voz: ignorei (na entrada «Vozes» ligue nós Voz).")
+            continue
+        vp = vn["params"]
+        pid = pick_provider(eng.settings, "voice", vp.get("provider", ""))
+        title = (vn.get("title") or "").strip()
+        n = len(out) + 1
+        aliases = [a for a in (title, str(vp.get("voice") or "").strip(), f"Voz {n}") if a]
+        out.append({"id": vn["id"], "name": aliases[0], "aliases": aliases, "pid": pid, "model": vp.get("model") or media_config(eng.settings, pid)["models"].get("voice", ""), "model_override": vp.get("model", ""),
+                    "voice": vp.get("voice", ""), "speed": vp.get("speed", 1.0), "extra": vp.get("extra") or {}, "style": eng.styles_for(canvas, vn), "node": vn})
+    return out
+
+
+def profile_signature(eng: Any, canvas: Dict[str, Any], node: Dict[str, Any]) -> List[Any]:
+    """O que as vozes ligadas têm de ajuste (nome, modelo, voz, velocidade, estilo), para o cache da Dublagem: trocar a voz de um personagem refaz a dublagem; o áudio de exemplo do nó Voz não entra."""
+    import json
+
+    sig: List[Any] = []
+    for src in eng._edges_to(canvas, node["id"], "voices"):
+        vn = eng._node(canvas, src)
+        if not vn or vn["type"] != "voice":
+            continue
+        vp = vn["params"]
+        pid = pick_provider(eng.settings, "voice", vp.get("provider", ""))
+        sig.append([vn["id"], vn.get("title", ""), pid, vp.get("model") or media_config(eng.settings, pid)["models"].get("voice", ""), vp.get("voice", ""), vp.get("speed", 1.0),
+                    json.dumps(vp.get("extra") or {}, sort_keys=True), eng.styles_for(canvas, vn, need_digest=False).signature(), eng.style_ids(canvas, vn)])
+    return sig
+
+
 def run_dub(eng: Any, canvas: Dict[str, Any], node: Dict[str, Any]) -> Dict[str, Any]:
     p = node["params"]
     warnings: List[str] = []
@@ -281,13 +319,30 @@ def run_dub(eng: Any, canvas: Dict[str, Any], node: Dict[str, Any]) -> Dict[str,
     if len(segs) > MAX_DUB_SEGS:
         warnings.append(f"A dublagem tem no máximo {MAX_DUB_SEGS} trechos: dublei os primeiros {MAX_DUB_SEGS} de {len(segs)}.")
         segs = segs[:MAX_DUB_SEGS]
-    prov, pid, model = eng._provider(node)
+    profiles = voice_profiles(eng, canvas, node, warnings)
+    if profiles:   # nós Voz ligados (v0.63): valem no lugar da voz do próprio nó; cada personagem fala com a sua
+        who, extra_warn = sub.assign_speakers(segs, [v["aliases"] for v in profiles], p["assign"])
+        warnings += extra_warn
+    else:
+        _prov, own_pid, _model = eng._provider(node)
+        profiles = [{"name": "", "aliases": [], "pid": own_pid, "model_override": p["model"], "voice": p["voice"], "speed": p["speed"], "extra": p["extra"], "style": None, "prov": _prov}]
+        who = [(0, s["text"]) for s in segs]
     clips: List[Tuple[Dict[str, Any], Any]] = []
-    for i, s in enumerate(segs):
+    spoken: List[Dict[str, Any]] = []
+    counts = [0] * len(profiles)
+    built: Dict[str, Any] = {}
+    for i, (s, (vi, line)) in enumerate(zip(segs, who)):
         eng._check()
         eng.ctl.note(f"Dublando {i + 1} de {len(segs)}…")
-        clips.append((s, prov.voice(s["text"][:MAX_SPEECH], voice=p["voice"], speed=p["speed"], model=p["model"], extra=p["extra"], instructions="")))
-    if pid == "demo":
+        v = profiles[vi]
+        prov = v.get("prov") or built.setdefault(v["pid"], build_media(eng.settings, v["pid"], eng.ctl, eng.store.models_dir))
+        instructions = v["style"].render(line) if v.get("style") is not None else ""
+        clips.append((s, prov.voice(line[:MAX_SPEECH], voice=v["voice"], speed=v["speed"], model=v["model_override"], extra=v["extra"], instructions=instructions)))
+        spoken.append(sub.seg(s["start"], s["end"], (v["name"] + ": " if len(profiles) > 1 and v["name"] else "") + line))
+        counts[vi] += 1
+    if len(profiles) > 1:
+        warnings.append("Vozes usadas: " + ", ".join(f"{v['name']} ({n} fala{'s' if n != 1 else ''})" for v, n in zip(profiles, counts) if n) + ".")
+    if any(v["pid"] == "demo" for v, n in zip(profiles, counts) if n):
         warnings.append("Voz de demonstração: um balbucio no ritmo do texto, não fala de verdade. Escolha um modelo de voz em Configuração → Mídia para uma dublagem real.")
     track, fitted, late = place(eng, clips, duration, p["fit"], warnings)
     if fitted:
@@ -303,7 +358,7 @@ def run_dub(eng: Any, canvas: Dict[str, Any], node: Dict[str, Any]) -> Dict[str,
         ext = "mp4" if src["kind"] == "video" else "mp3"
         out = Path(td) / f"out.{ext}"
         mux(eng, path, src["kind"], wav, out, p["mix"], p["original_volume"], has_audio(path))
-        res = {"assets": [_save_file(eng, node, out, src["kind"], name, "video/mp4" if ext == "mp4" else "audio/mpeg")], "text": sub.transcript_text(segs, "timestamps"), "warnings": warnings}
+        res = {"assets": [_save_file(eng, node, out, src["kind"], name, "video/mp4" if ext == "mp4" else "audio/mpeg")], "text": sub.transcript_text(spoken, "timestamps"), "warnings": warnings}
     return res
 
 
