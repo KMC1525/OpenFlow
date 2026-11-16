@@ -26,11 +26,6 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "ui": DEFAULT_UI,  # aparência: tema, cor de destaque, escala, densidade…
     "active": {"generation": "demo"},  # provedor de texto dos nós «Texto IA» e da descrição de estilo
     "providers": {},
-    "generation": {
-        "temperature": 0.8,
-        "max_tokens": 6000,
-        "content": "free",  # free (SFW e NSFW, sem filtros do OpenFlow) | sfw
-    },
     "media": {
         # provedor padrão de cada capacidade (cada nó pode escolher outro)
         "active": {"image": "demo", "video": "demo", "sound": "demo", "voice": "demo", "stt": "local_hf", "model3d": "demo"},   # transcrição: o Whisper local (precisa de openflow[media])
@@ -54,8 +49,8 @@ def local_only(settings: dict) -> dict:
     não existem mais são ignorados (e saem do arquivo na próxima gravação) e os padrões apontam para o Demo ou o modelo local."""
     s = settings
     prov = s.get("providers") if isinstance(s.get("providers"), dict) else {}
-    s["providers"] = {k: v for k, v in prov.items() if k in LOCAL_TEXT and isinstance(v, dict)}
-    for k in ("voice",):
+    s["providers"] = {k: {f: v[f] for f in ("model", "n_ctx") if f in v} for k, v in prov.items() if k in LOCAL_TEXT and isinstance(v, dict)}   # v0.44: do provedor só valem o modelo e a janela de contexto (chave de API, endereço e «vision» eram da nuvem)
+    for k in ("voice", "generation"):   # seções antigas (voz em servidor; temperatura/tokens/«content» do Chat do ASTA): ninguém mais lê
         s.pop(k, None)
     act = s.get("active") if isinstance(s.get("active"), dict) else {}
     s["active"] = {r: (v if (v in LOCAL_TEXT or v in _AUTO) else "auto") for r, v in act.items()}
@@ -203,15 +198,8 @@ class Store:
                     continue
                 cur = current["providers"].setdefault(pid, {})
                 for k, v in pcfg.items():
-                    if k == "has_key" or k.endswith("_set"):
-                        continue
-                    if k == "api_key":
-                        if v is None:
-                            cur.pop("api_key", None)
-                        elif isinstance(v, str) and v.strip():
-                            cur["api_key"] = v.strip()
-                        continue
-                    cur[k] = v
+                    if k in ("model", "n_ctx"):   # os únicos ajustes de um provedor local (o resto é ignorado)
+                        cur[k] = v
             # demais segredos: "" = manter, null = apagar, texto = definir
             for path in SECRET_PATHS:
                 parent = _get_path(patch, path[:-1])
@@ -234,11 +222,8 @@ class Store:
             return merged
 
     def public_settings(self) -> dict:
-        """Configurações para o navegador: segredos viram flags `has_key`."""
+        """Configurações para o navegador: segredos (o token do Hugging Face) viram flags `*_set`."""
         s = copy.deepcopy(self.get_settings())
-        for pid, pcfg in s.get("providers", {}).items():
-            key = pcfg.pop("api_key", "")
-            pcfg["has_key"] = bool(key)
         for path in SECRET_PATHS:
             val = _get_path(s, path)
             _set_path(s, path[:-1] + (path[-1] + "_set",), bool(val))

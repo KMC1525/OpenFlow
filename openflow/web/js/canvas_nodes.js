@@ -125,7 +125,7 @@ async function cachedList(key, loader, force) {
   LISTS.set(key, { t: Date.now(), items }); return items;
 }
 const sizeTxt = (n) => (n >= 1 << 30 ? (n / (1 << 30)).toFixed(1) + ' GB' : n >= 1 << 20 ? Math.round(n / (1 << 20)) + ' MB' : '');
-const usable = (p) => p.id === 'demo' || p.has_key || (!p.needs_key && (p.base_url || p.local));   // pronto para uso: Demo, com chave, ou servidor local/compatível com endereço
+const usable = (p) => p.id === 'demo' || p.local;   // pronto para uso: Demo, com chave, ou servidor local/compatível com endereço
 function modelPicker(c, n, cap) {
   const provs = c.prov.providers.filter((p) => p.caps.includes(cap));
   const defId = c.prov.active[cap] || 'demo';
@@ -157,12 +157,12 @@ function modelPicker(c, n, cap) {
       groups.push(group(label(p.id), opts));
     });
     const extra = provs.filter((p) => ['demo', 'voice_settings'].includes(p.id) && usable(p)).map((p) => { have.add(keyOf(p.id, '')); return opt(keyOf(p.id, ''), label(p.id)); });
-    groups.push(group(t('Sem modelo da nuvem'), extra));
+    groups.push(group(t('Sem modelo (Demo)'), extra));
     // o valor atual (salvo antes, ou digitado) sempre aparece, mesmo que a lista não o traga
     const curKey = !cur && !curProv ? '' : keyOf(curProv || effId, cur);
     const missing = curKey && !have.has(curKey) ? [opt(curKey, (cur || label(curProv || effId)) + (curProv ? ' · ' + label(curProv) : '') + ' (' + t('atual') + ')')] : [];
     sel.replaceChildren(opt('', t('Padrão') + (def ? ' · ' + (((def.models || {})[cap]) || label(def.id)) : '')), ...missing, ...groups.filter(Boolean),
-      opt('__config', t('Configurar provedores e chaves…')), opt('__custom', t('Outro modelo…')));
+      opt('__config', t('Configurar provedores…')), opt('__custom', t('Outro modelo…')));
     sel.value = curKey;
     if (sel.value !== curKey) sel.value = '';
     custom.classList.add('hidden');   // a lista foi refeita (↻) e voltou ao modelo salvo: o campo «nome do modelo» só vale enquanto «Outro modelo…» está escolhido
@@ -183,9 +183,7 @@ function modelPicker(c, n, cap) {
 function providerBlock(c, n, cap, resolutionField) {
   const defId = c.prov.active[cap] || 'demo';
   const eff = c.prov.providers.find((p) => p.id === (n.params.provider || defId));
-  const warn = eff && eff.needs_key && !eff.has_key
-    ? h('div', { class: 'warnk' }, icon('warn', 13), t('Sem chave de API:'), h('a', { href: '#/config', onclick: () => c.openConfig() }, t('configurar')))
-    : (eff && eff.id === 'demo' ? h('div', { class: 'dim small' }, t('Demo: resultado simples, sem IA real.')) : null);
+  const warn = eff && eff.id === 'demo' ? h('div', { class: 'dim small' }, t('Demo: resultado simples, sem IA real.')) : null;
   return [lab(t('Modelo'), modelPicker(c, n, cap)), warn, resolutionField || null];
 }
 

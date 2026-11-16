@@ -61,9 +61,9 @@ def normalize_ui(data: Any) -> Dict[str, Any]:
 # --------------------------------------------------------------------------- exportar / importar configurações (sem segredos)
 
 EXPORT_SCHEMA = "openflow.settings.v1"
-EXPORT_SECTIONS = ("language", "ui", "generation", "canvas", "performance", "active", "media")
-RESETTABLE = ("ui", "generation", "canvas", "performance")   # voz e provedores têm chaves de API: não entram no "restaurar padrões"
-_PROVIDER_FIELDS = ("base_url", "model", "vision", "n_ctx")  # nunca `api_key`
+EXPORT_SECTIONS = ("language", "ui", "canvas", "performance", "active", "media")
+RESETTABLE = ("ui", "canvas", "performance")   # os provedores e o token do Hugging Face não entram no "restaurar padrões"
+_PROVIDER_FIELDS = ("model", "n_ctx")
 
 
 def export_settings(settings: Dict[str, Any]) -> Dict[str, Any]:
@@ -71,8 +71,6 @@ def export_settings(settings: Dict[str, Any]) -> Dict[str, Any]:
     out: Dict[str, Any] = {k: settings[k] for k in EXPORT_SECTIONS if k in settings}
     out["providers"] = {pid: {k: v for k, v in (cfg or {}).items() if k in _PROVIDER_FIELDS and v not in (None, "")}
                         for pid, cfg in (settings.get("providers") or {}).items() if isinstance(cfg, dict)}
-    voice = settings.get("voice") or {}
-    out["voice"] = {part: {k: v for k, v in (voice.get(part) or {}).items() if k != "api_key"} for part in ("stt", "tts")}
     return {"schema": EXPORT_SCHEMA, "settings": out}
 
 
@@ -82,7 +80,7 @@ def import_patch(payload: Any) -> Dict[str, Any]:
         raise ValueError("Este arquivo não é uma exportação de configurações do OpenFlow.")
     src = payload["settings"]
     patch: Dict[str, Any] = {}
-    for key in ("generation", "canvas", "performance"):
+    for key in ("canvas", "performance"):
         if isinstance(src.get(key), dict):
             patch[key] = src[key]
     if isinstance(src.get("ui"), dict):
@@ -91,11 +89,9 @@ def import_patch(payload: Any) -> Dict[str, Any]:
         patch["language"] = src["language"]
     if isinstance(src.get("media"), dict):
         m = src["media"]
-        patch["media"] = {k: m[k] for k in ("active", "models", "urls") if isinstance(m.get(k), dict)}
+        patch["media"] = {k: m[k] for k in ("active", "models") if isinstance(m.get(k), dict)}
     if isinstance(src.get("active"), dict):
         patch["active"] = {k: v for k, v in src["active"].items() if isinstance(v, str)}
     if isinstance(src.get("providers"), dict):
         patch["providers"] = {pid: {k: v for k, v in cfg.items() if k in _PROVIDER_FIELDS} for pid, cfg in src["providers"].items() if isinstance(cfg, dict)}
-    if isinstance(src.get("voice"), dict):
-        patch["voice"] = {part: {k: v for k, v in (src["voice"].get(part) or {}).items() if k != "api_key"} for part in ("stt", "tts") if isinstance(src["voice"].get(part), dict)}
     return patch

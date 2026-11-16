@@ -21,8 +21,7 @@ class RemovedTests(unittest.TestCase):
     def test_defaults_have_no_team_keys(self):
         from openflow.storage import DEFAULT_SETTINGS
 
-        self.assertNotIn("agents", DEFAULT_SETTINGS["generation"])
-        self.assertNotIn("effort", DEFAULT_SETTINGS["generation"])
+        self.assertNotIn("generation", DEFAULT_SETTINGS)   # v0.44: a seção do Chat do ASTA saiu
         self.assertEqual(DEFAULT_SETTINGS["canvas"], {"template": "text_image"})
 
     def test_old_settings_with_agents_and_effort_still_load(self):
@@ -33,7 +32,7 @@ class RemovedTests(unittest.TestCase):
         home = Path(tempfile.mkdtemp())
         write_json(home / "settings.json", {"canvas": {"template": "text_image", "agents": 16, "effort": "omni"}, "generation": {"agents": 8, "effort": "mega", "temperature": 0.5}})
         s = Store(home).get_settings()
-        self.assertEqual(s["generation"]["temperature"], 0.5)
+        self.assertNotIn("generation", s)
         self.assertEqual(s["canvas"]["template"], "text_image")
 
     def test_no_source_mentions_the_removed_systems(self):

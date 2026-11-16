@@ -109,8 +109,6 @@ class App:
         override = settings["providers"].setdefault(pid, {})
         if isinstance(cfg.get("model"), str):   # campo vazio vale: testar sem modelo escolhido não pode herdar o salvo
             override["model"] = cfg["model"].strip()
-        if "vision" in cfg:
-            override["vision"] = bool(cfg["vision"])
         if cfg.get("n_ctx"):
             override["n_ctx"] = cfg["n_ctx"]
         return build_provider(settings, pid, self.store.models_dir)
@@ -125,7 +123,6 @@ class App:
         a("POST", r"/api/settings/import", self.r_settings_import)
         a("POST", r"/api/settings/reset", self.r_settings_reset)
         a("POST", r"/api/providers/test", self.r_provider_test)
-        a("POST", r"/api/providers/models", self.r_provider_models)
 
         a("POST", r"/api/uploads", self.r_upload)
         a("DELETE", r"/api/uploads/(?P<uid>[\w-]+)", self.r_upload_delete)
@@ -160,7 +157,7 @@ class App:
         req.json({
             "version": __version__, "disk_version": _disk_version(), "hardware": hardware_info(), "native": _native_status(), "home": str(self.store.home),
             "presets": describe_presets(), "settings": self.store.public_settings(),
-            "configured": [pid for pid in s["providers"] if s["providers"][pid].get("api_key") or s["providers"][pid].get("model") or s["providers"][pid].get("base_url")],
+            "configured": [pid for pid in s["providers"] if s["providers"][pid].get("model")],
         })
 
     def r_settings_get(self, req: "Request") -> None:
@@ -219,14 +216,6 @@ class App:
             req.json({"ok": True, "reply": reply, "ms": int((time.time() - started) * 1000), "model": provider.model})
         except ProviderError as exc:
             req.json({"ok": False, "error": str(exc)})
-
-    def r_provider_models(self, req: "Request") -> None:
-        body = req.body_json()
-        try:
-            provider = self._provider_from_request(body)
-            req.json({"ok": True, "models": provider.list_models()})
-        except ProviderError as exc:
-            req.json({"ok": False, "error": str(exc), "models": []})
 
     # ----- uploads
     def r_upload(self, req: "Request") -> None:

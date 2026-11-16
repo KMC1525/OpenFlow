@@ -43,20 +43,14 @@ async function providers() {
 
   function card(p) {
     const S = state.settings, cfg = (S.providers && S.providers[p.id]) || {};
-    const isGen = S.active.generation === p.id, isChar = false;
-    const configured = p.id === 'demo' || cfg.has_key || cfg.model || (p.local && cfg.base_url);
-    const draft = { base_url: cfg.base_url || '', model: cfg.model || '', api_key: '', vision: cfg.vision != null ? cfg.vision : p.vision, n_ctx: cfg.n_ctx > 0 ? cfg.n_ctx : 0 };
+    const isGen = S.active.generation === p.id;
+    const configured = p.id === 'demo' || !!cfg.model;
+    const draft = { model: cfg.model || '', n_ctx: cfg.n_ctx > 0 ? cfg.n_ctx : 0 };
     const res = h('div', { class: 'res' });
     const dl = h('datalist', { id: 'models-' + p.id }, (p.kind === 'local_hf' ? localModels : []).map((m) => h('option', { value: m })));
-    const cardEl = h('div', { class: 'prov' + (isGen || isChar ? ' open' : '') });
+    const cardEl = h('div', { class: 'prov' + (isGen ? ' open' : '') });
     const bodyEl = h('div', { class: 'bd' });
 
-    const loadModels = async () => {
-      res.className = 'res'; res.textContent = '…';
-      const r = await api('/api/providers/models', { method: 'POST', body: { id: p.id, config: draft } });
-      if (!r.ok) { res.className = 'res err'; res.textContent = r.error; return; }
-      dl.replaceChildren(...r.models.map((m) => h('option', { value: m }))); res.className = 'res ok'; res.textContent = t('{n} modelos disponíveis — clique no campo Modelo para escolher.', { n: r.models.length });
-    };
     const test = async () => {
       res.className = 'res'; res.textContent = t('Testando…');
       const r = await api('/api/providers/test', { method: 'POST', body: { id: p.id, config: draft } });
@@ -64,17 +58,14 @@ async function providers() {
       res.textContent = r.ok ? '✓ ' + t('Funcionou') + ' (' + (r.ms / 1000).toFixed(1) + ' s) · ' + t('resposta:') + ' ' + r.reply : '✗ ' + r.error;
     };
     const save = async () => {
-      const patch = { model: draft.model };
-      patch.vision = !!draft.vision;
-      if (p.kind === 'local_hf') patch.n_ctx = draft.n_ctx > 0 ? draft.n_ctx : 0;   // 0 = automático
-      await saveSettings({ providers: { [p.id]: patch } }); draft.api_key = ''; toast(t('Salvo'), 'ok'); await refreshState(); renderSide(); paint();
+      const patch = { model: draft.model, n_ctx: draft.n_ctx > 0 ? draft.n_ctx : 0 };   // n_ctx 0 = automático
+      await saveSettings({ providers: { [p.id]: patch } }); toast(t('Salvo'), 'ok'); await refreshState(); renderSide(); paint();
     };
     const inputs = [];
     if (p.id === 'demo') inputs.push(h('p', { class: 'muted small', style: { margin: '10px 0 0' } }, t(p.hint)));
     else {
       const modelIn = h('input', { list: 'models-' + p.id, value: draft.model, placeholder: t('arquivo .gguf baixado'), oninput: (e) => { draft.model = e.target.value.trim(); } });
-      inputs.push(field(t('Modelo'), h('div', { class: 'row nw' }, modelIn, dl,
-        p.kind !== 'local_hf' ? h('button', { class: 'btn sm', onclick: loadModels }, icon('refresh', 13), t('Carregar modelos')) : null)));
+      inputs.push(field(t('Modelo'), h('div', { class: 'row nw' }, modelIn, dl)));
       {
         // janela de contexto: vazio = automático (32K nos modelos de texto pré-instalados; nos demais, conforme o hardware)
         const ctxHint = h('p', { class: 'muted small', style: { margin: '4px 0 0' } });
@@ -103,8 +94,8 @@ async function providers() {
     inputs.push(h('div', { class: 'row', style: { marginTop: '8px' } }, h('button', { class: 'btn sm', onclick: test }, t('Testar')), h('button', { class: 'btn sm primary', onclick: save }, t('Salvar')), p.id !== 'demo' ? h('span', { class: 'dim small' }, t('Ao testar, usamos os valores acima mesmo sem salvar.')) : null), res);
     bodyEl.replaceChildren(...inputs);
     cardEl.append(h('div', { class: 'hd', onclick: () => cardEl.classList.toggle('open') }, h('span', { class: 'dot ' + (configured ? 'ok' : ''), style: { width: '8px', height: '8px', borderRadius: '50%', background: configured ? 'var(--ok)' : 'var(--dim)' } }),
-      h('span', { class: 'nm' }, t(p.label)), p.local ? h('span', { class: 'badge' }, t('local')) : null,
-      h('span', { class: 'roles' }, isGen ? h('span', { class: 'chip on' }, t('geração')) : null, null)), bodyEl);
+      h('span', { class: 'nm' }, t(p.label)),
+      h('span', { class: 'roles' }, isGen ? h('span', { class: 'chip on' }, t('em uso')) : null)), bodyEl);
     return cardEl;
   }
   paint();
@@ -130,9 +121,9 @@ async function appearance() {
       field(t('Idioma da interface'), select([['auto', t('Automático (navegador)')], ['pt-BR', 'Português (Brasil)'], ['en', 'English']], state.settings.language, async (v) => { await saveSettings({ language: v }); location.reload(); }),
         t('Os textos do terminal (flow, flow update, instaladores) seguem o idioma do computador; para forçar um, use OPENFLOW_LANG=pt ou OPENFLOW_LANG=en.'))),
     card(t('Padrões da aparência'),
-      h('p', { class: 'muted small', style: { marginTop: 0 } }, t('Volta o tema, as cores e o conforto de leitura ao original. Suas chaves, avatares e projetos não mudam.')),
+      h('p', { class: 'muted small', style: { marginTop: 0 } }, t('Volta o tema, as cores e o conforto de leitura ao original. Seus modelos e projetos não mudam.')),
       h('div', { class: 'row' }, h('button', { class: 'btn sm', onclick: () => window.OPENFLOW_WELCOME && window.OPENFLOW_WELCOME() }, t('Rever as boas-vindas')), h('span', { class: 'grow' }),
-        h('button', { class: 'btn sm danger', onclick: async () => { if (await confirmDialog(t('Voltar a aparência e as preferências de uso ao padrão? Suas chaves, avatares e projetos não mudam.'), true, t('Restaurar'))) { await api('/api/settings/reset', { method: 'POST', body: { section: 'ui' } }); await refreshState(); location.reload(); } } }, t('Restaurar padrões da aparência')))));
+        h('button', { class: 'btn sm danger', onclick: async () => { if (await confirmDialog(t('Voltar a aparência e as preferências de uso ao padrão? Seus modelos e projetos não mudam.'), true, t('Restaurar'))) { await api('/api/settings/reset', { method: 'POST', body: { section: 'ui' } }); await refreshState(); location.reload(); } } }, t('Restaurar padrões da aparência')))));
 }
 
 async function projectTab() {
@@ -260,7 +251,7 @@ async function performance() {
         nat.last && nat.last.llm ? h('dd', { id: 'nat-llm' }, nat.last.llm.model + ' · ' + t('contexto {c}', { c: nat.last.llm.n_ctx }) + ' · ' + (nat.last.llm.n_gpu_layers === -1 ? t('tudo na GPU') : nat.last.llm.n_gpu_layers > 0 ? t('{n} camadas na GPU', { n: nat.last.llm.n_gpu_layers }) : t('na CPU')) + ' · ' + t('{n} threads', { n: nat.last.llm.n_threads }) + (nat.last.llm.kv_q8 ? ' · ' + t('cache em 8 bits') : '')) : null,
         nat.last && nat.last.media ? h('dt', null, t('Último modelo de mídia')) : null,
         nat.last && nat.last.media ? h('dd', { id: 'nat-media' }, nat.last.media.model + ' · ' + ({ gpu: t('tudo na GPU'), model_offload: t('descarga do modelo'), sequential_offload: t('descarga sequencial (pouca VRAM)'), cpu: t('na CPU') }[nat.last.media.strategy] || '—')) : null),
-      h('p', { class: 'muted small' }, t('O núcleo Rust é parte do OpenFlow: faz a síntese de áudio do OpenFlow, lê o cabeçalho dos modelos locais, escolhe contexto (até 1M de tokens), camadas na GPU e threads pela memória livre, agenda vários agentes locais, procura arquivos duplicados e devolve memória ao sistema. Os instaladores já o trazem; pelo terminal o OpenFlow baixa a biblioteca pronta da Release (sem compilador). Se ele estiver inativo, o OpenFlow funciona em Python, só mais devagar. Para ativar agora, rode no terminal:')),
+      h('p', { class: 'muted small' }, t('O núcleo Rust é parte do OpenFlow: faz a síntese de áudio do OpenFlow, lê o cabeçalho dos modelos locais, escolhe contexto (até 1M de tokens), camadas na GPU e threads pela memória livre, procura arquivos duplicados e devolve memória ao sistema. Os instaladores já o trazem; pelo terminal o OpenFlow baixa a biblioteca pronta da Release (sem compilador). Se ele estiver inativo, o OpenFlow funciona em Python, só mais devagar. Para ativar agora, rode no terminal:')),
       cmd(t('Ativar/atualizar o núcleo Rust (baixa a biblioteca pronta)'), 'flow native setup')));
 }
 
@@ -275,7 +266,7 @@ async function media() {
   function defaults() {
     return h('div', { class: 'card', style: { marginBottom: '16px' } }, h('h3', null, t('Modelo padrão de cada tipo de mídia')),
       h('p', { class: 'muted small', style: { marginTop: 0 } }, t('Cada nó do OpenFlow pode escolher outro provedor. Aqui fica o padrão do projeto. “Demo” funciona offline, sem IA, para testar os fluxos.')),
-      h('div', { class: 'grid2' }, CAPS.map(([cap, label]) => field(t(label), select(data.providers.filter((p) => p.caps.includes(cap)).map((p) => [p.id, t(p.label) + (p.needs_key && !p.has_key ? ' · ' + t('sem chave') : '')]), data.active[cap] || 'demo',
+      h('div', { class: 'grid2' }, CAPS.map(([cap, label]) => field(t(label), select(data.providers.filter((p) => p.caps.includes(cap)).map((p) => [p.id, t(p.label)]), data.active[cap] || 'demo',
         async (v) => { await saveSettings({ media: { active: { [cap]: v } } }); data.active[cap] = v; toast(t('Salvo'), 'ok'); })))));
   }
   function demoCard() {
@@ -284,7 +275,6 @@ async function media() {
   }
   function card(p) {
     const draft = { models: Object.assign({}, p.models) };
-    const configured = true;
     const res = h('div', { class: 'res' });
     const inUse = CAPS.filter(([cap]) => data.active[cap] === p.id).map(([, l]) => t(l));
     const body = h('div', { class: 'bd' });
@@ -308,12 +298,11 @@ async function media() {
       await saveSettings(patch); toast(t('Salvo'), 'ok'); reload();
     };
     inputs.push(h('div', { class: 'row', style: { marginTop: '8px' } }, h('button', { class: 'btn sm primary', onclick: save }, t('Salvar')), h('button', { class: 'btn sm', onclick: async () => { await save(); test(); } }, t('Salvar e testar')),
-      h('span', { class: 'dim small' }, t('Use “Salvar e testar” para conferir a conexão.'))), res);
+      h('span', { class: 'dim small' }, t('Use “Salvar e testar” para conferir se o provedor está pronto.'))), res);
     body.replaceChildren(...inputs);
     const cardEl = h('div', { class: 'prov' + (inUse.length ? ' open' : '') });
     cardEl.append(h('div', { class: 'hd', onclick: () => cardEl.classList.toggle('open') },
-      h('span', { class: 'dot', style: { width: '8px', height: '8px', borderRadius: '50%', background: configured ? 'var(--ok)' : 'var(--dim)' } }),
-      h('span', { class: 'nm' }, t(p.label)), p.local ? h('span', { class: 'badge' }, t('local')) : null,
+      h('span', { class: 'nm' }, t(p.label)),
       h('span', { class: 'dim small', style: { marginLeft: '8px' } }, p.caps.map((c) => t((CAPS.find((x) => x[0] === c) || [0, c])[1])).join(' · ')),
       h('span', { class: 'roles' }, inUse.map((l) => h('span', { class: 'chip on' }, l)))), body);
     return cardEl;

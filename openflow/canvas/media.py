@@ -39,7 +39,6 @@ from . import gguf_info, mesh3d, sdcli, support
 
 CAP_LABELS = {"image": "imagens", "video": "vídeos", "sound": "sons e músicas", "voice": "vozes", "stt": "transcrição de áudio", "model3d": "modelos 3D"}
 Ref = Tuple[bytes, str]  # (bytes, mime) de uma imagem de referência
-RETRY_DELAY = 2.0  # espera antes de repetir uma chamada recusada por excesso de uso (os testes reduzem)
 
 MIME_EXT = {
     "image/png": "png", "image/jpeg": "jpg", "image/jpg": "jpg", "image/webp": "webp", "image/gif": "gif",
@@ -48,7 +47,6 @@ MIME_EXT = {
     "model/gltf-binary": "glb", "model/obj": "obj",
     "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov", "video/x-msvideo": "avi",
 }
-DEFAULT_MIME = {"image": "image/png", "audio": "audio/mpeg", "video": "video/mp4"}
 
 
 # --------------------------------------------------------------------------- utilidades
@@ -194,8 +192,6 @@ class MediaProvider:
         self.cfg = cfg
         self.id = cfg.get("id", self.id)
         self.label = cfg.get("label", self.label)
-        self.base = (cfg.get("base_url") or "").rstrip("/")
-        self.key = (cfg.get("api_key") or "").strip()
         self.models: Dict[str, str] = dict(cfg.get("models") or {})
         self.ctl = ctl or Ctl()
 
@@ -206,14 +202,6 @@ class MediaProvider:
     def poll(self, default: float) -> float:
         """Intervalo (s) entre consultas de trabalhos assíncronos (vídeo etc.)."""
         return float(self.cfg.get("poll_seconds") or default)
-
-    def need_key(self) -> None:
-        if self.cfg.get("needs_key") and not self.key:
-            raise ProviderError(f"{self.label}: informe a chave de API em Configuração → Mídia.")
-
-    def need_url(self) -> None:
-        if not self.base:
-            raise ProviderError(f"{self.label}: informe o endereço do servidor em Configuração → Mídia.")
 
     def _no(self, cap: str) -> ProviderError:
         return ProviderError(f"{self.label} não oferece geração de {CAP_LABELS.get(cap, cap)}. Escolha outro provedor no nó (ou em Configuração → Mídia).")
@@ -1758,11 +1746,11 @@ class GGUFMedia(MediaProvider):
 
 MEDIA_PRESETS: Dict[str, Dict[str, Any]] = {   # v0.35: só o Demo (offline) e os modelos locais do Hugging Face; nenhum provedor de nuvem
     "demo": {
-        "label": "Demo (offline, sem IA)", "kind": "demo", "caps": ["image", "video", "sound", "voice", "model3d"], "local": True, "needs_key": False,
+        "label": "Demo (offline, sem IA)", "kind": "demo", "caps": ["image", "video", "sound", "voice", "model3d"], "local": True,
         "hint": "Gera paisagens abstratas, sons sintetizados e vídeos simples sem chave e sem internet — ótimo para testar fluxos inteiros (vídeo precisa do ffmpeg).",
     },
     "local_hf": {
-        "label": "Hugging Face local (embutido)", "kind": "local_hf", "caps": ["image", "video", "sound", "voice", "stt", "model3d"], "needs_key": False, "local": True,
+        "label": "Hugging Face local (embutido)", "kind": "local_hf", "caps": ["image", "video", "sound", "voice", "stt", "model3d"], "local": True,
         "models": {"image": "stabilityai/sd-turbo", "video": "Lightricks/LTX-Video", "sound": "facebook/musicgen-small", "voice": "suno/bark-small", "stt": "openai/whisper-small", "model3d": "openai/shap-e"},
         "suggest": {"model3d": mesh3d.SUGGEST, "image": ["stabilityai/sd-turbo", "stabilityai/sdxl-turbo", "black-forest-labs/FLUX.1-schnell", "unsloth/Z-Image-Turbo", "unsloth/FLUX.2-klein-4B", "unsloth/FLUX.1-schnell"], "video": ["Lightricks/LTX-Video"],
                     "sound": ["facebook/musicgen-small"], "voice": ["suno/bark-small", "facebook/mms-tts-por", "unsloth/orpheus-3b-0.1-ft", "unsloth/csm-1b"],
@@ -1770,13 +1758,12 @@ MEDIA_PRESETS: Dict[str, Dict[str, Any]] = {   # v0.35: só o Demo (offline) e o
         "hint": 'Roda modelos do Hugging Face dentro do OpenFlow. Requer:  pip install "openflow[media]". Antes de usar, escolha a precisão (quantização) e baixe cada modelo aqui mesmo — nada é baixado em silêncio. Vídeo exige GPU.',
     },
     "gguf_local": {
-        "label": "GGUF local (stable-diffusion.cpp)", "kind": "gguf_local", "caps": ["image", "video"], "needs_key": False, "local": True,
+        "label": "GGUF local (stable-diffusion.cpp)", "kind": "gguf_local", "caps": ["image", "video"], "local": True,
         "hint": 'Modelos GGUF de imagem e vídeo (FLUX, Stable Diffusion, Wan…) quantizados, rodando no OpenFlow. Requer:  pip install "openflow[local]". Baixe-os em Configuração → Modelos locais (abas Imagem e Vídeo) escolhendo a quantização.',
     },
 }
 
 _KINDS = {"demo": DemoMedia, "local_hf": LocalHFMedia, "gguf_local": GGUFMedia}
-LOCAL_IDS = tuple(MEDIA_PRESETS)   # os provedores que existem: Demo, Hugging Face local e GGUF local
 
 
 def media_config(settings: Dict[str, Any], pid: str) -> Dict[str, Any]:
@@ -1785,10 +1772,6 @@ def media_config(settings: Dict[str, Any], pid: str) -> Dict[str, Any]:
         raise ProviderError(f"O provedor «{pid}» não existe mais: desde a v0.35 o OpenFlow usa só modelos locais do Hugging Face (e o Demo). Escolha um modelo local no nó (ou em Configuração → Mídia).")
     cfg = {k: v for k, v in preset.items() if k not in ("models", "suggest")}
     media = settings.get("media") or {}
-    url = ((media.get("urls") or {}).get(pid) or "").strip()
-    if url:
-        cfg["base_url"] = url
-    cfg["api_key"] = ""
     models = dict(preset.get("models") or {})
     models.update({k: v for k, v in ((media.get("models") or {}).get(pid) or {}).items() if v})
     cfg["models"] = models
@@ -1818,7 +1801,5 @@ def describe_media_presets(settings: Dict[str, Any]) -> List[Dict[str, Any]]:
     out = []
     for pid, p in MEDIA_PRESETS.items():
         cfg = media_config(settings, pid)
-        out.append({"id": pid, "label": p["label"], "caps": p["caps"], "base_url": cfg.get("base_url", ""), "default_url": p.get("base_url", ""), "needs_key": p.get("needs_key", False),
-                    "has_key": bool(cfg.get("api_key")), "local": p.get("local", False), "docs": p.get("docs", ""), "hint": p.get("hint", ""),
-                    "models": cfg["models"], "suggest": p.get("suggest", {})})
+        out.append({"id": pid, "label": p["label"], "caps": p["caps"], "local": p.get("local", False), "hint": p.get("hint", ""), "models": cfg["models"], "suggest": p.get("suggest", {})})
     return out

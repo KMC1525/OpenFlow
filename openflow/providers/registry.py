@@ -11,12 +11,12 @@ from .local_llama import LocalLlamaProvider
 # kind: demo | local_hf
 PRESETS: Dict[str, Dict[str, Any]] = {
     "demo": {
-        "label": "Demo (offline, sem IA)", "kind": "demo", "local": True, "needs_key": False, "vision": False,
+        "label": "Demo (offline, sem IA)", "kind": "demo", "local": True,
         "hint": "Gerador de regras para testar tudo sem chave e sem internet.",
     },
     "local_hf": {
-        "label": "Hugging Face GGUF (embutido)", "kind": "local_hf", "model": "", "needs_key": False,
-        "local": True, "vision": False,
+        "label": "Hugging Face GGUF (embutido)", "kind": "local_hf", "model": "",
+        "local": True,
         "hint": 'Roda dentro do OpenFlow, com modelos baixados do Hugging Face. Requer:  pip install "openflow[local]"',
     },
 }
@@ -28,11 +28,9 @@ def provider_config(settings: Dict[str, Any], pid: str) -> Dict[str, Any]:
         raise ProviderError(f"O provedor «{pid}» não existe mais: desde a v0.35 o OpenFlow usa só modelos locais do Hugging Face (e o Demo). Escolha o Demo ou o Hugging Face GGUF em Configuração → Provedores.")
     cfg = dict(preset)
     user = (settings.get("providers") or {}).get(pid, {})
-    for key in ("model", "vision", "n_ctx"):
+    for key in ("model", "n_ctx"):
         if key in user and user[key] not in (None, ""):
             cfg[key] = user[key]
-    cfg["vision_user"] = "vision" in user and user["vision"] not in (None, "")
-    cfg["api_key"] = ""
     cfg["id"] = pid
     return cfg
 
@@ -50,7 +48,6 @@ def describe_presets() -> List[Dict[str, Any]]:
     out = []
     for pid, p in PRESETS.items():
         out.append({
-            "id": pid, "label": p["label"], "kind": p["kind"], "base_url": "", "model": p.get("model", ""), "needs_key": False, "local": True,
-            "vision": p.get("vision", False), "docs": "", "hint": p.get("hint", ""), "login": "", "oauth": False,
+            "id": pid, "label": p["label"], "kind": p["kind"], "model": p.get("model", ""), "local": True, "hint": p.get("hint", ""),
         })
     return out
