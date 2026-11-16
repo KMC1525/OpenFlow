@@ -102,6 +102,35 @@ async function providers() {
   return container;
 }
 
+// Tamanho da interface (v0.50): de 50% a 200%, de 5 em 5. O controle só aplica ao soltar (a interface inteira muda de tamanho, e o próprio controle junto).
+function scaleField(current, onSave) {
+  const out = h('output', { id: 'ui-scale-out' }, current + '%');
+  const inp = h('input', { type: 'range', id: 'ui-scale', min: 50, max: 200, step: 5, value: current, 'aria-label': t('Tamanho da interface'),
+    oninput: () => { out.textContent = inp.value + '%'; }, onchange: () => onSave(Number(inp.value)) });
+  const presets = h('div', { class: 'row', style: { gap: '6px', flexWrap: 'wrap', marginTop: '8px' } },
+    [50, 75, 90, 100, 110, 125, 150, 175, 200].map((v) => h('button', { type: 'button', class: 'btn sm' + (v === current ? ' on' : ''), dataset: { scale: v }, onclick: () => { inp.value = v; out.textContent = v + '%'; onSave(v); } }, v + '%')));
+  return field(t('Tamanho da interface'), h('div', null, h('div', { class: 'scalebox' }, inp, out), presets), t('De 50% a 200%. Aumenta ou diminui tudo; útil em telas grandes ou pequenas.'));
+}
+
+// Fontes (v0.50): usam as fontes do próprio computador (nada é baixado). «Outra fonte» aceita o nome de qualquer fonte instalada.
+const FONT_OPTIONS = [['system', 'Sistema', 'padrão do seu computador'], ['inter', 'Inter', 'limpa e moderna'], ['humanist', 'Humanista', 'Segoe UI, Calibri…'], ['rounded', 'Arredondada', 'cantos suaves'],
+  ['verdana', 'Verdana', 'larga, ótima para ler na tela'], ['readable', 'Alta legibilidade', 'Atkinson, Lexend, OpenDyslexic…'], ['book', 'Livro', 'serifada de leitura'], ['serif', 'Serifada', 'Georgia'], ['mono', 'Monoespaçada', 'estilo terminal']];
+const FONT_CSS = { system: 'var(--font)', inter: 'Inter,"Helvetica Neue",Arial,sans-serif', humanist: '"Segoe UI","Gill Sans",Candara,Optima,Calibri,sans-serif', rounded: 'ui-rounded,"SF Pro Rounded",Nunito,"Varela Round","Arial Rounded MT Bold",sans-serif',
+  verdana: 'Verdana,Tahoma,Geneva,sans-serif', readable: '"Atkinson Hyperlegible",Lexend,OpenDyslexic,"Comic Sans MS",Verdana,sans-serif', book: 'Charter,"Sitka Text",Cambria,Georgia,serif', serif: 'Georgia,"Palatino Linotype",serif', mono: 'ui-monospace,Menlo,Consolas,monospace' };
+function fontField(u, onSave) {
+  const grid = h('div', { class: 'fontgrid', id: 'ui-fonts', role: 'radiogroup', 'aria-label': t('Fonte') });
+  const custom = h('input', { type: 'text', id: 'ui-font-custom', maxlength: 60, value: u.font_custom || '', placeholder: t('Nome de uma fonte instalada, ex.: Fira Sans'), 'aria-label': t('Outra fonte') });
+  const btns = FONT_OPTIONS.map(([id, label, sub]) => h('button', { type: 'button', class: 'fontopt', role: 'radio', dataset: { font: id }, style: { fontFamily: FONT_CSS[id] },
+    onclick: () => { paint(id); onSave({ font: id }); } }, h('b', null, t(label)), h('small', null, t(sub))));
+  grid.append(...btns);
+  const paint = (cur) => btns.forEach((b) => { const on = b.dataset.font === cur; b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); });   // só troca a marca: recriar os botões no meio de um clique o perderia
+  paint(u.font === 'custom' ? '' : u.font);
+  const apply = () => { const name = custom.value.trim(); if (name) { paint(''); onSave({ font: 'custom', font_custom: name }); } else if (u.font === 'custom') { paint('system'); onSave({ font: 'system', font_custom: '' }); } };
+  custom.addEventListener('change', apply);
+  return field(t('Fonte'), h('div', null, grid, h('div', { class: 'row nw', style: { marginTop: '10px' } }, h('label', { class: 'f', for: 'ui-font-custom', style: { margin: 0, whiteSpace: 'nowrap' } }, t('Outra fonte')), custom)),
+    t('Usa as fontes do seu computador. Se a fonte digitada não estiver instalada, a interface usa a fonte do sistema.'));
+}
+
 async function appearance() {
   const save = async (patch, quiet) => { await saveSettings({ ui: patch }); if (!quiet) toast(t('Salvo'), 'ok'); };
   const U = () => ui();
@@ -111,11 +140,9 @@ async function appearance() {
       h('div', { class: 'field', style: { marginTop: '16px', marginBottom: 0 } }, h('label', { class: 'f' }, t('Cor de destaque')), accentSwatches(U().accent, (v) => save({ accent: v }, true)),
         h('div', { class: 'hint' }, t('Usada em botões, seleções e destaques.')))),
     card(t('Leitura e conforto'),
-      h('div', { class: 'grid2' },
-        field(t('Tamanho da interface'), seg([[90, '90%'], [100, '100%'], [110, '110%'], [125, '125%'], [150, '150%']], U().scale, (v) => save({ scale: v })), t('Aumenta ou diminui tudo; útil em telas grandes ou pequenas.')),
-        field(t('Densidade'), seg([['comfortable', t('Confortável')], ['compact', t('Compacta')]], U().density, (v) => save({ density: v })), t('Compacta mostra mais conteúdo na tela.'))),
-      h('div', { class: 'grid2' },
-        field(t('Fonte'), seg([['system', t('Sistema')], ['serif', t('Serifada')], ['mono', t('Monoespaçada')]], U().font, (v) => save({ font: v })))),
+      scaleField(U().scale, (v) => save({ scale: v })),
+      field(t('Densidade'), seg([['comfortable', t('Confortável')], ['compact', t('Compacta')]], U().density, (v) => save({ density: v })), t('Compacta mostra mais conteúdo na tela.')),
+      fontField(U(), (patch) => save(patch)),
       field(t('Animações'), select([['auto', t('Automático (segue o sistema)')], ['reduce', t('Reduzir animações')], ['full', t('Sempre animar')]], U().motion, (v) => save({ motion: v })), t('“Reduzir” desliga transições e animações — bom para quem sente enjoo com movimento ou usa um computador mais fraco.'))),
     card(t('Idioma'),
       field(t('Idioma da interface'), select([['auto', t('Automático (navegador)')], ['pt-BR', 'Português (Brasil)'], ['en', 'English']], state.settings.language, async (v) => { await saveSettings({ language: v }); location.reload(); }),
