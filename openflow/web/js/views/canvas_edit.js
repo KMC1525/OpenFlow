@@ -5,7 +5,7 @@ import { confirmDialog, debounce, fill, h, icon, popover, toast } from '../ui.js
 import { modelSearchBar } from './canvas_hub.js';
 import { downloadsIndicator } from '../canvas_downloads.js';
 import { modelViewer } from '../model_viewer.js';
-import { GROUPS, LABEL, OUT_COLOR, TYPE_HELP, compatible, findFolder, nodeBody, nodeResult, portLabel } from '../canvas_nodes.js';
+import { GROUPS, LABEL, OUT_COLOR, TYPE_HELP, compatible, findFolder, nodeBody, nodeResult, portLabel, viewerOpts } from '../canvas_nodes.js';
 
 const uid = (p) => p + Math.random().toString(36).slice(2, 12);
 const deep = (o) => JSON.parse(JSON.stringify(o));
@@ -414,7 +414,7 @@ export default async function render(root, ctx, cid) {
     const key = (e) => { if (e.key === 'Escape') close(); else if (e.key === 'ArrowRight' && i < items.length - 1) { i++; paint(); } else if (e.key === 'ArrowLeft' && i > 0) { i--; paint(); } };
     function paint() {
       const x = items[i];
-      fill(box, x.kind === 'model3d' ? modelViewer(c.url(x), { height: 420, width: 640, keep: true }) : x.kind === 'image' ? h('img', { src: c.url(x) }) : x.kind === 'video' ? h('video', { src: c.url(x), controls: true, autoplay: true }) : h('audio', { src: c.url(x), controls: true, autoplay: true }),
+      fill(box, x.kind === 'model3d' ? modelViewer(c.url(x), viewerOpts({ height: 420, width: 640, keep: true })) : x.kind === 'image' ? h('img', { src: c.url(x) }) : x.kind === 'video' ? h('video', { src: c.url(x), controls: true, autoplay: true }) : h('audio', { src: c.url(x), controls: true, autoplay: true }),
         h('div', { class: 'bar2' }, items.length > 1 ? h('button', { class: 'btn', disabled: i === 0, onclick: () => { i--; paint(); } }, '‹') : null,
           h('span', { class: 'chip', style: { maxWidth: '50vw', overflow: 'hidden', textOverflow: 'ellipsis' } }, x.prompt || x.name),
           h('a', { class: 'btn', href: c.url(x) + '?download=1' }, icon('download', 14), t('Baixar')),

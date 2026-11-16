@@ -6,7 +6,7 @@ import { modelViewer } from './model_viewer.js';
 import { checkbox, confirmDialog, h, icon, popover, seg, select, toast } from './ui.js';
 
 export const compatible = (out, accepts) => accepts.includes(out)
-  || (out === 'media' && accepts.some((a) => ['image', 'video', 'audio', 'media'].includes(a)))
+  || (out === 'media' && accepts.some((a) => ['image', 'video', 'audio', 'media', 'model3d'].includes(a)))
   || (['image', 'video', 'audio'].includes(out) && accepts.includes('media'));
 
 export const GROUPS = [   // espelha schema.PALETTE
@@ -15,7 +15,7 @@ export const GROUPS = [   // espelha schema.PALETTE
   ['Vídeo', ['video', 'vid_trim', 'vid_join', 'vid_speed', 'vid_look', 'vid_slideshow', 'vid_reframe', 'vid_loop', 'vid_audio']],
   ['Som', ['sound', 'voice', 'aud_trim', 'aud_mix', 'aud_fx', 'aud_from_video', 'aud_loop', 'aud_silence_cut']],
   ['Input', ['upload', 'style_prompt', 'style_folder', 'in_color', 'in_silence', 'in_url', 'in_random', 'in_vars', 'in_pattern']],
-  ['3D', ['model3d']],
+  ['3D', ['model3d', 'tex3d', 'rig3d', 'anim3d']],
   ['Output', ['editor', 'out_export', 'out_gif', 'out_audio', 'out_image', 'out_thumbnail', 'out_gallery']],
 ];
 export const TYPE_HELP = {
@@ -39,6 +39,9 @@ export const TYPE_HELP = {
   in_random: 'Sorteia linhas de uma lista (variações de prompt, ideias).', in_vars: 'Texto com a data, a hora e o nome do projeto.',
   out_export: 'Monta o vídeo final: vídeo (ou imagem) + áudios + legendas, na qualidade escolhida.', out_gif: 'Transforma um vídeo em GIF animado.', out_audio: 'Junta e exporta o áudio final (MP3, WAV ou M4A), normalizado.',
   text_extract: 'Tira do texto os links, e-mails, hashtags, números, frases entre aspas ou o que um padrão (regex) achar.', text_count: 'Conta as palavras, os caracteres e as linhas de um texto.',
+  tex3d: 'Põe uma textura num modelo 3D: uma imagem ligada (ex.: de um nó Imagem) ou um padrão pronto (xadrez, tijolos, madeira…), com a projeção que você escolher.',
+  rig3d: 'Cria um esqueleto para um modelo 3D (humanoide, coluna ou corrente) e prende a malha a ele, para poder animá-lo.',
+  anim3d: 'Anima um modelo 3D em laço: girar, pular, flutuar… e, se ele tem esqueleto, ondular, andar, acenar ou respirar.',
   img_crop: 'Recorta a imagem numa proporção (1:1, 16:9, 9:16…) ou numa área que você escolhe.', img_watermark: 'Põe uma marca (logo) sobre a imagem, no canto que você escolher, com tamanho e transparência.',
   vid_reframe: 'Muda a proporção do vídeo (vertical 9:16, quadrado…) cortando, com fundo desfocado ou com bordas.', vid_loop: 'Repete o vídeo várias vezes ou até uma duração.', vid_audio: 'Troca, mistura ou tira o som de um vídeo.',
   aud_silence_cut: 'Tira os silêncios longos de um áudio (pausas, começo e fim vazios).', in_pattern: 'Gera uma imagem de padrão: xadrez, listras, grade, bolinhas ou ruído.', out_thumbnail: 'Faz a miniatura (thumbnail) de um vídeo: imagem recortada em 16:9 com o título por cima.',
@@ -55,12 +58,12 @@ export const LABEL = {
   in_color: 'Cor e degradê', in_silence: 'Silêncio', in_url: 'Link (URL)', in_random: 'Sorteio de texto', in_vars: 'Data e projeto',
   out_export: 'Vídeo final', out_gif: 'GIF animado', out_audio: 'Áudio final', out_image: 'Imagem final', out_gallery: 'Galeria',
   char_sheet: 'Ficha de personagem', comic_page: 'Página de quadrinhos',
-  text_extract: 'Extrair do texto', text_count: 'Contar texto', img_crop: 'Recortar imagem', img_watermark: "Marca d'água", vid_reframe: 'Mudar a proporção', vid_loop: 'Repetir vídeo', vid_audio: 'Áudio no vídeo',
+  text_extract: 'Extrair do texto', text_count: 'Contar texto', tex3d: 'Textura 3D', rig3d: 'Esqueleto 3D', anim3d: 'Animação 3D', img_crop: 'Recortar imagem', img_watermark: "Marca d'água", vid_reframe: 'Mudar a proporção', vid_loop: 'Repetir vídeo', vid_audio: 'Áudio no vídeo',
   aud_silence_cut: 'Tirar silêncios', in_pattern: 'Padrão e textura', out_thumbnail: 'Miniatura com título',
 };
 const CAP = { model3d: 'model3d', image: 'image', video: 'video', sound: 'sound', voice: 'voice', transcribe: 'stt' };
 const PORT_LABEL = { prompt: 'Prompt', refs: 'Referências', style: 'Estilo', image: 'Imagem inicial', text: 'Fala', audio: 'Áudio/vídeo', clips: 'Clipes', vars: 'Variáveis', texts: 'Textos', images: 'Imagens', video: 'Vídeo', audios: 'Áudios', items: 'Itens', captions: 'Legendas' };
-const NEW_PORT = { model3d: { prompt: 'Prompt', image: 'Imagem', style: 'Estilo' }, char_sheet: { text: 'Descrição', style: 'Estilo' }, comic_page: { story: 'Roteiro', characters: 'Personagens', style: 'Estilo' }, img_watermark: { image: 'Imagem', logo: 'Marca' }, vid_audio: { video: 'Vídeo', audio: 'Áudio' }, out_thumbnail: { image: 'Imagem', text: 'Título' }, text_extract: { text: 'Texto' }, text_count: { text: 'Texto' }, img_crop: { image: 'Imagem' }, vid_reframe: { video: 'Vídeo' }, vid_loop: { video: 'Vídeo' }, aud_silence_cut: { audio: 'Áudio' }, img_resize: { image: 'Imagem' }, img_filter: { image: 'Imagem' }, img_text: { image: 'Imagem', text: 'Texto' }, text_edit: { text: 'Texto' }, text_pick: { text: 'Texto' }, text_refine: { text: 'Texto' }, vid_slideshow: { audio: 'Áudio' }, aud_trim: { audio: 'Áudio' }, aud_fx: { audio: 'Áudio' }, aud_loop: { audio: 'Áudio' }, out_export: { audio: 'Áudio', video: 'Vídeo' }, out_audio: { audio: 'Áudio' }, out_image: { image: 'Imagem' } };
+const NEW_PORT = { model3d: { prompt: 'Prompt', image: 'Imagem', style: 'Estilo' }, char_sheet: { text: 'Descrição', style: 'Estilo' }, comic_page: { story: 'Roteiro', characters: 'Personagens', style: 'Estilo' }, img_watermark: { image: 'Imagem', logo: 'Marca' }, vid_audio: { video: 'Vídeo', audio: 'Áudio' }, out_thumbnail: { image: 'Imagem', text: 'Título' }, text_extract: { text: 'Texto' }, text_count: { text: 'Texto' }, tex3d: { model: 'Modelo 3D', image: 'Imagem' }, rig3d: { model: 'Modelo 3D' }, anim3d: { model: 'Modelo 3D' }, img_crop: { image: 'Imagem' }, vid_reframe: { video: 'Vídeo' }, vid_loop: { video: 'Vídeo' }, aud_silence_cut: { audio: 'Áudio' }, img_resize: { image: 'Imagem' }, img_filter: { image: 'Imagem' }, img_text: { image: 'Imagem', text: 'Texto' }, text_edit: { text: 'Texto' }, text_pick: { text: 'Texto' }, text_refine: { text: 'Texto' }, vid_slideshow: { audio: 'Áudio' }, aud_trim: { audio: 'Áudio' }, aud_fx: { audio: 'Áudio' }, aud_loop: { audio: 'Áudio' }, out_export: { audio: 'Áudio', video: 'Vídeo' }, out_audio: { audio: 'Áudio' }, out_image: { image: 'Imagem' } };
 export const portLabel = (nodeType, p) => (nodeType === 'llm' && p.id === 'prompt' ? t('Entrada') : t((NEW_PORT[nodeType] && NEW_PORT[nodeType][p.id]) || PORT_LABEL[p.id] || p.label));
 
 // ---------------------------------------------------------------------------------------------------- controles
@@ -428,6 +431,14 @@ const FORMS = {
   out_image: [['sel', 'format', 'Formato', [['png', 'PNG'], ['jpg', 'JPG'], ['webp', 'WebP']]], ['range', 'quality', 'Qualidade', 10, 100, 1], ['num', 'max_width', 'Largura máxima (px, 0 = original)']],
   text_extract: [['sel', 'what', 'O que extrair', [['links', 'Links'], ['emails', 'E-mails'], ['hashtags', 'Hashtags'], ['numbers', 'Números'], ['quotes', 'Frases entre aspas'], ['words_caps', 'PALAVRAS EM MAIÚSCULAS'], ['regex', 'Padrão (regex)']]], ['txt', 'pattern', 'Padrão (só no modo regex)', '[a-z]+@\\w+'], ['sel', 'joiner', 'Juntar com', [['line', 'Linhas'], ['comma', 'Vírgulas'], ['space', 'Espaços']]], ['num', 'limit', 'Quantos (0 = todos)']],
   text_count: [['sel', 'what', 'Contar', [['summary', 'Resumo'], ['words', 'Palavras'], ['chars', 'Caracteres'], ['lines', 'Linhas']]]],
+  tex3d: [['sel', 'projection', 'Projeção', [['box', 'Caixa (cada face por um lado)'], ['planar', 'Plana (de frente)'], ['cylindrical', 'Cilíndrica (em volta)'], ['spherical', 'Esférica']]], ['range', 'tile', 'Repetições da textura', 0.25, 16, 0.25], ['range', 'rotate', 'Girar a textura (graus)', 0, 359, 1],
+    ['hint', 'Sem imagem ligada, o modelo recebe um padrão procedural:'], ['sel', 'pattern', 'Padrão da textura', [['checker', 'Xadrez'], ['stripes', 'Listras'], ['bricks', 'Tijolos'], ['noise', 'Ruído (nuvens)'], ['gradient', 'Degradê'], ['wood', 'Madeira']]],
+    ['color', 'color1', 'Cor 1'], ['color', 'color2', 'Cor 2'], ['sel', 'size', 'Tamanho da textura', [['256', '256 px'], ['512', '512 px'], ['1024', '1024 px']]], ['color', 'tint', 'Matiz (multiplica a textura)'],
+    ['range', 'metallic', 'Metálico', 0, 1, 0.05], ['range', 'roughness', 'Aspereza', 0, 1, 0.05], ['chk', 'keep_colors', 'Manter as cores do modelo junto da textura']],
+  rig3d: [['sel', 'style', 'Tipo de esqueleto', [['humanoid', 'Humanoide (21 juntas)'], ['spine', 'Coluna (vertical)'], ['chain', 'Corrente (maior eixo)']]], ['range', 'bones', 'Juntas (coluna e corrente)', 2, 32, 1], ['range', 'smooth', 'Suavidade da pele (mistura entre ossos)', 0, 1, 0.05],
+    ['hint', 'As juntas vêm das proporções do modelo (em pé, olhando para a frente): é uma aproximação automática.']],
+  anim3d: [['sel', 'kind', 'Animação', [['spin', 'Girar sem parar'], ['bounce', 'Pular'], ['float', 'Flutuar'], ['pulse', 'Pulsar'], ['wobble', 'Balançar'], ['sway', 'Ondular (precisa de esqueleto)'], ['walk', 'Andar (esqueleto humanoide)'], ['wave', 'Acenar (esqueleto humanoide)'], ['idle', 'Respirar (precisa de esqueleto)']]],
+    ['range', 'duration', 'Duração do laço (s)', 0.5, 30, 0.5], ['range', 'amplitude', 'Intensidade', 0.1, 3, 0.1]],
   img_crop: [['sel', 'mode', 'Modo', [['ratio', 'Por proporção'], ['manual', 'Área manual (%)']]], ['sel', 'ratio', 'Proporção', [['1:1', '1:1'], ['16:9', '16:9'], ['9:16', '9:16'], ['4:3', '4:3'], ['3:4', '3:4'], ['3:2', '3:2'], ['21:9', '21:9']]], ['sel', 'anchor', 'Manter', [['center', 'O centro'], ['top', 'O topo'], ['bottom', 'A base'], ['left', 'A esquerda'], ['right', 'A direita']]], ['num', 'x', 'Manual: esquerda (%)'], ['num', 'y', 'Manual: topo (%)'], ['num', 'w', 'Manual: largura (%)'], ['num', 'h', 'Manual: altura (%)']],
   img_watermark: [['sel', 'pos', 'Canto', [['br', 'Embaixo à direita'], ['bl', 'Embaixo à esquerda'], ['tr', 'Em cima à direita'], ['tl', 'Em cima à esquerda'], ['center', 'No centro']]], ['range', 'scale', 'Tamanho (% da altura)', 2, 80, 1], ['range', 'opacity', 'Opacidade', 0.05, 1, 0.05], ['num', 'margin', 'Margem (%)']],
   vid_reframe: [['sel', 'ratio', 'Proporção', [['9:16', '9:16 (vertical)'], ['1:1', '1:1 (quadrado)'], ['16:9', '16:9'], ['4:5', '4:5'], ['4:3', '4:3']]], ['sel', 'mode', 'Como encaixar', [['blur', 'Fundo desfocado'], ['cover', 'Preencher e cortar'], ['pad', 'Bordas']]], ['num', 'height', 'Altura (px)'], ['color', 'bg', 'Cor das bordas']],
@@ -460,6 +471,9 @@ function formBody(c, n) {
 
 export const nodeBody = (c, n) => h('div', { class: 'bd' }, BODY[n.type] ? BODY[n.type](c, n) : (FORMS[n.type] ? formBody(c, n) : null));
 export const capOf = (type) => CAP[type] || '';
+/** Textos do visualizador 3D (ele não importa o tradutor: assim roda também no Node, nos testes). */
+export const viewerOpts = (extra = {}) => ({ vLabel: t('vértices'), fLabel: t('faces'), jLabel: t('juntas'), aLabel: t('animação'), tLabel: t('com textura'), boneLabel: t('Esqueleto'), playLabel: t('Tocar'), pauseLabel: t('Pausar'),
+  bigLabel: t('malha grande: animação não tocada aqui'), errLabel: t('Não foi possível abrir o modelo 3D'), ...extra });
 
 // ---------------------------------------------------------------------------------------------------- resultado
 export function nodeResult(c, n) {
@@ -571,7 +585,7 @@ export function nodeResult(c, n) {
   const imgs = items.filter((a) => a.kind === 'image');
   if (imgs.length) box.append(h('div', { class: 'rimgs nodrag' + (imgs.length === 1 ? ' one' : '') }, imgs.map((a) => h('img', { src: c.url(a), loading: 'lazy', title: a.prompt || a.name, draggable: 'false', onclick: () => c.preview(a, imgs) }))));
   items.filter((a) => a.kind === 'video').forEach((a) => box.append(h('video', { src: c.url(a), controls: true, preload: 'metadata', class: 'nodrag' })));
-  items.filter((a) => a.kind === 'model3d').forEach((a) => { box.append(modelViewer(c.url(a), { vLabel: t('vértices'), fLabel: t('faces'), errLabel: t('Não foi possível abrir o modelo 3D') }), h('a', { class: 'btn sm nodrag', href: c.url(a) + '?download=1' }, icon('download', 13), t('Baixar'))); });
+  items.filter((a) => a.kind === 'model3d').forEach((a) => { box.append(modelViewer(c.url(a), viewerOpts()), h('a', { class: 'btn sm nodrag', href: c.url(a) + '?download=1' }, icon('download', 13), t('Baixar'))); });
   items.filter((a) => a.kind === 'audio').forEach((a) => box.append(h('audio', { src: c.url(a), controls: true, preload: 'metadata', class: 'nodrag' })));
   if (r.text && !['text', 'style_prompt'].includes(n.type) && !(st.state === 'error')) box.append(h('div', { class: 'rtxt nodrag' }, r.text));
   (st.warnings || []).forEach((w) => box.append(h('div', { class: 'wr' }, w)));

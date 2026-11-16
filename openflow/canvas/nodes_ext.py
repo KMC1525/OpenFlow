@@ -20,6 +20,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from ..providers import ProviderError, build_provider
 from ..util import num, text
+from . import model3d_ops as ops3d
 from .render import GRADES, _esc_path, _run, _tempo, find_font, has_audio, render_timeline, still_path
 
 IMG, VID, AUD = ["image", "video"], ["video"], ["audio", "video"]
@@ -41,6 +42,10 @@ SPECS: Dict[str, Dict[str, Any]] = {
     "img_frame": {"label": "Quadro do vídeo", "icon": "video", "out": "image", "group": "Imagem", "ins": [("video", "Vídeo", VID, False)]},
     "img_crop": {"label": "Recortar imagem", "icon": "scissors", "out": "image", "group": "Imagem", "ins": [("image", "Imagem", IMG, False)]},
     "img_watermark": {"label": "Marca d'água", "icon": "image", "out": "image", "group": "Imagem", "ins": [("image", "Imagem", IMG, False), ("logo", "Marca", ["image"], False)]},
+    # ---- 3D (v0.58): esqueleto, animação e textura de modelos 3D (GLB/OBJ → GLB)
+    "tex3d": {"label": "Textura 3D", "icon": "palette", "out": "model3d", "group": "3D", "ins": [("model", "Modelo 3D", ["model3d"], False), ("image", "Imagem", ["image", "video"], False)]},
+    "rig3d": {"label": "Esqueleto 3D", "icon": "cube", "out": "model3d", "group": "3D", "ins": [("model", "Modelo 3D", ["model3d"], False)]},
+    "anim3d": {"label": "Animação 3D", "icon": "film", "out": "model3d", "group": "3D", "ins": [("model", "Modelo 3D", ["model3d"], False)]},
     "char_sheet": {"label": "Ficha de personagem", "icon": "image", "out": "text", "group": "Imagem", "ins": [("text", "Descrição", ["text"], True), ("style", "Estilo", ["style"], True)]},
     "comic_page": {"label": "Página de quadrinhos", "icon": "image", "out": "text", "group": "Imagem", "ins": [("story", "Roteiro", ["text"], True), ("characters", "Personagens", ["text"], True), ("style", "Estilo", ["style"], True)]},
     # ---- Vídeo
@@ -143,6 +148,14 @@ def normalize(t: str, p: Dict[str, Any]) -> Dict[str, Any]:
                 "anchor": _pick(p.get("anchor"), ("center", "top", "bottom", "left", "right"), "center")}
     if t == "img_watermark":
         return {"pos": _pick(p.get("pos"), ("br", "bl", "tr", "tl", "center"), "br"), "scale": round(n("scale", 20, 2, 80), 1), "opacity": round(n("opacity", 0.85, 0.05, 1), 2), "margin": int(n("margin", 3, 0, 20))}
+    if t == "rig3d":
+        return {"style": _pick(p.get("style"), ops3d.RIG_STYLES, "humanoid"), "bones": int(n("bones", 8, 2, 32)), "smooth": round(n("smooth", 0.5, 0, 1), 2)}
+    if t == "anim3d":
+        return {"kind": _pick(p.get("kind"), ops3d.ANIM_KINDS, "spin"), "duration": round(n("duration", 4, 0.5, 30), 1), "amplitude": round(n("amplitude", 1, 0.1, 3), 2)}
+    if t == "tex3d":
+        return {"projection": _pick(p.get("projection"), ops3d.PROJECTIONS, "box"), "tile": round(n("tile", 1, 0.25, 16), 2), "rotate": int(n("rotate", 0, 0, 359)), "pattern": _pick(p.get("pattern"), ops3d.PATTERNS, "checker"),
+                "color1": _color(p.get("color1"), "#c8c8c8"), "color2": _color(p.get("color2"), "#404040"), "size": int(n("size", 512, 128, 1024)), "tint": _color(p.get("tint"), "#ffffff"),
+                "metallic": round(n("metallic", 0, 0, 1), 2), "roughness": round(n("roughness", 0.8, 0, 1), 2), "keep_colors": bool(p.get("keep_colors")), "seed": int(n("seed", 0, 0, 2 ** 31))}
     if t == "vid_reframe":
         return {"ratio": _pick(p.get("ratio"), ("9:16", "1:1", "16:9", "4:5", "4:3"), "9:16"), "mode": _pick(p.get("mode"), ("cover", "blur", "pad"), "blur"), "height": int(n("height", 1280, 240, 2160)), "bg": _color(p.get("bg"), "#000000")}
     if t == "vid_loop":
@@ -1390,6 +1403,76 @@ def run_out_thumbnail(eng, canvas, node):
         except ProviderError:
             raise ProviderError("Este ffmpeg não conseguiu desenhar o título (falta o filtro drawtext ou uma fonte instalada).") from None
         return _img_out(eng, node, tmp, out, _title(node, "Miniatura"))
+
+
+# --------------------------------------------------------------------------- 3D (v0.58)
+def _model_in(eng, canvas, node):
+    """O modelo 3D ligado na entrada (GLB ou OBJ), lido por inteiro: geometria, cores, textura, esqueleto e animação."""
+    a = _first(eng, canvas, node, "model", ("model3d",), "um modelo 3D")
+    try:
+        return ops3d.read_model(_path(eng, a).read_bytes()), a
+    except ValueError as exc:
+        raise ValueError(f"O modelo «{a.get('name') or 'sem nome'}»: {exc}") from None
+
+
+def _model_out(eng, node, model, name: str, warns: Optional[List[str]] = None) -> Dict[str, Any]:
+    with tempfile.TemporaryDirectory() as td:
+        out = Path(td) / "o.glb"
+        out.write_bytes(ops3d.write_glb(model))
+        return {"assets": [_save_file(eng, node, out, "model3d", name, "model/gltf-binary")], "text": "", "warnings": warns or []}
+
+
+def run_rig3d(eng, canvas, node):
+    p = node["params"]
+    m, a = _model_in(eng, canvas, node)
+    warns: List[str] = []
+    if m.joints:
+        warns.append("O modelo já tinha um esqueleto: ele foi substituído" + (" (e as animações antigas, que apontavam para o esqueleto antigo, foram descartadas)." if m.animations else "."))
+    if len(m.verts) > 100_000:
+        warns.append(f"O modelo tem {len(m.verts):,} vértices: o cálculo dos pesos da pele pode levar alguns minutos.".replace(",", "."))
+    eng._check()
+    r = ops3d.auto_rig(m, p["style"], p["bones"], p["smooth"])
+    if p["style"] == "humanoid":
+        lo, hi = m.bbox()
+        if (hi[1] - lo[1]) < 0.9 * max(hi[0] - lo[0], hi[2] - lo[2]):
+            warns.append("O modelo é mais largo que alto: o esqueleto «Humanoide» supõe um personagem em pé; para outras formas use «Coluna» ou «Corrente».")
+    warns.append(f"Esqueleto {p['style']} com {len(r.joints)} juntas (posições pelas proporções da caixa do modelo; é uma aproximação).")
+    return _model_out(eng, node, r, _title(node, "Modelo com esqueleto"), warns)
+
+
+def run_anim3d(eng, canvas, node):
+    p = node["params"]
+    m, a = _model_in(eng, canvas, node)
+    warns: List[str] = []
+    if m.animations:
+        warns.append("O modelo já tinha uma animação: ela foi substituída pela nova.")
+    r = ops3d.animate(m, p["kind"], p["duration"], p["amplitude"])
+    warns.append(f"Animação «{p['kind']}» de {p['duration']} s, em laço (o visualizador a toca sozinha; o GLB serve para outros programas).")
+    return _model_out(eng, node, r, _title(node, "Modelo animado"), warns)
+
+
+def run_tex3d(eng, canvas, node):
+    p = node["params"]
+    m, a = _model_in(eng, canvas, node)
+    items = _inputs(eng, canvas, node, "image", ("image", "video"))
+    warns: List[str] = []
+    png: Optional[bytes] = None
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        if items:
+            src = _image_file(eng, items[0], tmp)
+            out = tmp / "tex.png"
+            _ff(eng, ["-i", str(src), "-vf", "scale='min(2048,iw)':-2", "-frames:v", "1", str(out)])   # PNG de até 2048 px de largura (o glTF aceita PNG e JPEG)
+            png = out.read_bytes()
+            if len(items) > 1:
+                warns.append("Ligue só uma imagem: usei a primeira como textura.")
+        else:
+            warns.append(f"Sem imagem ligada: textura procedural «{p['pattern']}».")
+    if m.joints and p["projection"] == "box":
+        warns.append("A projeção «Caixa» duplica vértices nas arestas; a pele do esqueleto é copiada junto, sem problema.")
+    eng._check()
+    r = ops3d.texturize(m, png, p["projection"], p["tile"], p["rotate"], p["pattern"], p["color1"], p["color2"], p["size"], p["tint"], p["metallic"], p["roughness"], p["keep_colors"], p["seed"])
+    return _model_out(eng, node, r, _title(node, "Modelo com textura"), warns)
 
 
 RUNNERS: Dict[str, Callable[..., Dict[str, Any]]] = {k: globals()["run_" + k] for k in SPECS}
