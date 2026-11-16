@@ -171,7 +171,7 @@ export default async function render(root, ctx) {
     unslothBox.replaceChildren(...mine.map((m) => h('div', { class: 'unrow' }, h('div', { class: 'row nw' }, h('div', { class: 'grow', style: { minWidth: 0 } },
       h('div', { class: 'row', style: { gap: '8px', flexWrap: 'wrap' } }, h('b', null, m.label), h('span', { class: chip[m.status][1] }, chip[m.status][0]), h('span', { class: 'chip' }, m.size)),
       h('div', { class: 'dim small' }, m.status === 'soon' ? t(m.why) : t(m.hint)), h('div', { class: 'mono dim', style: { fontSize: '11px' } }, m.repo)),
-      m.status === 'ready' ? h('button', { class: 'btn sm', type: 'button', onclick: () => open(m.repo) }, t('Ver quantizações'))
+      m.status === 'ready' || m.status === 'beta' ? h('button', { class: 'btn sm', type: 'button', onclick: () => open(m.repo) }, t('Ver quantizações'))
         : m.status === 'alt' ? h('button', { class: 'btn sm primary', type: 'button', onclick: () => open(m.use) }, t('Abrir {r}', { r: m.use })) : null))));
   }
 
@@ -189,7 +189,7 @@ export default async function render(root, ctx) {
     h('div', { class: 'card', style: { marginBottom: '16px' } }, h('h3', null, t('Baixados')), installed),
     h('div', { class: 'card', style: { marginBottom: '16px' } }, h('h3', null, t('Recomendados')),
       h('p', { class: 'muted small', style: { marginTop: 0 } }, t('Um modelo de texto e um de imagem, já com a quantização definida. O de imagem vem com o VAE e o codificador de texto de que precisa.')), preBox),
-    h('div', { class: 'card', style: { marginBottom: '16px' }, id: 'md-unsloth' }, h('h3', null, t('Modelos da Unsloth')),
+    h('div', { class: 'card', style: { marginBottom: '16px' }, id: 'md-unsloth' }, h('h3', null, t('Modelos da Unsloth e de parceiros')),
       h('p', { class: 'muted small', style: { marginTop: 0 } }, t('Imagem e vídeo (GGUF) da organização unsloth no Hugging Face, na aba escolhida abaixo. «Funciona» = o OpenFlow baixa junto o VAE, o codificador de texto e o tokenizer.')), unslothBox),
     h('div', { class: 'card', style: { marginBottom: '16px' } }, h('h3', null, t('Buscar no Hugging Face')), kindSeg, kindHint,
       h('div', { class: 'row nw', style: { marginTop: '10px' } }, h('div', { class: 'search', style: { maxWidth: 'none', flex: 1 } }, icon('search', 17), q), h('button', { class: 'btn', type: 'button', onclick: search }, t('Buscar'))),

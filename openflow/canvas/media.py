@@ -594,8 +594,15 @@ class LocalHFMedia(MediaProvider):
         self.ctl.note(f"Modelo local {model} ({prec})")
         return {"precision": prec, "dtype": lm.torch_dtype(prec), "variant": "fp16" if low and lm.has_fp16_variant(model) else None}
 
+    @staticmethod
+    def _transformer_only(model: str) -> bool:
+        """Repositórios que trazem só o transformador quantizado (sem o pipeline inteiro): ex. chatrlabs/Qwen-Image-2.1-Uncensored-Omni-Quantized. O diffusers precisaria do repositório-base para montar o resto."""
+        return bool(re.search(r"(omni|uncensored)[-_.a-z0-9]*quantized$|^chatrlabs/", (model or "").lower()))
+
     def image(self, prompt, *, size="1024x1024", count=1, seed=0, negative="", refs=(), model="", extra=None):
         model = self._pick("image", model, "stabilityai/sd-turbo")
+        if self._transformer_only(model):
+            raise ProviderError(f'«{model}» traz só o transformador quantizado (sem o codificador de texto e o VAE): o diffusers do OpenFlow carrega repositórios completos. Use os arquivos .gguf deste repositório pelo provedor «GGUF local» (Biblioteca → Baixar → Q4_K_M, Q5_K_M…): o OpenFlow baixa junto o VAE e o codificador Qwen3-VL-8B.')
         (diffusers,) = _local_import("diffusers")
         dev, _ = _device()
         ready = self._ready(model)

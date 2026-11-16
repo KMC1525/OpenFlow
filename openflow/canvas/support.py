@@ -20,7 +20,8 @@ FAMILIES: List[Dict[str, Any]] = [
     # ---- Unsloth (v0.17.30): Qwen-Image 2.1 e Turbo, Z-Image e Turbo (imagem) e Wan2.2 TI2V 5B (vídeo). As receitas vêm dos cartões dos repositórios unsloth/*-GGUF (VAE, codificador de texto, passos e CFG).
     {"id": "qwen-image-2.1", "name": r"qwen[-_ ]?image[-_ ]?2[._]?1", "label": "Qwen-Image 2.1", "cap": "image",
      "load": {"vae_path": r"qwen[-_]?image[-_]?2[._]?1[-_]?vae.*\.safetensors$", "llm_path": r"^qwen[-_]?3[-_]?vl[-_]?8b[-_]?instruct(?!.*mmproj)[^/]*\.gguf$"},
-     "run": {"cfg_scale": 6.0, "sample_steps": 20, "sample_method": "euler"}, "variants": [{"match": r"turbo", "run": {"cfg_scale": 1.0, "sample_steps": 8, "sample_method": "euler"}}],   # Turbo: 8 passos, CFG 1
+     "run": {"cfg_scale": 6.0, "sample_steps": 20, "sample_method": "euler"}, "variants": [{"match": r"turbo", "run": {"cfg_scale": 1.0, "sample_steps": 8, "sample_method": "euler"}},
+                  {"match": r"step\d+|chatr|uncensored|omni", "run": {"cfg_scale": 5.0, "sample_steps": 35, "sample_method": "euler"}}],   # Turbo: 8 passos, CFG 1; ChatR Labs «Uncensored Omni» (arquivos «qwen-image-2.1-step90000-…»): 35 passos e CFG 5,0 (cartão chatrlabs/Qwen-Image-2.1-Uncensored-Omni-Quantized; o ComfyUI usa er_sde, aqui euler)
      "options": {"offload_params_to_cpu": True, "diffusion_flash_attn": True},
      "need": "o VAE do Qwen-Image 2.1 (qwen_image_2.1_vae_bf16.safetensors, em unsloth/Qwen-Image-2.1-FP8) e o codificador de texto Qwen3-VL-8B-Instruct (um .gguf, ex.: unsloth/Qwen3-VL-8B-Instruct-GGUF)",
      "downloads": {"vae_path": {"repo": "unsloth/Qwen-Image-2.1-FP8", "file": "vae/qwen_image_2.1_vae_bf16.safetensors", "label": "VAE do Qwen-Image 2.1", "approx": 0.68},

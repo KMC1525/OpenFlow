@@ -14,6 +14,8 @@ CATALOG: List[Dict[str, Any]] = [
     # ---- imagem
     {"repo": "unsloth/Qwen-Image-2.1-GGUF", "kind": "image", "label": "Qwen-Image 2.1", "size": "20B", "status": "ready", "hint": "Geração de imagem com texto legível; aceita várias referências."},
     {"repo": "unsloth/Qwen-Image-2.1-Turbo-GGUF", "kind": "image", "label": "Qwen-Image 2.1 Turbo", "size": "20B", "status": "ready", "hint": "A versão rápida: 8 passos, sem CFG."},
+    {"repo": "chatrlabs/Qwen-Image-2.1-Uncensored-Omni-Quantized", "kind": "image", "label": "Qwen-Image 2.1 Uncensored Omni (ChatR Labs)", "size": "20B · ≈ 4–14 GB", "status": "beta",
+     "hint": "Novo na v0.41 (ChatR Labs): o Qwen-Image 2.1 com um adaptador «Uncensored Omni» (rank 128) fundido e quantizado (passo 90000); sem filtro de prompt. Receita do cartão: 35 passos e CFG 5,0; resolução ideal 768×1152 ou 1024×1024; texto, VAE e codificador Qwen3-VL-8B baixam junto. Use os arquivos .gguf (Q4_0 ≈ 4,2 GB … Q8_0 ≈ 7,7 GB, BF16 ≈ 14 GB); as pastas NF4/INT8/FP8 são só para o diffusers (transformador sem o resto) e os «-comfy» só para o ComfyUI. Licença Qwen Research: só pesquisa e uso não comercial."},
     {"repo": "unsloth/Qwen-Image-2512-GGUF", "kind": "image", "label": "Qwen-Image 2512", "size": "20B", "status": "ready", "hint": "Atualização do Qwen-Image; usa a receita do Qwen-Image."},
     {"repo": "unsloth/Qwen-Image-GGUF", "kind": "image", "label": "Qwen-Image", "size": "20B", "status": "ready", "hint": "O Qwen-Image original."},
     {"repo": "unsloth/Qwen-Image-Edit-2511-GGUF", "kind": "image", "label": "Qwen-Image-Edit 2511", "size": "20B", "status": "ready", "hint": "Edição de imagens (modo Editar); baixa também o projetor de visão."},
