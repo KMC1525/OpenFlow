@@ -245,6 +245,8 @@ export default {
   'Texto → Imagem': 'Text → Image',
   'Cena completa (imagem, voz e Editor)': 'Full scene (image, voice and Editor)',
   'Som e música': 'Sound and music',
+  '{n} download(s) em andamento': '{n} download(s) in progress',
+  'Nenhum download em andamento. Pesquise um modelo na barra ao lado e aperte Baixar.': 'No download in progress. Search for a model in the bar next to it and press Download.',
   'Abrir {r} na barra de pesquisa': 'Open {r} in the search bar',
   'Abrir um projeto para baixar modelos': 'Open a project to download models',
   'Carregando os recomendados…': 'Loading the recommended models…',

@@ -2,6 +2,17 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.43.0] — 2026-11-16
+
+### Novo — acompanhar os downloads de modelos dentro do Canvas
+- Um botão de **downloads** fica logo à direita da barra de pesquisa de modelos no topo do editor: mostra quantos downloads estão rodando (contador e uma barrinha de progresso geral) e, ao clicar, abre um painel com **cada download**: nome, repositório, porcentagem, bytes baixados, velocidade e tempo restante, nota do passo atual, botão **Cancelar**, e os **recentes** da sessão (concluídos, cancelados e os que falharam, com o motivo).
+- Atualiza sozinho (a cada 1 s com download ou painel aberto; a cada 4 s parado) e na hora quando você aperta Baixar na barra de pesquisa. Fecha com Esc ou clicando fora; no celular o painel ocupa a largura da tela.
+- Usa os mesmos dados da aba Downloads da Biblioteca (`/api/library/downloads`): inclui downloads de modelos, arquivos de apoio (VAE, codificador de texto), modelos recomendados e a biblioteca do sd-cli.
+
+### Ainda não verificado
+- Testado com respostas simuladas da API de downloads (o ambiente não tem rede para baixar modelos de verdade); a lista em si vem de um endpoint que já existia e é coberto pelos testes da Biblioteca.
+- O painel mostra os downloads **desta sessão do servidor**: reiniciar o OpenFlow zera a lista de recentes (como na Biblioteca).
+
 ## [0.42.0] — 2026-11-16
 
 ### Mudou — pesquisar e baixar modelos agora é só pela barra de pesquisa do Canvas

@@ -245,3 +245,17 @@ a.btn{text-decoration:none}
 @media (min-width:3000px){.cv-pal{width:260px}.cv-assets{width:380px}}
 @media (min-aspect-ratio:21/10) and (min-width:1900px){.cv-pal{width:240px}.cv-assets{width:360px}}
 .digest .dg-line{margin:3px 0;line-height:1.35}
+
+/* v0.43 · downloads de modelos ao lado da barra de pesquisa */
+.cv-dl{position:relative;flex:0 0 auto}
+.cv-dl-btn{position:relative;padding-bottom:6px}.cv-dl-btn.busy{color:var(--accent)}
+.cv-dl-badge{position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:var(--accent);color:var(--bg0,#000);font-size:10px;line-height:16px;font-weight:700;text-align:center}
+.cv-dl-badge.hidden{display:none}
+.cv-dl-bar{position:absolute;left:5px;right:5px;bottom:2px;height:2px;border-radius:2px;background:var(--bg3);overflow:hidden}.cv-dl-bar>i{display:block;height:100%;width:0;background:var(--accent);transition:width .4s}
+.cv-dl-panel{position:absolute;top:calc(100% + 6px);left:0;width:min(420px,92vw);max-height:60vh;overflow:auto;background:var(--bg1);border:1px solid var(--line2);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.5);z-index:61;padding:8px}
+.cv-dl-panel.hidden{display:none}
+.cv-dl-head{display:flex;align-items:center;gap:8px;padding:2px 4px 8px;font-size:13px}
+.cv-dl-row{padding:8px 4px;border-top:1px solid var(--line)}.cv-dl-row .bar{margin:6px 0 4px}
+.cv-dl-t{font-size:12px;overflow-wrap:anywhere}
+.cv-dl-empty{padding:8px 4px}.cv-dl-sub{padding:10px 4px 2px}
+@media (max-width:700px){.cv-dl-panel{position:fixed;left:8px;right:8px;top:56px;width:auto}}

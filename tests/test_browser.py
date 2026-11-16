@@ -91,6 +91,9 @@ class BrowserTests(unittest.TestCase):
     def test_20_model_search_only_in_the_canvas_bar_and_library_has_none(self):
         self.run_script("hub_v042_ui.js")
 
+    def test_21_downloads_are_followed_next_to_the_canvas_search_bar(self):
+        self.run_script("downloads_v043_ui.js")
+
     def test_19_the_ai_flow_generator_and_the_team_picker_are_gone(self):
         self.run_script("no_flow_ai_ui.js")
 
