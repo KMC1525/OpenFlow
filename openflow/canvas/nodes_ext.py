@@ -10,6 +10,7 @@ import datetime
 import random
 import re
 import shutil
+import subprocess
 import tempfile
 import textwrap
 import urllib.error
@@ -261,14 +262,56 @@ def _path(eng: Any, a: Dict[str, Any]) -> Path:
     return p
 
 
+def _upright(src: Path, tmp: Path, name: str) -> Path:
+    """Foto de celular com orientação EXIF (deitada no arquivo, em pé na tela): vira um PNG já girado. O ffmpeg novo gira sozinho e o antigo não — assim o resultado é o mesmo em qualquer um (v0.51)."""
+    try:
+        from PIL import Image, ImageOps  # type: ignore
+
+        with Image.open(src) as im:
+            if im.getexif().get(0x0112, 1) in (0, 1):
+                return src
+            dst = tmp / f"{name}_up.png"
+            (ImageOps.exif_transpose(im) or im).save(dst, "PNG")
+            return dst
+    except Exception:  # noqa: BLE001 — sem a Pillow ou arquivo estranho: usa o original
+        return src
+
+
 def _image_file(eng: Any, a: Dict[str, Any], tmp: Path, name: str = "frame") -> Path:
     """Arquivo de imagem de um item: a própria imagem, ou o quadro do meio se for um vídeo (assim vídeo também liga em portas de imagem)."""
     src = _path(eng, a)
     if a["kind"] == "image":
-        return src
+        return _upright(src, tmp, name)
     dst = tmp / f"{name}.png"
     _ff(eng, ["-ss", f"{max(0.0, (a.get('duration') or 2.0) / 2):.2f}", "-i", str(src), "-frames:v", "1", str(dst)])
     return dst
+
+
+def _dims(path: Path) -> Optional[Tuple[int, int]]:
+    """Largura e altura (px) de uma imagem: pelo cabeçalho; se o formato não for reconhecido (BMP, TIFF…), pelo ffprobe."""
+    try:
+        from .. import attachments
+
+        d = attachments.image_size(path.read_bytes())
+        if d and d[0] > 0 and d[1] > 0:
+            return int(d[0]), int(d[1])
+    except OSError:
+        return None
+    probe = shutil.which("ffprobe")
+    if probe:
+        code, out = _run_out([probe, "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0:s=x", str(path)])
+        m = re.match(r"^(\d+)x(\d+)", out.strip())
+        if code == 0 and m and int(m.group(1)) > 0 and int(m.group(2)) > 0:
+            return int(m.group(1)), int(m.group(2))
+    return None
+
+
+def _run_out(cmd: List[str]) -> Tuple[int, str]:
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        return r.returncode, r.stdout
+    except (OSError, subprocess.SubprocessError):
+        return 1, ""
 
 
 def _save_file(eng: Any, node: Dict[str, Any], path: Path, kind: str, name: str, mime: str, **meta: Any) -> str:
@@ -532,19 +575,27 @@ def run_img_resize(eng, canvas, node):
         src = _image_file(eng, _first(eng, canvas, node, "image", ("image", "video"), "uma imagem"), tmp)
         vf: List[str] = []
         w, h = p["width"], p["height"]
-        if w or h:
-            W, H = (w or -2), (h or -2)
-            if w and h:
-                if p["mode"] == "stretch":
-                    vf.append(f"scale={w}:{h}")
-                elif p["mode"] == "cover":
-                    vf += [f"scale={w}:{h}:force_original_aspect_ratio=increase", f"crop={w}:{h}"]
-                elif p["mode"] == "pad":
-                    vf += [f"scale={w}:{h}:force_original_aspect_ratio=decrease", f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color={p['bg']}"]
-                else:
-                    vf.append(f"scale={w}:{h}:force_original_aspect_ratio=decrease")
+        size = _dims(src)
+        if (w or h) and size:
+            sw, sh = size
+            # 0 = automático: a outra medida acompanha a proporção, nunca abaixo de 1 px (antes, uma imagem muito estreita dava 0 px e o ffmpeg falhava)
+            if w and not h:
+                h = max(1, round(sh * w / sw))
+            elif h and not w:
+                w = max(1, round(sw * h / sh))
+            if p["mode"] == "stretch":
+                vf.append(f"scale={w}:{h}")
+            elif p["mode"] == "cover":
+                k = max(w / sw, h / sh)
+                vf += [f"scale={max(w, round(sw * k))}:{max(h, round(sh * k))}", f"crop={w}:{h}"]
+            elif p["mode"] == "pad":
+                k = min(w / sw, h / sh)
+                vf += [f"scale={max(1, round(sw * k))}:{max(1, round(sh * k))}", f"pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color={p['bg']}"]
             else:
-                vf.append(f"scale={W}:{H}")
+                k = min(w / sw, h / sh)
+                vf.append(f"scale={max(1, round(sw * k))}:{max(1, round(sh * k))}")
+        elif w or h:   # sem como medir a origem: o ffmpeg decide
+            vf.append(f"scale={w or -1}:{h or -1}")
         vf += {0: [], 90: ["transpose=1"], 180: ["hflip", "vflip"], 270: ["transpose=2"]}[p["rotate"]]
         vf += {"none": [], "h": ["hflip"], "v": ["vflip"], "both": ["hflip", "vflip"]}[p["flip"]]
         out = tmp / f"o.{p['format']}"
@@ -557,13 +608,21 @@ def run_img_filter(eng, canvas, node):
     extra = []
     if (p["brightness"], p["contrast"], p["saturation"]) != (0, 1, 1):
         extra.append(f"eq=brightness={p['brightness']}:contrast={p['contrast']}:saturation={p['saturation']}")
-    vf = _vf_for(p["preset"], extra)
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
         src = _image_file(eng, _first(eng, canvas, node, "image", ("image", "video"), "uma imagem"), tmp)
+        size = _dims(src)
+        preset, warns = p["preset"], []
+        if preset in ("blur", "sharpen", "vhs") and size and size[0] * size[1] < 4:   # o ffmpeg quebra (corrompe a memória) ao desfocar uma imagem de 1 pixel
+            warns.append("A imagem é pequena demais para este efeito: ele foi pulado.")
+            preset = "none"
+        vf = _vf_for(preset, extra)
         out = tmp / "o.png"
         _ff(eng, ["-i", str(src), *(["-vf", vf] if vf else []), "-frames:v", "1", str(out)])
-        return _img_out(eng, node, tmp, out, _title(node, "Imagem filtrada"))
+        res = _img_out(eng, node, tmp, out, _title(node, "Imagem filtrada"))
+        if warns:
+            res["warnings"] = warns
+        return res
 
 
 def _drawtext(tmp: Path, content: str, size_expr: str, color: str, pos: str, box: bool, wrap: int = 28) -> str:
@@ -1136,7 +1195,24 @@ def run_img_crop(eng, canvas, node):
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
         src = _image_file(eng, _first(eng, canvas, node, "image", ("image", "video"), "uma imagem"), tmp)
-        if p["mode"] == "manual":
+        size = _dims(src)
+        warns: List[str] = []
+        if size:
+            sw, sh = size
+            if p["mode"] == "manual":
+                cw, ch = max(1, round(sw * p["w"] / 100)), max(1, round(sh * p["h"] / 100))
+                cx, cy = round(sw * p["x"] / 100), round(sh * p["y"] / 100)
+                if cx + cw > sw or cy + ch > sh:
+                    warns.append("O recorte passava da borda da imagem: encostei na borda.")
+                cx, cy = max(0, min(cx, sw - min(cw, sw))), max(0, min(cy, sh - min(ch, sh)))
+            else:
+                a, b = (int(x) for x in p["ratio"].split(":"))
+                cw, ch = (round(sh * a / b), sh) if sw / sh >= a / b else (sw, round(sw * b / a))
+                cx = {"left": 0, "right": sw - min(cw, sw)}.get(p["anchor"], (sw - min(cw, sw)) // 2)
+                cy = {"top": 0, "bottom": sh - min(ch, sh)}.get(p["anchor"], (sh - min(ch, sh)) // 2)
+            cw, ch = max(1, min(cw, sw)), max(1, min(ch, sh))
+            vf = f"crop={cw}:{ch}:{cx}:{cy}"
+        elif p["mode"] == "manual":
             vf = f"crop=iw*{p['w'] / 100:.4f}:ih*{p['h'] / 100:.4f}:iw*{p['x'] / 100:.4f}:ih*{p['y'] / 100:.4f}"
         else:
             a, b = (int(x) for x in p["ratio"].split(":"))
@@ -1145,7 +1221,10 @@ def run_img_crop(eng, canvas, node):
             vf = f"crop='if(gte(iw/ih,{a}/{b}),ih*{a}/{b},iw)':'if(gte(iw/ih,{a}/{b}),ih,iw*{b}/{a})':{ox}:{oy}"
         out = tmp / "o.png"
         _ff(eng, ["-i", str(src), "-vf", vf, "-frames:v", "1", str(out)])
-        return _img_out(eng, node, tmp, out, _title(node, "Imagem recortada"))
+        res = _img_out(eng, node, tmp, out, _title(node, "Imagem recortada"))
+        if warns:
+            res["warnings"] = warns
+        return res
 
 
 def run_img_watermark(eng, canvas, node):

@@ -2,6 +2,28 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.51.0] — 2026-11-16
+
+### Corrigido — bugs ao editar imagens nos nós do Canvas
+Procurei os erros rodando os nós de edição de imagem (Redimensionar, Filtros e cor, Texto na imagem, Recortar, Marca d'água, Colagem, Miniatura, Imagem final e o modo «Editar» do nó Imagem) com entradas difíceis: imagens de 1 px, muito estreitas, com transparência, em tons de cinza, paleta, 16 bits, JPEG, WebP, GIF e BMP. Foram 14 falhas e 3 defeitos silenciosos:
+- **Redimensionar com largura ou altura em 0 (automático)** falhava em imagens muito estreitas (ex.: 50×4000 com altura 50 dava largura 0 e o ffmpeg desistia). Agora a outra medida acompanha a proporção, nunca abaixo de 1 px. Como bônus, o «automático» não arredonda mais para número par.
+- **Recortar** podia pedir 0 px (recorte manual de 1% numa imagem fina, proporção 21:9 numa imagem de 1 px) e falhava. Agora o recorte tem sempre ao menos 1 px e, se passar da borda da imagem, encosta na borda e avisa («O recorte passava da borda»).
+- **Filtros (desfocar, nitidez, VHS) numa imagem de 1 px** faziam o ffmpeg corromper a memória e fechar. Agora o efeito é pulado com um aviso.
+- **Foto de celular (orientação EXIF) saía deitada:** no modo «Editar» do nó Imagem a referência era lida sem a orientação, e os nós de imagem dependiam da versão do ffmpeg (o novo gira sozinho, o antigo não). Agora a foto é girada na entrada e o resultado é o mesmo em qualquer ffmpeg.
+- **Transparência virava preto (ou a cor escondida):** a referência de edição com fundo transparente era convertida direto para RGB. Agora é composta sobre branco.
+- **PNG de 16 bits saía todo branco** como referência de edição. Agora mantém o brilho.
+- A comparação «o resultado ficou quase igual à entrada» e o sd-cli (modelos GGUF) usam a mesma leitura corrigida.
+
+### Testado
+- `tests/test_edit_images_v051.py` (12 testes): leitura de transparência, EXIF, 16 bits e formatos; tamanhos automáticos, modos de Redimensionar, recortes de 0 px e na borda, desfoque em 1 px, foto com EXIF e BMP. Com o código antigo, 10 deles falham.
+- A bateria de varredura (14 imagens × centenas de parâmetros, mais colagem, miniatura, imagem final e o modo Editar com o provedor de demonstração) terminou com 0 problemas.
+
+### Ainda não verificado
+- **Modelos locais reais** (FLUX, Qwen-Image-Edit etc.) não foram executados aqui: o modo «Editar» foi testado com o provedor de demonstração e a leitura das referências em si, não com um modelo de verdade.
+- O tamanho de saída do modo «Editar» num modelo local segue com mínimo de 256 px por lado: uma imagem extremamente estreita (ex.: 80:1) sai com a proporção limitada.
+- Transparência: a referência é composta sobre **branco**; nenhum modelo recebe o canal de transparência. Marca d'água e Texto na imagem continuam preservando o alfa da imagem de entrada.
+- Não revisei a interface do Canvas (arrastar, zoom, visualizador) à procura de bugs de edição: a varredura foi no motor dos nós.
+
 ## [0.50.0] — 2026-11-16
 
 ### Design e personalização
