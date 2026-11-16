@@ -2,6 +2,22 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.55.0] — 2026-11-16
+
+### Fixed — Qwen-Image 2.1 (Uncensored Omni Quantized) when editing images
+- **The error in the screenshot:** editing an image with `qwen-image-2.1-step90000-Q4_0.gguf` (ChatR Labs), sd-cli failed with “Qwen Image 2.1 editing requires Qwen3-VL vision weights; provide --llm_vision or a combined encoder … failed to encode prompt”. Qwen-Image 2.1 reads the reference image through the **Qwen3-VL-8B vision projector (mmproj)**, and OpenFlow only downloaded and passed the VAE and the text encoder.
+- **Now:** OpenFlow knows that file (`mmproj-F16.gguf` from `unsloth/Qwen3-VL-8B-Instruct-GGUF`, ≈ 1.2 GB). It is **downloaded along with the model** (and shows up in “Download the support files” for people who already have the model), is stored as `Qwen3-VL-8B-Instruct-mmproj-F16.gguf` (Qwen2.5-VL's is also called `mmproj-F16.gguf`, and the two must not overwrite each other) and is passed to sd-cli as `--llm_vision` when you edit.
+- **Only required for editing:** generating from text alone keeps working without it (nobody who already had the model loses anything), and in that case OpenFlow does not even load it (≈ 1.2 GB less memory). If you edit without the file, the node explains what is missing and offers the download button, instead of sd-cli's technical error. Anyone who gave their own mmproj in the node's “extra” field is not blocked.
+
+### Tested
+- `tests/test_qwen21_vision_v055.py` (10 tests): the family knows the file and where to download it; it is found next to the model and is not mistaken for the text encoder or for Qwen2.5-VL's mmproj; download plan and status; old installs without the file still load for generation; editing without the file gives the clear message (without reaching sd-cli); generating does not load it; editing with it passes it to the loader; sd-cli gets `--llm_vision`. Without the fix, 8 fail.
+
+### Not verified yet
+- **I did not run the real model** (nor sd-cli with Qwen-Image 2.1): the cause comes from sd-cli's own message in the screenshot and the fix was tested up to the command line it receives. If editing still fails after downloading the mmproj, the new error (or sd-cli's log) shows what is left.
+- I chose the **F16** mmproj; if your sd-cli version requires another precision or a “combined” encoder (the message mentions that option), tell me and I'll adjust.
+- Qwen-Image 2.1 models that are already downloaded get the file through the “Download the support files” button; I do not download anything on my own.
+- The numbering skipped v0.54: no version with that number was requested.
+
 ## [0.53.0] — 2026-11-16
 
 ### Fixed — general improvements 6 (sounds, voices and 3D models)

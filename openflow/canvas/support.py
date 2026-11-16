@@ -19,13 +19,16 @@ from .. import hf
 FAMILIES: List[Dict[str, Any]] = [
     # ---- Unsloth (v0.17.30): Qwen-Image 2.1 e Turbo, Z-Image e Turbo (imagem) e Wan2.2 TI2V 5B (vídeo). As receitas vêm dos cartões dos repositórios unsloth/*-GGUF (VAE, codificador de texto, passos e CFG).
     {"id": "qwen-image-2.1", "name": r"qwen[-_ ]?image[-_ ]?2[._]?1", "label": "Qwen-Image 2.1", "cap": "image",
-     "load": {"vae_path": r"qwen[-_]?image[-_]?2[._]?1[-_]?vae.*\.safetensors$", "llm_path": r"^qwen[-_]?3[-_]?vl[-_]?8b[-_]?instruct(?!.*mmproj)[^/]*\.gguf$"},
+     "load": {"vae_path": r"qwen[-_]?image[-_]?2[._]?1[-_]?vae.*\.safetensors$", "llm_path": r"^qwen[-_]?3[-_]?vl[-_]?8b[-_]?instruct(?!.*mmproj)[^/]*\.gguf$",
+              "llm_vision_path": r"^qwen[-_]?3[-_]?vl[-_]?8b[-_]?instruct[^/]*mmproj[^/]*\.gguf$"},
+     "optional": ["llm_vision_path"], "edit_needs": ["llm_vision_path"],   # v0.55: o projetor de visão (mmproj) do Qwen3-VL só é exigido ao EDITAR (imagem de referência); gerar só com texto funciona sem ele
      "run": {"cfg_scale": 6.0, "sample_steps": 20, "sample_method": "euler"}, "variants": [{"match": r"turbo", "run": {"cfg_scale": 1.0, "sample_steps": 8, "sample_method": "euler"}},
                   {"match": r"step\d+|chatr|uncensored|omni", "run": {"cfg_scale": 5.0, "sample_steps": 35, "sample_method": "euler"}}],   # Turbo: 8 passos, CFG 1; ChatR Labs «Uncensored Omni» (arquivos «qwen-image-2.1-step90000-…»): 35 passos e CFG 5,0 (cartão chatrlabs/Qwen-Image-2.1-Uncensored-Omni-Quantized; o ComfyUI usa er_sde, aqui euler)
      "options": {"offload_params_to_cpu": True, "diffusion_flash_attn": True},
-     "need": "o VAE do Qwen-Image 2.1 (qwen_image_2.1_vae_bf16.safetensors, em unsloth/Qwen-Image-2.1-FP8) e o codificador de texto Qwen3-VL-8B-Instruct (um .gguf, ex.: unsloth/Qwen3-VL-8B-Instruct-GGUF)",
+     "need": "o VAE do Qwen-Image 2.1 (qwen_image_2.1_vae_bf16.safetensors, em unsloth/Qwen-Image-2.1-FP8) e o codificador de texto Qwen3-VL-8B-Instruct (um .gguf, ex.: unsloth/Qwen3-VL-8B-Instruct-GGUF); para editar com imagem de referência, também o projetor de visão dele (mmproj-F16.gguf, do mesmo repositório)",
      "downloads": {"vae_path": {"repo": "unsloth/Qwen-Image-2.1-FP8", "file": "vae/qwen_image_2.1_vae_bf16.safetensors", "label": "VAE do Qwen-Image 2.1", "approx": 0.68},
-                   "llm_path": {"repo": "unsloth/Qwen3-VL-8B-Instruct-GGUF", "file": "Qwen3-VL-8B-Instruct-UD-Q4_K_XL.gguf", "label": "Codificador de texto Qwen3-VL-8B-Instruct (UD-Q4_K_XL)", "approx": 5.1}}},
+                   "llm_path": {"repo": "unsloth/Qwen3-VL-8B-Instruct-GGUF", "file": "Qwen3-VL-8B-Instruct-UD-Q4_K_XL.gguf", "label": "Codificador de texto Qwen3-VL-8B-Instruct (UD-Q4_K_XL)", "approx": 5.1},
+                   "llm_vision_path": {"repo": "unsloth/Qwen3-VL-8B-Instruct-GGUF", "file": "mmproj-F16.gguf", "dest": "Qwen3-VL-8B-Instruct-mmproj-F16.gguf", "label": "Projetor de visão do Qwen3-VL (mmproj, para editar imagens)", "approx": 1.2}}},   # `dest`: o Qwen2.5-VL também tem um «mmproj-F16.gguf» e os dois não podem se sobrescrever na mesma pasta
     {"id": "z-image", "name": r"z[-_ ]?image", "label": "Z-Image", "cap": "image",
      "load": {"vae_path": r"^ae\.safetensors$", "llm_path": r"^qwen[-_]?3[-_]?4b[-_]?instruct[-_]?2507(?!.*mmproj)[^/]*\.gguf$"},
      "run": {"cfg_scale": 4.0, "sample_steps": 30}, "variants": [{"match": r"turbo", "run": {"cfg_scale": 1.0, "sample_steps": 8}}],   # Turbo: 8 passos, sem CFG; o Z-Image «base» usa 30 passos e CFG 4
@@ -257,6 +260,21 @@ def find_companions(folder: Path, model: Path, fam: Dict[str, Any]) -> Dict[str,
             hits.sort(key=lambda f: f.name.lower() != want)
         out[key] = hits[0].name if hits else None
     return out
+
+
+def required_found(found: Dict[str, Optional[str]], fam: Dict[str, Any]) -> Dict[str, Optional[str]]:
+    """Os arquivos de apoio que valem para carregar o modelo: os OPCIONAIS da família (`optional`, ex.: o mmproj só usado ao editar) entram se existem e saem se faltam."""
+    opt = set(fam.get("optional") or [])
+    return {k: v for k, v in found.items() if not (k in opt and v is None)}
+
+
+def missing_for_edit(folder: Path, filename: str) -> List[Dict[str, Any]]:
+    """O que falta para EDITAR (imagem de referência) com o modelo: arquivos de `edit_needs` da família que não estão na pasta. [] se a família não exige nada a mais."""
+    fam = family_of(filename)
+    if not fam or not fam.get("edit_needs"):
+        return []
+    found = find_companions(Path(folder), Path(folder) / Path(filename).name, fam)
+    return [{"key": k, **download_spec(fam, k, filename)} for k in fam["edit_needs"] if found.get(k) is None]
 
 
 def missing(folder: Path, filename: str) -> Dict[str, Any]:
