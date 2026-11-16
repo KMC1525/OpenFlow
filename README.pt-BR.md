@@ -8,7 +8,7 @@ Ligue alguns nós, veja cada resultado no próprio nó e edite o vídeo final se
 
 [Instalar](#instalar) · [Usar](#usar) · [Nós](#nós) · [Modelos](#modelos) · [Configurações](#configurações) · [Seus dados](#seus-dados) · [Desenvolvimento](#desenvolvimento) · [Changelog](CHANGELOG.md) · [English](README.md)
 
-`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Núcleo Rust` · `v0.58.0`
+`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Núcleo Rust` · `v0.59.0`
 
 </div>
 
@@ -70,7 +70,7 @@ O Style Prompt e o Style Folder (pastas e subpastas, renomeáveis) valem para to
 
 ## Configurações
 
-**Texto (IA)** modelo e janela de contexto · **Imagem, vídeo, som e voz** modelo padrão de cada tipo · **Projetos** modelo inicial · **Aparência** tema, cor, tamanho, fonte, idioma · **Desempenho** modo, CPU/GPU (várias placas, híbrido CPU+GPU), planejador por classe de RAM para máquinas de 16 GB (DDR4/DDR5), conexões por download, token do Hugging Face (modelos restritos).
+**Texto (IA)** modelo e janela de contexto · **Imagem, vídeo, som e voz** modelo padrão de cada tipo · **Projetos** modelo inicial · **Aparência** tema, cor, tamanho, fonte, idioma · **Desempenho** modo, CPU/GPU (várias placas somando a VRAM, VRAM + RAM juntas, híbrido CPU+GPU), planejador por classe de RAM para máquinas de 16 GB (DDR4/DDR5), conexões por download, token do Hugging Face (modelos restritos).
 
 ## Seus dados
 

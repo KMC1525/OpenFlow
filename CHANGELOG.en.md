@@ -2,6 +2,23 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.59.0] — 2026-11-16
+
+### New — Multi GPU: the VRAM of several cards together, and VRAM + RAM at the same time
+To run models bigger than one card holds. Everything is in **Settings → Performance → Memory** (new card), with defaults that already work: **split across cards** (on), **use RAM together** (on), per-card VRAM reserve (512 MB) and RAM reserve (2 GB).
+- **Text models (llama.cpp):** with two or more NVIDIA cards chosen, the planner now counts the **usable memory of all of them together** — a 30 GB model that used to leave layers in RAM on a 24 GB card now fits entirely on two. Layers are split in proportion to each card's free memory (`tensor_split`; the card with the most free memory is the main one). Whatever still does not fit on the cards goes to **RAM** (CPU layers) — both at the same time.
+- **Image and video (diffusers):** when the model does not fit one card it loads with `device_map="balanced"` and `max_memory` (usable VRAM of each card and, with «use RAM together», the free RAM). If your diffusers/accelerate version rejects it, OpenFlow repeats the load the old way.
+- **Image and video (sd-cli):** with a CUDA sd-cli installed by OpenFlow that accepts `--backend`, the **text encoder and the VAE go to another card** when they do not fit next to the diffusion model on the main one (the diffusion model itself does not split: it stays on one card, offloading to RAM if needed). In every other case (Vulkan, an sd-cli without `--backend`, a single card) the previous behavior applies.
+- **«Use RAM together» off:** a text model that does not fit entirely on the chosen cards **stops with a clear message** (instead of silently running slowly on the CPU).
+- **New route** `GET /api/perf/memory` and the card show the cards, usable VRAM and RAM and, for every downloaded model, **where it would fit**: one card, split across cards, cards + RAM, RAM only, or does not fit.
+- The settings are validated (reserves 0–8192 MB and 0–64 GB; an invalid value goes back to the default) and included in export/import.
+
+### Not verified yet
+- **No real graphics card was used**: the tests use simulated cards and a fake `torch` and `sd-cli`. That a model actually **runs faster or fits** with two real cards was not measured; speed between cards depends on PCIe/NVLink.
+- The `--backend te=CUDA1,vae=CUDA1` syntax and the CUDA0/CUDA1 numbering (in `CUDA_VISIBLE_DEVICES` order) come from the ggml/stable-diffusion.cpp documentation and were **not tested with a real sd-cli**; OpenFlow only uses it when the executable's `--help` shows `--backend`.
+- diffusers' `max_memory` with a `"cpu"` key may be rejected by some versions (there is a fallback); diffusers' automatic split applies to models loaded from Hugging Face folders, not GGUF.
+- **AMD/Intel (Vulkan) do not split across cards**: NVIDIA only. The sd-cli `_SPLIT_ACTIVE` state is global: two simultaneous generations with different plans could mix it up (OpenFlow runs one at a time).
+
 ## [0.58.0] — 2026-11-16
 
 ### New — 3D 2: texture, skeleton and animation for 3D models

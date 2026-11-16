@@ -227,7 +227,7 @@ function gpuCard(pf, hw) {
   const save = async (set) => { pf.gpus = [...set].sort(); await saveSettings({ performance: pf }); toast(t('Salvo. Vale a partir do próximo modelo carregado.'), 'ok'); };
   return cfgCard(t('Placas de vídeo (GPUs)'),
     h('p', { class: 'muted small', style: { marginTop: 0 } }, gpus.length > 1
-      ? t('{n} placas NVIDIA detectadas. Modelos de texto (llama.cpp) dividem as camadas entre as placas marcadas, em proporção à memória livre de cada uma. Imagem, vídeo e som usam uma placa só: a marcada com mais memória livre na hora. Sem nenhuma marcada, todas são usadas.', { n: gpus.length })
+      ? t('{n} placas NVIDIA detectadas. Modelos de texto (llama.cpp) dividem as camadas entre as placas marcadas, em proporção à memória livre de cada uma. Imagem, vídeo e som usam a marcada com mais memória livre na hora e, se o modelo não couber nela, podem dividi-lo entre as placas (veja «Memória das placas e da RAM»). Sem nenhuma marcada, todas são usadas.', { n: gpus.length })
       : t('Uma placa NVIDIA detectada. Com mais de uma, aqui você escolhe quais usar.')),
     ...gpus.map((g) => checkbox('GPU ' + g.index + ' — ' + g.name + (g.mem_mb ? ' (' + Math.round(g.mem_mb / 1024) + ' GB)' : ''), all || chosen.has(g.index), async (v) => {
       const cur = new Set(all ? gpus.map((x) => x.index) : [...chosen]);
@@ -235,6 +235,42 @@ function gpuCard(pf, hw) {
       if (!cur.size) { toast(t('Deixe ao menos uma placa marcada.'), 'err'); return; }
       await save(cur.size === gpus.length ? new Set() : cur);   // todas marcadas = sem restrição
     })));
+}
+
+
+// Memória das placas e da RAM (v0.59): o que o OpenFlow tem para dividir e onde cada modelo baixado caberia (uma placa, várias placas, placas + RAM)
+function memoryCard(pf) {
+  const mem = pf.memory = Object.assign({ multi_gpu: true, ram_spill: true, gpu_reserve_mb: 512, ram_reserve_gb: 2 }, pf.memory || {});   // `pf` é o mesmo objeto que os outros cartões gravam
+  const save = async () => { await saveSettings({ performance: { memory: mem } }); toast(t('Salvo. Vale a partir do próximo modelo carregado.'), 'ok'); paint(); };
+  const live = h('dl', { class: 'kv', id: 'memory-live', style: { margin: '10px 0 0' } });
+  const list = h('div', { class: 'col', id: 'memory-models', style: { marginTop: '10px', gap: '6px' } });
+  const gb = (b) => (b / 2 ** 30).toFixed(1) + ' GB';
+  const label = (m) => ({ gpu: t('numa placa'), multi_gpu: t('dividido entre {n} placas', { n: (m.gpus || []).length }), 'gpu+ram': t('placa + RAM ({r} na RAM)', { r: gb(m.ram_bytes) }), 'multi_gpu+ram': t('placas + RAM ({r} na RAM)', { r: gb(m.ram_bytes) }), ram: t('só na RAM'), no_fit: t('não cabe') }[m.strategy] || m.strategy);
+  const kind = { text: t('texto'), image: t('imagem'), video: t('vídeo') };
+  let attached = false;
+  async function paint() {
+    if (live.isConnected) attached = true; else if (attached) return;
+    try {
+      const r = await api('/api/perf/memory');
+      live.replaceChildren(
+        ...(r.pool.gpus.length ? r.pool.gpus.flatMap((g) => [h('dt', null, 'GPU ' + g.index), h('dd', { class: 'gpu-row' }, g.name + ' · ' + gb(g.usable) + ' ' + t('usáveis') + ' (' + gb(g.free) + ' ' + t('livres de') + ' ' + gb(g.total) + ')')]) : [h('dt', null, t('Placas')), h('dd', null, t('nenhuma NVIDIA escolhida: os modelos usam a RAM'))]),
+        h('dt', null, t('VRAM usável (soma)')), h('dd', { id: 'memory-vram' }, gb(r.pool.vram_usable)),
+        h('dt', null, t('RAM usável')), h('dd', { id: 'memory-ram' }, gb(r.pool.ram_usable) + ' (' + gb(r.pool.ram_avail) + ' ' + t('livres') + ')'));
+      list.replaceChildren(...(r.models.length ? r.models.map((m) => h('div', { class: 'row nw', dataset: { strategy: m.strategy } },
+        h('span', { class: 'mono small grow', style: { overflowWrap: 'anywhere' } }, m.name), h('span', { class: 'dim small' }, kind[m.kind] + ' · ' + gb(m.size)),
+        h('span', { class: 'chip ' + (m.strategy === 'no_fit' ? 'warn' : m.strategy === 'gpu' ? 'on' : '') }, label(m)))) : [h('span', { class: 'muted small' }, t('Nenhum modelo baixado ainda.'))]));
+    } catch (e) { /* sem servidor agora */ }
+  }
+  setTimeout(paint, 0);
+  const num = (id, key, min, max, step) => h('input', { type: 'number', id, min, max, step, value: mem[key], onchange: async (e) => { mem[key] = Math.max(min, Math.min(max, Number(e.target.value) || 0)); e.target.value = mem[key]; await save(); } });
+  return cfgCard(t('Memória das placas e da RAM'),
+    h('p', { class: 'muted small', style: { marginTop: 0 } }, t('Para usar modelos maiores: com mais de uma placa, o OpenFlow divide o modelo entre elas (texto: as camadas; imagem e vídeo: as partes do modelo) e, o que ainda não couber, vai para a RAM do computador. Aqui você liga ou desliga cada parte e define quanta memória deixar livre.')),
+    checkbox(t('Dividir modelos grandes entre as placas de vídeo'), mem.multi_gpu, async (v) => { mem.multi_gpu = v; await save(); }),
+    checkbox(t('Usar a RAM junto quando o modelo não couber na VRAM'), mem.ram_spill, async (v) => { mem.ram_spill = v; await save(); }),
+    h('div', { class: 'grid2', style: { marginTop: '10px' } },
+      field(t('Deixar livre em cada placa (MB)'), num('memory-gpu-reserve', 'gpu_reserve_mb', 0, 8192, 64), t('Folga para a tela, o sistema e outros programas.')),
+      field(t('Deixar livre na RAM (GB)'), num('memory-ram-reserve', 'ram_reserve_gb', 0, 64, 0.5), t('A RAM que o OpenFlow não toca ao completar o que falta na VRAM.'))),
+    live, list);
 }
 
 // Proteção do computador (v0.49): se o CPU, a RAM ou a placa de vídeo passam do limite por alguns segundos enquanto o OpenFlow trabalha, ele para tudo (tarefas, processos e modelos carregados)
@@ -293,6 +329,7 @@ async function performance() {
       h('p', { class: 'muted small', style: { marginBottom: 0 } }, t('Seu hardware: {t}', { t: hw.tier }) + ' · ' + hw.cpus + ' CPU · ' + (hw.ram_gb ? hw.ram_gb + ' GB RAM' : '—') + ' · ' + (hw.gpu || t('não detectada (NVIDIA)')))),
     guardCard(pf),
     gpuCard(pf, hw),
+    memoryCard(pf),
     cpuCard(pf),
     downloadsCard(),
     gpuAccelCard(hw),
