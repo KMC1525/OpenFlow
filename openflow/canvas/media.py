@@ -940,9 +940,7 @@ class LocalHFMedia(MediaProvider):
         fps = 24
         kw: Dict[str, Any] = {"prompt": prompt, "width": w, "height": h, "num_frames": int(max(9, min(161, duration * fps)) // 8 * 8 + 1)}
         if image:
-            from PIL import Image  # type: ignore
-
-            kw["image"] = Image.open(io.BytesIO(image[0])).convert("RGB").resize((w, h))
+            kw["image"] = open_rgb(image[0]).resize((w, h))
         kw.update(extra or {})
         self.ctl.note("Gerando vídeo localmente (pode demorar)…")
         frames = pipe(**kw).frames[0]
@@ -982,14 +980,52 @@ def _frames_to_mp4(frames: Any, fps: int) -> Media:
         return Media(dst.read_bytes(), "video/mp4")
 
 
+def open_rgb(data: bytes) -> Any:
+    """Imagem de entrada como RGB da PIL, do jeito que a pessoa a vê (v0.51). `.convert("RGB")` direto errava em três casos comuns: fotos de celular saíam deitadas (ignora a orientação EXIF),
+    o que era transparente virava a cor escondida por baixo (em geral preto) e PNG de 16 bits saía todo branco. Aqui: gira pelo EXIF, compõe sobre branco e reduz 16 bits para 8."""
+    from PIL import Image, ImageOps  # type: ignore
+
+    im = Image.open(io.BytesIO(data))
+    try:
+        im = ImageOps.exif_transpose(im) or im
+    except Exception:  # noqa: BLE001 — EXIF malformado: segue sem girar
+        pass
+    if im.mode in ("I;16", "I;16L", "I;16B", "I"):
+        im = im.point(lambda v: v / 256.0, "L") if im.mode != "I" else im.point(lambda v: v / 256.0).convert("L")
+    elif im.mode == "F":
+        im = im.point(lambda v: v * 255.0).convert("L")
+    if im.mode in ("RGBA", "LA", "PA") or (im.mode == "P" and "transparency" in im.info):
+        rgba = im.convert("RGBA")
+        bg = Image.new("RGBA", rgba.size, (255, 255, 255, 255))
+        bg.alpha_composite(rgba)
+        return bg.convert("RGB")
+    return im.convert("RGB")
+
+
+def clean_png(data: bytes) -> bytes:
+    """Os bytes da imagem prontos para um programa que não olha EXIF/alfa (sd-cli): se já é uma imagem comum, devolve como veio; senão, um PNG normalizado."""
+    try:
+        from PIL import Image  # type: ignore
+
+        im = Image.open(io.BytesIO(data))
+        plain = im.mode in ("RGB", "L") and not im.info.get("transparency") and (im.getexif().get(0x0112, 1) in (0, 1))
+        if plain and im.format in ("PNG", "JPEG"):
+            return data
+        out = io.BytesIO()
+        open_rgb(data).save(out, "PNG")
+        return out.getvalue()
+    except Exception:  # noqa: BLE001 — não é imagem legível: o programa dá a mensagem dele
+        return data
+
+
 def _pil_refs(refs: Sequence[Ref], limit: int = 4) -> List[Any]:
-    """Imagens de referência (bytes, mime) como imagens RGB da PIL; as ilegíveis são ignoradas."""
-    from PIL import Image  # type: ignore
+    """Imagens de referência (bytes, mime) como imagens RGB da PIL (como a pessoa as vê: ver `open_rgb`); as ilegíveis são ignoradas."""
+    __import__("PIL")   # sem a Pillow, falha logo aqui (e não vira «formato não suportado»)
 
     out: List[Any] = []
     for data, _mime in list(refs)[:limit]:
         try:
-            out.append(Image.open(io.BytesIO(data)).convert("RGB"))
+            out.append(open_rgb(data))
         except Exception:  # noqa: BLE001 — arquivo que não é imagem
             continue
     return out
@@ -1016,10 +1052,8 @@ def _max_side() -> int:
 def image_difference(a: bytes, b: bytes) -> Optional[float]:
     """Quanto duas imagens diferem (0 = iguais, 1 = opostas): diferença média de brilho depois de reduzir as duas a 64×64. None se não dá para calcular (sem a Pillow ou formato ilegível)."""
     try:
-        from PIL import Image  # type: ignore
-
         def small(data: bytes) -> Any:
-            return Image.open(io.BytesIO(data)).convert("L").resize((64, 64))
+            return open_rgb(data).convert("L").resize((64, 64))
 
         pa, pb = small(a).tobytes(), small(b).tobytes()
         return sum(abs(x - y) for x, y in zip(pa, pb)) / (255.0 * len(pa))

@@ -8,7 +8,7 @@ Ligue alguns nós, veja cada resultado no próprio nó e edite o vídeo final se
 
 [Instalar](#instalar) · [Usar](#usar) · [Nós](#nós) · [Modelos](#modelos) · [Configurações](#configurações) · [Seus dados](#seus-dados) · [Desenvolvimento](#desenvolvimento) · [Changelog](CHANGELOG.md) · [English](README.md)
 
-`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Núcleo Rust` · `v0.50.0`
+`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Núcleo Rust` · `v0.51.0`
 
 </div>
 

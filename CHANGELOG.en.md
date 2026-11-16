@@ -2,6 +2,28 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.51.0] — 2026-11-16
+
+### Fixed — bugs when editing images in Canvas nodes
+I looked for errors by running the image-editing nodes (Resize, Filters and color, Text on image, Crop, Watermark, Collage, Thumbnail, Final image and the “Edit” mode of the Image node) with difficult inputs: 1 px, very thin, transparent, grayscale, palette, 16-bit, JPEG, WebP, GIF and BMP images. That turned up 14 failures and 3 silent defects:
+- **Resize with width or height at 0 (automatic)** failed on very thin images (e.g. 50×4000 with height 50 gave width 0 and ffmpeg gave up). Now the other side follows the aspect ratio, never below 1 px. As a bonus, “automatic” no longer rounds to an even number.
+- **Crop** could ask for 0 px (a 1% manual crop on a thin image, a 21:9 ratio on a 1 px image) and failed. Now a crop is always at least 1 px and, if it goes past the image edge, it snaps to the edge and warns (“The crop went past the image edge”).
+- **Filters (blur, sharpen, VHS) on a 1 px image** made ffmpeg corrupt memory and exit. Now the effect is skipped with a warning.
+- **Phone photos (EXIF orientation) came out sideways:** in the Image node's “Edit” mode the reference was read without its orientation, and the image nodes depended on the ffmpeg version (new ones rotate by themselves, old ones don't). Now the photo is rotated on input and the result is the same with any ffmpeg.
+- **Transparency turned black (or the hidden color):** an edit reference with a transparent background was converted straight to RGB. Now it is composited over white.
+- **16-bit PNGs came out all white** as an edit reference. Now they keep their brightness.
+- The “result is almost identical to the input” check and sd-cli (GGUF models) use the same corrected reading.
+
+### Tested
+- `tests/test_edit_images_v051.py` (12 tests): reading transparency, EXIF, 16-bit and formats; automatic sizes, Resize modes, 0 px and edge crops, 1 px blur, EXIF photo and BMP. With the old code, 10 of them fail.
+- The sweep (14 images × hundreds of parameters, plus collage, thumbnail, final image and the Edit mode with the demo provider) ended with 0 problems.
+
+### Not verified yet
+- **Real local models** (FLUX, Qwen-Image-Edit, etc.) were not run here: “Edit” mode was tested with the demo provider and the reference reading itself, not with a real model.
+- The output size of “Edit” on a local model keeps a 256 px minimum per side: an extremely thin image (e.g. 80:1) comes out with a limited aspect ratio.
+- Transparency: the reference is composited over **white**; no model receives the transparency channel. Watermark and Text on image keep preserving the input image's alpha.
+- I did not review the Canvas interface (dragging, zoom, viewer) for editing bugs: the sweep covered the node engine.
+
 ## [0.50.0] — 2026-11-16
 
 ### Design and customization

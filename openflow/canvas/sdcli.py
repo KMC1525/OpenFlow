@@ -501,15 +501,17 @@ def generate_image(exe: Path, load: Dict[str, Any], run_params: Dict[str, Any], 
     """Uma imagem pelo sd-cli: grava as referências em arquivos temporários, roda e devolve (PNG, avisos)."""
     with tempfile.TemporaryDirectory(prefix="flow-sdcli-") as tmp:
         d = Path(tmp)
+        from .media import clean_png   # o sd-cli ignora a orientação EXIF e o alfa: entrega a imagem já como a pessoa a vê
+
         ref_files = []
         for i, data in enumerate(refs):
             f = d / f"ref{i}.png"
-            f.write_bytes(data)
+            f.write_bytes(clean_png(data))
             ref_files.append(f)
         init_file = None
         if init:
             init_file = d / "init.png"
-            init_file.write_bytes(init)
+            init_file.write_bytes(clean_png(init))
         out = d / "out.png"
         args, warns = build_args(exe, load, run_params, prompt=prompt, width=width, height=height, seed=seed, negative=negative, refs=ref_files, init=init_file, out=out)
         run(args, exe, cancelled, note)
