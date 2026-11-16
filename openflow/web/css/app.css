@@ -326,3 +326,8 @@ a.btn,a.opt{text-decoration:none;color:inherit}
 @media (min-aspect-ratio:21/10) and (min-width:1900px){
   .page.narrow.cfg{max-width:1500px}
 }
+
+/* v0.49 · proteção do computador */
+.guard-banner{position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 16px;background:var(--danger,#b3261e);color:#fff;font-size:13px;box-shadow:0 4px 18px rgba(0,0,0,.45)}
+.guard-banner.hidden{display:none}.guard-banner .btn{margin-left:auto}
+.kv dd.warn{color:var(--warn,#e0a100);font-weight:600}

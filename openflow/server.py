@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import os
 import mimetypes
 import re
 import time
@@ -68,6 +69,9 @@ class App:
     def __init__(self, store: Store, bind_host: str = "127.0.0.1"):
         self.store = store
         self.jobs = JobManager(store)
+        from .guard import Guard
+
+        self.guard = Guard(self)   # proteção do computador (v0.49): para tudo se o hardware passar do limite
         self.bind_host = bind_host
         self.routes: List[Tuple[str, "re.Pattern[str]", Callable]] = []
         self._register()
@@ -130,6 +134,8 @@ class App:
         a("GET", r"/api/jobs", self.r_jobs)
         a("GET", r"/api/library/downloads", self.r_downloads)
         a("GET", r"/api/cpu", self.r_cpu)
+        a("GET", r"/api/guard", self.r_guard)
+        a("POST", r"/api/guard/stop", self.r_guard_stop)
         a("GET", r"/api/gpu", self.r_gpu)
         a("POST", r"/api/cpu/bench", self.r_cpu_bench)
         a("GET", r"/api/jobs/(?P<jid>[\w-]+)/events", self.r_job_events)
@@ -320,6 +326,14 @@ class App:
                                "est_tps": plan["est_tps"], "est_tps_cpu": plan["est_tps_cpu"], "notes": plan["notes"]})
         backend = best["backend"] if best else (gpus[0]["backend"] if gpus else "")
         req.json({"gpus": gpus, "llama": sup, "backend": backend, "best": (best or {}).get("name", ""), "sd_cli": sdcli.backend(), "models": models, "device": perf.device()})
+
+    def r_guard(self, req: "Request") -> None:
+        """Proteção do computador: o uso atual de CPU, RAM e GPU, o limite, o que está acima dele e a última parada (se houve)."""
+        req.json(self.guard.status())
+
+    def r_guard_stop(self, req: "Request") -> None:
+        """«Parar tudo agora»: o mesmo que a proteção faz quando o hardware passa do limite, mas pedido pelo usuário."""
+        req.json(self.guard.stop_all({"metrics": [], "limit": 0}, manual=True))
 
     def r_cpu(self, req: "Request") -> None:
         """O processador, a largura de banda da memória (se já medida) e a velocidade esperada de cada modelo de texto baixado, só na CPU. Configurações → Desempenho mostra isto."""
@@ -795,4 +809,6 @@ def make_server(host: str, port: int, store: Optional[Store] = None) -> Tuple[Se
     BoundHandler.app = app
     httpd = Server((host, port), BoundHandler)
     httpd.app = app
+    if os.environ.get("OPENFLOW_NO_GUARD", "") in ("", "0"):   # os testes desligam o vigia (a própria suíte pode passar de 90% de CPU)
+        app.guard.start()
     return httpd, app

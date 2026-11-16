@@ -2,6 +2,25 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.49.0] — 2026-11-16
+
+### Novo — Proteção do computador
+- **O OpenFlow para tudo se o seu computador sobrecarregar.** Um vigia (`openflow/guard.py`) mede, a cada segundo, o uso do **processador (CPU)**, da **memória (RAM)** e da **placa de vídeo (GPU)**. Se qualquer um deles ficar em **90% ou mais por 5 segundos** enquanto o OpenFlow está trabalhando, ele **para tudo**: cancela as tarefas em andamento, encerra os processos que ele iniciou (ffmpeg, sd-cli, llama…) e descarrega os modelos de texto e de mídia da memória.
+- **Para você não ser pego de surpresa:** uma faixa vermelha no topo diz o que foi parado e por quê («memória RAM em 94%…»), e cada tarefa cancelada registra a causa no próprio log.
+- **Configurações → Desempenho → «Proteção do computador»:** liga/desliga, limite (50–99%, padrão 90), segundos (1–60, padrão 5), o que vigiar (CPU, RAM, GPU), as medidas ao vivo e o botão **«Parar tudo agora»** (a mesma parada, sob demanda). API: `GET /api/guard` e `POST /api/guard/stop`.
+- **Regras para não atrapalhar à toa:** um pico curto não dispara (só carga sustentada pelos segundos configurados); só age quando o **OpenFlow está trabalhando** (se outro programa sobrecarrega a máquina, não há o que parar aqui); depois de uma parada há uma pausa de 20 s antes de poder disparar de novo.
+
+### Testado
+- `tests/test_guard_v049.py` (15 testes): a máquina de decisão com amostrador e relógio simulados (pico curto, limite exato, desligado, ocioso, métrica desmarcada), a parada completa (tarefa cancelada, processo filho e neto encerrados, modelos descarregados, pausa), a leitura de `/proc/stat` e da memória, e as rotas da API. Mais um teste de navegador (cartão, salvamento, limite mínimo e faixa de aviso).
+- Nos testes o vigia fica desligado (`OPENFLOW_NO_GUARD=1`) para não disparar por acaso numa máquina ocupada.
+
+### Ainda não verificado
+- **Não testei numa máquina realmente sobrecarregada**: a decisão foi testada com medidas simuladas e a leitura de CPU/RAM no Linux deste ambiente; não vi um disparo real nem em Windows ou macOS (lá a CPU é uma aproximação pela carga do sistema).
+- **Gerar na CPU costuma usar ~100% dela e vai disparar a proteção** com a configuração padrão. Se isso atrapalha, desmarque «CPU» ou suba o limite.
+- **GPU:** só a placa NVIDIA mede uso (via `nvidia-smi`) e a memória de vídeo dedicada; AMD/Intel/Apple não entram, e sem medida a GPU não dispara.
+- Um modelo rodando **dentro** do processo do OpenFlow (llama.cpp embutido) só é cancelado entre uma etapa e outra e descarregado depois; ele não é interrompido no meio de uma conta.
+- O instalador e o `flow setup` ainda oferecem os modelos pré-instalados (veja o 0.48).
+
 ## [0.48.0] — 2026-11-16
 
 ### Removido — «Prontos para instalar» na barra de pesquisa do Canvas

@@ -3,9 +3,12 @@ from __future__ import annotations
 
 import http.client
 import json
+import os
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, List, Optional, Tuple
+
+os.environ.setdefault("OPENFLOW_NO_GUARD", "1")   # v0.49: a proteção do computador fica desligada nos testes (a própria suíte pode passar de 90% de CPU); tests/test_guard_v049.py a testa de propósito
 
 
 class MockProviderServer:

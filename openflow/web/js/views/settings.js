@@ -210,6 +210,31 @@ function gpuCard(pf, hw) {
     })));
 }
 
+// Proteção do computador (v0.49): se o CPU, a RAM ou a placa de vídeo passam do limite por alguns segundos enquanto o OpenFlow trabalha, ele para tudo (tarefas, processos e modelos carregados)
+function guardCard(pf) {
+  const cfg = pf.guard = Object.assign({ enabled: true, limit: 90, hold_s: 5, cpu: true, ram: true, gpu: true }, pf.guard || {});   // `pf` é o mesmo objeto que os outros cartões gravam: a proteção não é desfeita por eles
+  const save = async () => { await saveSettings({ performance: { guard: cfg } }); toast(t('Salvo'), 'ok'); };
+  const live = h('dl', { class: 'kv', id: 'guard-live', style: { margin: '10px 0 0' } });
+  const last = h('div', { class: 'muted small', id: 'guard-last', style: { marginTop: '8px' } });
+  const label = { cpu: t('Processador (CPU)'), ram: t('Memória (RAM)'), gpu: t('Placa de vídeo (GPU)') };
+  let attached = false;
+  const paint = (g) => {
+    live.replaceChildren(...['cpu', 'ram', 'gpu'].flatMap((m) => [h('dt', null, label[m]), h('dd', { id: 'guard-' + m, class: g.over.includes(m) ? 'warn' : '' }, g.metrics[m] == null ? t('não medido neste computador') : Math.round(g.metrics[m]) + '%' + (g.over.includes(m) ? ' ⚠' : ''))]));
+    last.textContent = g.last_trip ? t('Última parada: {r} (tarefas {j}, processos {p}, modelos {m})', { r: g.last_trip.reason, j: g.last_trip.stopped.jobs, p: g.last_trip.stopped.processes, m: g.last_trip.stopped.models }) : t('Nenhuma parada até agora.');
+  };
+  const tick = async () => { if (live.isConnected) attached = true; else if (attached) return; try { paint(await api('/api/guard')); } catch (e) { /* sem servidor */ } setTimeout(tick, 1500); };   // para sozinho quando o cartão sai da tela
+  tick();
+  return cfgCard(t('Proteção do computador'),
+    h('p', { class: 'muted small', style: { marginTop: 0 } }, t('Se o uso do computador passar do limite por alguns segundos enquanto o OpenFlow está trabalhando, o OpenFlow para tudo: cancela as tarefas, encerra os processos (ffmpeg, sd-cli…) e descarrega os modelos. Gerar na CPU costuma usar quase 100% dela: se isso incomoda, desmarque o processador ou aumente o limite.')),
+    checkbox(t('Parar tudo quando o hardware passar do limite'), cfg.enabled, async (v) => { cfg.enabled = v; await save(); }),
+    h('div', { class: 'grid2', style: { marginTop: '10px' } },
+      field(t('Limite de uso (%)'), h('input', { type: 'number', id: 'guard-limit', min: 50, max: 99, value: cfg.limit, onchange: async (e) => { cfg.limit = Math.max(50, Math.min(99, parseInt(e.target.value, 10) || 90)); e.target.value = cfg.limit; await save(); } })),
+      field(t('Por quantos segundos (1–60)'), h('input', { type: 'number', id: 'guard-hold', min: 1, max: 60, value: cfg.hold_s, onchange: async (e) => { cfg.hold_s = Math.max(1, Math.min(60, parseInt(e.target.value, 10) || 5)); e.target.value = cfg.hold_s; await save(); } }))),
+    h('div', { class: 'row', style: { gap: '16px', flexWrap: 'wrap' } }, ['cpu', 'ram', 'gpu'].map((m) => checkbox(t('Vigiar: {m}', { m: label[m] }), cfg[m], async (v) => { cfg[m] = v; await save(); }))),
+    live, last,
+    h('div', { class: 'row', style: { marginTop: '10px' } }, h('button', { class: 'btn danger sm', type: 'button', id: 'guard-stop', onclick: async () => { const r = await api('/api/guard/stop', { method: 'POST', body: {} }); toast(t('Tudo foi parado.') + ' ' + t('Tarefas: {j} · processos: {p} · modelos descarregados: {m}.', { j: r.stopped.jobs, p: r.stopped.processes, m: r.stopped.models }), 'ok'); } }, icon('stop', 14), t('Parar tudo agora'))));
+}
+
 // Downloads de modelos (v0.42): a tela «Modelos» saiu da Biblioteca — a pesquisa e o download ficam na barra de pesquisa do Canvas; aqui ficam os ajustes que valem para todos eles
 function downloadsCard() {
   const tokenIn = h('input', { type: 'password', autocomplete: 'off', id: 'hf-token', 'aria-label': t('Token do Hugging Face'), placeholder: state.settings.hf.token_set ? '•••••••• (' + t('salvo') + ')' : 'hf_…' });
@@ -239,6 +264,7 @@ async function performance() {
           t('Onde os modelos rodam. «GPU» usa a placa de vídeo (NVIDIA: CUDA; AMD/Intel: Vulkan); «Só CPU» nunca a usa; «Híbrido» usa as duas: no texto, a placa leva as camadas que couberem, a CPU o resto e ainda propõe os próximos tokens (a placa confirma); em imagem e vídeo o codificador de texto e o VAE rodam na CPU e a placa fica só com o modelo. O executável sd-cli certo é baixado sozinho na próxima geração.') + ' ' + (hw.gpu ? t('GPU detectada: {g}', { g: hw.gpu }) : t('Nenhuma GPU NVIDIA detectada.'))),
         field(t('Descarregar modelos ociosos após (min)'), h('input', { type: 'number', min: 0, max: 1440, value: pf.idle_unload_min, onchange: async (e) => { pf.idle_unload_min = Math.max(0, parseInt(e.target.value || '0', 10)); await saveSettings({ performance: pf }); toast(t('Salvo'), 'ok'); } }), t('0 = nunca. No modo leve o limite é de até 3 min.'))),
       h('p', { class: 'muted small', style: { marginBottom: 0 } }, t('Seu hardware: {t}', { t: hw.tier }) + ' · ' + hw.cpus + ' CPU · ' + (hw.ram_gb ? hw.ram_gb + ' GB RAM' : '—') + ' · ' + (hw.gpu || t('não detectada (NVIDIA)')))),
+    guardCard(pf),
     gpuCard(pf, hw),
     cpuCard(pf),
     downloadsCard(),

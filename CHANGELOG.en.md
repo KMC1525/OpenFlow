@@ -2,6 +2,25 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.49.0] — 2026-11-16
+
+### New — Computer protection
+- **OpenFlow stops everything if your computer gets overloaded.** A watchdog (`openflow/guard.py`) samples **CPU**, **RAM** and **GPU** use every second. If any of them stays at **90% or more for 5 seconds** while OpenFlow is working, it **stops everything**: cancels running jobs, ends the processes it started (ffmpeg, sd-cli, llama…) and unloads the text and media models from memory.
+- **No surprises:** a red banner at the top says what was stopped and why («RAM at 94%…»), and each cancelled job records the cause in its own log.
+- **Settings → Performance → «Computer protection»:** on/off, limit (50–99%, default 90), seconds (1–60, default 5), what to watch (CPU, RAM, GPU), live readings and a **«Stop everything now»** button (the same stop, on demand). API: `GET /api/guard` and `POST /api/guard/stop`.
+- **Rules so it does not get in the way for nothing:** a short spike does not trip it (only load sustained for the configured seconds); it acts only while **OpenFlow is working** (if another program overloads the machine there is nothing to stop here); after a stop there is a 20 s pause before it can trip again.
+
+### Tested
+- `tests/test_guard_v049.py` (15 tests): the decision machine with a fake sampler and clock (short spike, exact limit, disabled, idle, unticked metric), the full stop (job cancelled, child and grandchild processes ended, models unloaded, pause), reading `/proc/stat` and memory, and the API routes. Plus one browser test (card, saving, minimum limit, warning banner).
+- In tests the watchdog is off (`OPENFLOW_NO_GUARD=1`) so it never trips by accident on a busy machine.
+
+### Not verified yet
+- **Not tested on a truly overloaded machine**: the decision was tested with simulated readings and the Linux CPU/RAM reading here; I did not see a real trip, nor on Windows or macOS (CPU there is an approximation from system load).
+- **Generating on the CPU often uses ~100% of it and will trip the protection** with the default setting. If that gets in the way, untick «CPU» or raise the limit.
+- **GPU:** only NVIDIA cards report utilization (via `nvidia-smi`) plus dedicated video memory; AMD/Intel/Apple are not measured, and without a reading the GPU never trips.
+- A model running **inside** the OpenFlow process (embedded llama.cpp) is only cancelled between steps and unloaded afterwards; it is not interrupted mid-computation.
+- The installer and `flow setup` still offer the pre-installed models (see 0.48).
+
 ## [0.48.0] — 2026-11-16
 
 ### Removed — “Ready to install” in the Canvas search bar

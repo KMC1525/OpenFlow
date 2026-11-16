@@ -8,7 +8,9 @@ import threading
 import unittest
 from pathlib import Path
 
-from openflow.server import make_server
+os.environ.setdefault("OPENFLOW_NO_GUARD", "1")   # v0.49: sem a proteção do computador nos testes
+
+from openflow.server import make_server  # noqa: E402
 from openflow.storage import Store
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -38,7 +40,7 @@ class BrowserTests(unittest.TestCase):
         shutil.rmtree(cls.tmp, ignore_errors=True)
 
     def run_script(self, name: str, extra_env=None) -> None:
-        r = subprocess.run(["node", str(BROWSER / name)], capture_output=True, text=True, timeout=300, env={**os.environ, "OPENFLOW_PORT": str(self.port), **(extra_env or {})})
+        r = subprocess.run(["node", str(BROWSER / name)], capture_output=True, text=True, timeout=300, env={**os.environ, "OPENFLOW_PORT": str(self.port), "OPENFLOW_NO_GUARD": "1", **(extra_env or {})})
         self.assertEqual(r.returncode, 0, r.stderr[-1500:])
         out = json.loads(r.stdout.strip().splitlines()[-1])
         failed = [k for k, v in out["checks"].items() if not v]
@@ -99,6 +101,9 @@ class BrowserTests(unittest.TestCase):
 
     def test_23_the_node_limit_warns_instead_of_losing_the_new_node(self):
         self.run_script("limits_v047_ui.js")
+
+    def test_24_the_computer_guard_card_and_stop_banner(self):
+        self.run_script("guard_v049_ui.js")
 
     def test_19_the_ai_flow_generator_and_the_team_picker_are_gone(self):
         self.run_script("no_flow_ai_ui.js")

@@ -32,7 +32,7 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
         "models": {},  # {"local_hf": {"image": "stabilityai/sd-turbo"}} — modelo por provedor e capacidade
     },
     "canvas": {"template": "text_image"},
-    "performance": {"mode": "auto", "idle_unload_min": 10, "device": "auto", "gpus": [], "cpu_pin": True},  # auto | light | balanced | max — veja perf.py
+    "performance": {"mode": "auto", "idle_unload_min": 10, "device": "auto", "gpus": [], "cpu_pin": True, "guard": {"enabled": True, "limit": 90, "hold_s": 5, "cpu": True, "ram": True, "gpu": True}},   # guard: proteção do computador (guard.py)  # auto | light | balanced | max — veja perf.py
     "server": {"max_upload_mb": 200},
     "storage": {"models_dir": "", "files_dir": ""},   # v0.33: onde guardar os modelos e os arquivos dos projetos ("" = a pasta padrão do OpenFlow; um disco externo, outro disco…)
     "hf": {"token": "", "auto_support": True, "connections": 4},  # auto_support: baixa junto do modelo o VAE, os codificadores de texto e o mmproj (ver canvas/support.py); connections: conexões simultâneas por download (1 a 8; ver dl.py)
@@ -73,6 +73,15 @@ def local_only(settings: dict) -> dict:
     media.pop("urls", None)
     s["media"] = media
     return s
+
+
+def _normalize_guard(settings: dict) -> None:
+    """Proteção do computador (v0.49): limite entre 50 e 99 %, tempo entre 1 e 60 s e as chaves ligar/desligar sempre válidos."""
+    from . import guard
+
+    perf = settings.get("performance")
+    if isinstance(perf, dict):
+        perf["guard"] = guard.normalize(perf.get("guard"))
 
 
 def conform(defaults: Any, value: Any) -> Any:
@@ -192,6 +201,7 @@ class Store:
         saved = read_json(self.settings_path, {}) or {}
         merged = conform(DEFAULT_SETTINGS, deep_merge(copy.deepcopy(DEFAULT_SETTINGS), saved if isinstance(saved, dict) else {}))
         local_only(merged)
+        _normalize_guard(merged)
         merged["ui"] = normalize_ui(merged.get("ui"))  # valor inválido (API/edição manual) volta ao padrão em vez de quebrar a interface
         return merged
 
@@ -226,6 +236,7 @@ class Store:
             merged = conform(DEFAULT_SETTINGS, deep_merge(current, patch))  # valor do tipo errado (API/edição manual) nunca chega ao disco
             merged["ui"] = normalize_ui(merged.get("ui"))
             local_only(merged)
+            _normalize_guard(merged)
             write_json(self.settings_path, merged, private=True)
             from . import perf
 
