@@ -20,7 +20,7 @@ mod util;
 /// Versão da interface (o Python recusa uma biblioteca de outra versão).
 #[no_mangle]
 pub extern "C" fn flow_abi_version() -> u32 {
-    6
+    7
 }
 
 unsafe fn slice_mut<'a, T>(p: *mut T, n: usize) -> Option<&'a mut [T]> {

@@ -101,6 +101,26 @@ def device() -> str:
     return v if v in DEVICES else "auto"
 
 
+# --------------------------------------------------------------------------- memória por classe de RAM (v0.45: computadores de 16 GB, DDR4/DDR5)
+def ram_plan(weights: int, kv_per_token: int = 0, other_resident: int = 0) -> Dict[str, Any]:
+    """Plano de memória deste computador para carregar um modelo de `weights` bytes (núcleo Rust: native.plan_ram): quanto sobra depois do sistema, se o outro modelo (texto ou mídia, `other_resident`
+    bytes) precisa sair da RAM, o contexto que cabe, threads e lotes pela velocidade da memória (DDR4/DDR5 e canais) e as opções de mídia que poupam RAM. {} se não deu para planejar."""
+    try:
+        from . import native
+        from .util import hardware_info
+
+        mem = memory_state()
+        if mem["ram_total"] <= 0:
+            return {}
+        lay = native.memory_layout() or {}
+        ty = native.MEM_TYPE.get(str(lay.get("type") or "").upper().replace("-", ""), 0)
+        mode = MODE_NUM[profile(CURRENT, hardware_info())["mode"]]
+        return native.plan_ram(mem["ram_total"], mem["ram_avail"], int(weights), int(other_resident), int(kv_per_token), ty, int(lay.get("configured_speed") or lay.get("speed") or 0),
+                               int(lay.get("channels") or 0), mem["phys"], mode)
+    except Exception:  # noqa: BLE001 — sem plano, vale o comportamento de antes
+        return {}
+
+
 # --------------------------------------------------------------------------- CPU (v0.28)
 _PINNED: Dict[str, Any] = {"done": False, "cpus": []}
 

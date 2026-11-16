@@ -2,6 +2,24 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.45.0] — 2026-11-16
+
+### New — 16 GB RAM computers (DDR4 and DDR5), with the Rust core
+- **RAM-class memory planner** (`flow_plan_ram`, Rust core interface 7; a Python mirror with the same math, checked by the tests): it subtracts what the system, the browser and OpenFlow use (≈ 22% of RAM, between 2.5 and 6 GB) and, on what is left, decides:
+  - **One model at a time in RAM:** if the text model and the image/video/sound one do not fit together, the loaded one **leaves first** before the other loads (before, both stayed in RAM and the computer started using the disk).
+  - **Context** that fits the RAM left and an **8-bit attention cache** when the model takes more than 60% of it.
+  - **Threads and batches by memory speed** (DDR4/DDR5 × MT/s × channels, read from SMBIOS when permitted): more threads than memory can feed only hurt CPU generation; DDR5 and dual channel take bigger batches; tight RAM uses smaller batches (compute buffers also take RAM).
+  - **`mlock` only when there is plenty left**, prefetch only when the model fits comfortably and a smaller prompt cache when tight.
+  - **Image, video and sound:** attention and VAE slicing on when the model takes a big share of RAM; idle models unload sooner (2 to 5 min) in this class.
+- Only acts on the “small” (< 12 GB) and “16 GB” (12 to 24 GB) classes; at 32 GB or more nothing changes. Any planner failure goes back to the previous behavior, and a hand-set context is never shrunk.
+- **Settings → Performance → Processor:** a new “Memory for the models” line (what is left after the system, GB/s and useful threads) with your RAM class.
+- The core moved to **interface 7**: interface 6 libraries (v0.29–v0.44) still load and OpenFlow uses the planner's Python mirror until the new library is downloaded (`flow native setup`).
+
+### Not verified yet
+- **I did not measure a real speed gain on a 16 GB machine** (this environment is not one): the tests prove the math (Rust = Python on 400 random cases), the integration and the limits; the expected gains come from avoiding disk use when text and media compete for RAM and from not using more threads than memory feeds.
+- DDR4/DDR5, MT/s and channels come from SMBIOS (Windows and `dmidecode` on Linux, with permission); without that the planner assumes DDR4-2400 in dual channel, which is conservative.
+- The limits (22% reserve, 60% “tight”, ~12 GB/s per core) are heuristics; adjust them if you measure differently.
+
 ## [0.44.0] — 2026-11-16
 
 ### Removed — legacy or useless settings

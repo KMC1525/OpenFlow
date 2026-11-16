@@ -24,7 +24,7 @@ from array import array
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-ABI = 6   # versão da interface desta versão do OpenFlow; bibliotecas antigas (1 a 5) ainda servem (sem os recursos novos: CPU v0.28 e GPU v0.29): a 1 só para o áudio, a 2 também para modelos locais, a 3 para agentes/armazenamento — sem os recursos novos (análise de mídia e grafos, v0.17)
+ABI = 7   # versão da interface desta versão do OpenFlow; bibliotecas antigas (1 a 5) ainda servem (sem os recursos novos: CPU v0.28 e GPU v0.29): a 1 só para o áudio, a 2 também para modelos locais, a 3 para agentes/armazenamento — sem os recursos novos (análise de mídia e grafos, v0.17)
 SRC = Path(__file__).resolve().parent
 _LIB: Any = None
 _TRIED = False
@@ -145,6 +145,10 @@ def _bind(lib: Any) -> None:
         lib.flow_gpu_info.restype = i64
         lib.flow_plan_gpu.argtypes = [u64, i64, i64, i64, u64, u64, u32, u32, f64, f64, u64, u32, vp, sz]
         lib.flow_plan_gpu.restype = i64
+    if lib.flow_abi_version() >= 7:  # v0.45: planejador de memória por classe de RAM (16 GB, DDR4/DDR5)
+        sz, i64, vp, u32, u64 = ctypes.c_size_t, ctypes.c_int64, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint64
+        lib.flow_plan_ram.argtypes = [u64, u64, u64, u64, u64, u32, u32, u32, u32, u32, vp, sz]
+        lib.flow_plan_ram.restype = i64
 
 
 def load(force: bool = False) -> Any:
@@ -162,7 +166,7 @@ def load(force: bool = False) -> Any:
                 continue
             try:
                 lib = ctypes.CDLL(str(path))
-                if lib.flow_abi_version() not in (1, 2, 3, 4, 5, ABI):
+                if lib.flow_abi_version() not in (1, 2, 3, 4, 5, 6, ABI):
                     _REASON = f"{path.name}: versão da interface diferente (recompile com `flow native setup`)"
                     continue
                 _bind(lib)
@@ -1692,3 +1696,62 @@ def memory_advice(layout: Dict[str, Any], bench: Optional[Dict[str, Any]]) -> li
         if bw and layout["theoretical_gbs"] and bw < layout["theoretical_gbs"] * 0.45:
             out.append("below_expected")
     return out
+
+
+# --------------------------------------------------------------------------- v0.45: computadores de 16 GB (DDR4 e DDR5)
+MEM_TYPE = {"": 0, "DDR3": 1, "DDR4": 2, "DDR5": 3, "LPDDR4": 4, "LPDDR5": 4, "LPDDR4X": 4}
+
+
+def _lib7() -> Any:
+    lib = load()
+    return lib if lib is not None and hasattr(lib, "flow_plan_ram") else None
+
+
+def plan_ram(ram_total: int, ram_avail: int, weights: int, other_resident: int, kv_per_token: int, mem_type: int, mem_mts: int, channels: int, phys: int, mode: int) -> Dict[str, Any]:
+    """Plano de memória por classe de RAM (a de 16 GB é a mais comum): quanto sobra para os modelos depois do sistema (`budget`), se o outro modelo (texto ↔ mídia) precisa sair da RAM (`evict_other`),
+    o contexto que cabe (`ctx_cap`), threads úteis e lotes pela velocidade da memória (DDR4/DDR5 × MT/s × canais) e as opções de carga de mídia que poupam RAM. Rust (interface 7) quando existe;
+    o equivalente em Python faz as mesmas contas (conferidas nos testes). mem_type: 0 ?, 1 DDR3, 2 DDR4, 3 DDR5, 4 LPDDR · mode: 0 leve, 1 equilibrado, 2 máximo."""
+    lib = _lib7()
+    if lib is not None:
+        r = _call_json(lambda buf, cap: lib.flow_plan_ram(int(ram_total), int(ram_avail), int(weights), int(other_resident), int(kv_per_token), int(mem_type), int(mem_mts), int(channels), int(phys), int(mode), buf, cap))
+        if r:
+            return r
+    gib = float(1 << 30)
+    total = float(ram_total)
+    avail = float(ram_avail) if ram_avail > 0 else total * 0.7
+    w, other = float(weights), float(other_resident)
+    kvpt = float(kv_per_token) if kv_per_token > 0 else 131072.0
+    cls = "unknown" if total <= 0 else "small" if total < 11.5 * gib else "16" if total < 24.5 * gib else "large"
+    notes: list = []
+    reserve = min(max(total * 0.22, 2.5 * gib), 6.0 * gib)
+    cap_total = max(total - reserve, 0.0)
+    budget_now = min(max(avail - 0.5 * gib, 0.0), cap_total)
+    budget_free = min(max(avail + other - 0.5 * gib, 0.0), cap_total)
+    evict = other > 0 and w * 1.05 > budget_now * 0.92
+    budget = budget_free if evict else budget_now
+    if evict:
+        notes.append("pouca RAM livre: o outro modelo (texto ou mídia) sai da memória antes de carregar este")
+    tight = w > budget * 0.60
+    if tight and w <= budget:
+        notes.append("o modelo ocupa mais da metade da RAM disponível: opções que poupam memória")
+    elif w > budget:
+        notes.append("o modelo é maior que a RAM disponível: vai usar disco (mmap) e ficar lento")
+    kv_q8 = tight or cls == "small" or mode == 0
+    room = max(budget - w * 1.05 - 0.5 * gib, 0.0)
+    per_tok = kvpt * (0.53 if kv_q8 else 1.0)
+    ctx_cap = max(math.floor(room / per_tok / 256.0) * 256.0, 512.0)
+    typical = {1: 1333.0, 2: 2666.0, 3: 4800.0, 4: 6400.0}.get(int(mem_type), 2400.0)
+    mts = float(mem_mts) if mem_mts > 0 else typical
+    ch = float(min(max(channels, 1), 4))
+    bw = mts * 8.0 * ch / 1000.0 * 0.75
+    core_bw = 16.0 if mem_type in (3, 4) else 12.0
+    p = float(max(phys, 1))
+    useful = min(max(math.ceil(bw / core_bw), 2.0), max(p, 2.0))
+    if ch <= 1.0 and total > 0:
+        notes.append("memória em canal único: a velocidade cai pela metade (dois pentes iguais dobram)")
+    n_batch = 128 if tight else 512 if bw >= 60.0 else 256
+    n_ubatch = 128 if (tight or bw < 40.0) else 256
+    return {"class": cls, "reserve": int(reserve), "budget": int(budget), "tight": tight, "evict_other": evict, "fits": w * 1.05 <= budget, "ctx_cap": int(ctx_cap), "kv_q8": kv_q8,
+            "mlock": mode == 2 and w <= budget * 0.40, "prefetch": w <= budget * 0.65, "bw_gbs": round(bw * 10.0) / 10.0, "useful_threads": int(useful), "n_batch": n_batch, "n_ubatch": n_ubatch,
+            "idle_s": 120 if tight else (300 if cls == "16" else 0), "media_low_cpu_mem": cls != "large", "media_sequential": w > budget * 0.55, "media_slicing": cls != "large" and w > budget * 0.30,
+            "media_tiling": budget < 10.0 * gib or w > budget * 0.35, "notes": notes}

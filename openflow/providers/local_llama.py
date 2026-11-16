@@ -49,6 +49,38 @@ def _unload() -> None:
     _release(paths)
 
 
+def resident_bytes() -> int:
+    """Quanta RAM os modelos de texto carregados ocupam (o tamanho dos arquivos: eles são mapeados na memória). Usado para decidir se o modelo de mídia precisa esperar a vez (v0.45)."""
+    total = 0
+    with _LOCK:
+        paths = list(_PATHS.values())
+    for p in paths:
+        try:
+            total += os.path.getsize(p)
+        except OSError:
+            pass
+    return total
+
+
+def _evict_media() -> None:
+    """Computador de 16 GB: o modelo de imagem/vídeo/som carregado sai da RAM antes de carregar um de texto grande (v0.45)."""
+    try:
+        from ..canvas import media
+
+        media._media_unload()
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def media_resident_bytes() -> int:
+    try:
+        from ..canvas import media
+
+        return int(media.resident_bytes())
+    except Exception:  # noqa: BLE001
+        return 0
+
+
 def _resident_limit(path: str, want_ctx: int, prof: Dict[str, Any]) -> int:
     """Quantos modelos podem ficar carregados ao mesmo tempo (núcleo Rust: pelo tamanho do modelo e a memória livre). Padrão 1 (hardware leve)."""
     try:
@@ -102,6 +134,37 @@ def _load_llama(Llama: Any, base: Dict[str, Any], prof: Dict[str, Any]) -> Any:
     return Llama(**base)
 
 
+def _apply_ram(plan: Dict[str, Any], info: Dict[str, Any], want_ctx: int, explicit: bool) -> None:
+    """Computador de 16 GB (v0.45, núcleo Rust: native.plan_ram): desconta o que o sistema usa, tira o modelo de mídia da RAM se não couberem os dois, e ajusta contexto, cache de atenção, lotes, threads,
+    `mlock` e pré-carga à RAM que sobra e à velocidade da memória (DDR4/DDR5, canais). Só mexe na parte do modelo que fica na RAM (camadas na GPU não contam)."""
+    w = int(info.get("bytes") or 0)
+    layers = max(int(info.get("layers") or 0), 1)
+    ngl = int(plan.get("gpu_layers_fit") or 0)
+    cpu_w = int(w * 0.15) if int(plan.get("n_gpu_layers") or 0) == -1 else int(w * (1 - min(ngl, layers) / layers))
+    if cpu_w <= 0:
+        return
+    ram = perf.ram_plan(cpu_w, int(info.get("kv_bytes_per_token") or 0), media_resident_bytes())
+    if not ram or ram.get("class") not in ("small", "16"):   # só as classes pequenas: em 32 GB ou mais o planejador de antes já sobra
+        return
+    plan["ram"] = ram
+    if ram.get("evict_other"):
+        _evict_media()
+    if ram.get("kv_q8") and not plan.get("kv_q8") and not plan.get("kv_q4"):
+        plan["kv_q8"], plan["flash"] = True, True
+    if not explicit and int(plan.get("n_ctx") or 0) > int(ram["ctx_cap"]):
+        plan["n_ctx"] = max(512, int(ram["ctx_cap"]))
+        plan.setdefault("notes", []).append("contexto limitado à RAM que sobra depois do sistema (computador de 16 GB)")
+    plan["n_batch"], plan["n_ubatch"] = min(int(plan["n_batch"]), int(ram["n_batch"])), min(int(plan["n_ubatch"]), int(ram["n_ubatch"]))
+    if int(plan.get("n_gpu_layers") or 0) == 0:   # só CPU: mais threads que a memória consegue alimentar só atrapalham
+        plan["n_threads"] = max(1, min(int(plan["n_threads"]), int(ram["useful_threads"])))
+        plan["n_threads_batch"] = max(plan["n_threads"], min(int(plan["n_threads_batch"]), int(ram["useful_threads"]) + 2))
+    plan["mlock"] = bool(plan.get("mlock")) and bool(ram["mlock"])
+    plan["prefetch"] = bool(plan.get("prefetch")) and bool(ram["prefetch"])
+    if ram.get("tight"):
+        plan["cache_bytes"] = min(int(plan.get("cache_bytes") or 0), 128 << 20)
+    plan.setdefault("notes", []).extend(ram.get("notes") or [])
+
+
 def _plan(path: str, hw: Dict[str, Any], prof: Dict[str, Any], want_ctx: int, explicit: bool) -> Dict[str, Any]:
     """Plano de carga com o núcleo Rust: lê o cabeçalho do GGUF e a memória livre agora. Qualquer falha cai no comportamento antigo (hardware_info)."""
     try:
@@ -113,6 +176,7 @@ def _plan(path: str, hw: Dict[str, Any], prof: Dict[str, Any], want_ctx: int, ex
         plan = native.plan_llm(int(info.get("bytes") or 0), int(info.get("layers") or 0), int(info.get("kv_bytes_per_token") or 0), int(info.get("ctx_train") or 0), int(want_ctx), explicit,
                                0, mem["ram_avail"], mem["vram_free"] if gpu_known else 0, mem["unified"], mem["phys"], mem["logical"], perf.MODE_NUM[prof["mode"]])
         plan["info"] = {k: info.get(k) for k in ("arch", "name", "quant", "layers", "ctx_train", "bytes", "params")}
+        _apply_ram(plan, info, int(want_ctx), explicit)
         return plan
     except Exception:  # noqa: BLE001
         return {}
