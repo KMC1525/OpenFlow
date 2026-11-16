@@ -12,7 +12,7 @@ from typing import Any, Dict
 from .canvas.engine import CanvasEngine
 from . import archives
 from .canvas import mesh3d
-from .canvas.media import MEDIA_PRESETS, MIME_EXT, build_media, describe_media_presets, sniff_mime
+from .canvas.media import MEDIA_PRESETS, MIME_EXT, build_media, describe_media_presets, refine_mime, sniff_mime
 from .canvas.schema import ASPECTS, CAPS, MAX_EDGES, MAX_NODES, NODE_TYPES, SIZES, TEMPLATES, VIDEO_RESOLUTIONS, describe_types, find_folder, normalize_params, normalize_result
 from .jobs import HttpError, Job
 from .providers import ProviderError
@@ -106,7 +106,7 @@ class ProjectRoutes:
             if not path.is_file() or path.stat().st_size > limit:
                 continue
             data = path.read_bytes()
-            mime = sniff_mime(data)
+            mime = refine_mime(data, sniff_mime(data))
             kind = mime.split("/")[0]
             if kind in ("image", "audio", "video"):
                 a = self.cs.add_asset(cid, data, MIME_EXT.get(mime, "bin"), kind, name=meta["name"], mime=mime, provider="upload")
@@ -208,7 +208,7 @@ class ProjectRoutes:
         data = req.body_bytes(limit)
         if archives.archive_kind(name):   # ZIP, RAR, 7z, TAR…: as imagens, vídeos e áudios de dentro viram arquivos do canvas (uma resposta com `also` quando há mais de um)
             return self._asset_upload_archive(req, cid, name, data)
-        mime = sniff_mime(data)  # o tipo vem do conteúdo, nunca do nome nem do Content-Type enviado
+        mime = refine_mime(data, sniff_mime(data))  # o tipo vem do conteúdo (inclusive das trilhas: só áudio num .mp4 é áudio), nunca do nome nem do Content-Type enviado
         kind = mime.split("/")[0] if mime.split("/")[0] in ("image", "audio", "video") else ("model3d" if mime == "model/gltf-binary" else "")
         if kind == "model3d":   # um GLB só entra se o cabeçalho e o JSON conferem (v0.47): um arquivo que só começa com «glTF» não vira modelo
             try:
@@ -243,6 +243,7 @@ class ProjectRoutes:
     def _asset_upload_archive(self, req, cid: str, name: str, data: bytes) -> None:
         try:
             members = archives.media_members(data, name, sniff_mime)
+            members = [(n, d, refine_mime(d, m)) for n, d, m in members]
         except archives.ArchiveError as exc:
             raise HttpError(400, str(exc))
         node_id = text(req.query.get("node", [""])[0], "", 24)
