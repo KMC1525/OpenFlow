@@ -2,6 +2,22 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.60.0] — 2026-11-16
+
+### Fixed — `flow` in the Windows and macOS terminals
+An audit of what the terminal does differently on each system, with these fixes (the ones marked «tested» have automatic tests using simulated command output and sockets; there is no real Windows or macOS in the tests):
+- **Windows — `flow update` did not run the installer properly:** the downloaded `install.ps1` was saved as UTF-8 **without a BOM**, and Windows PowerShell 5.1 reads that as ANSI: the installer's «✓» (bytes E2 9C 93) becomes «â œ “», and the «“» quote closes the string halfway — a syntax error before it starts, besides the swapped accents. `flow update` now saves the installer with a BOM (tested). The published file stays **without** a BOM on purpose, because `irm … | iex` does not accept a BOM at the start.
+- **Windows — installer on old Windows 10 / Server 2016:** `install.ps1` turns TLS 1.2 on (PowerShell 5.1 does not always do it by itself and the GitHub download failed with «Could not create SSL/TLS secure channel»).
+- **Windows — terminal output crashed on ✓ ⚠ → …:** with redirected output (`flow models list | clip`, `> file`, task scheduler) Windows uses the system code page (cp1252/cp850), which lacks those characters, and `print` died with `UnicodeEncodeError`. Now whatever the encoding cannot represent becomes «?» (stdout and stderr) instead of crashing the command (tested).
+- **Windows — opening `flow` twice fought over the same port:** Windows' `SO_REUSEADDR` lets two programs open the same port without error, so the second instance did not move to the next port (8788…) and the browser landed on one or the other. The server now uses `SO_EXCLUSIVEADDRUSE` on Windows (the second attempt fails and `flow` moves on to the next port). Linux and macOS stay as they were (tested what can be tested on Linux: the second instance cannot open the same port; the Windows branch is tested with a simulated socket).
+- **macOS — without the Rust core, RAM showed as 0:** the Python path only read Linux's `/proc`. It now reads the total (`sysctl hw.memsize`), the really available memory (`vm_stat`: free + inactive + speculative + purgeable, in Apple Silicon's 16 KB page or Intel's 4 KB), the **physical cores** (`hw.physicalcpu`; the «half of the logical ones» guess was wrong on Apple Silicon, which has no hyper-threading) and the **CPU extensions** (NEON on Apple Silicon; SSE4.2/AVX/AVX2/FMA/AVX-512 through `sysctl` on Intel) (tested with simulated output).
+- **macOS — available RAM was only an estimate:** the Rust core estimates 60 % of the total on macOS. OpenFlow now uses the `vm_stat` reading when the core only estimates, so the model planner and the computer guard see the real memory (cached for 2 s so `vm_stat` is not called all the time).
+
+### Not verified yet
+- **None of this ran on a real Windows or macOS.** The tests use simulated `sysctl`/`vm_stat` output, sockets and downloads; `install.ps1` was not executed (there is no PowerShell here, only a byte-level analysis). That PowerShell 5.1 accepts the installer with a BOM and that TLS 1.2 fixes the download on an old Windows 10 is reasoning about known behavior, not a run.
+- **The Rust core was not changed:** on macOS it still estimates 60 % free RAM and counts physical = logical cores; the fix is on the Python side, which overrides the estimate. Fixing it in Rust requires building and testing on macOS.
+- The audit was a code read: other system-specific problems may exist (for example, the URL shown is `localhost` and Windows tries `::1` before `127.0.0.1`, which only delays opening).
+
 ## [0.59.0] — 2026-11-16
 
 ### New — Multi GPU: the VRAM of several cards together, and VRAM + RAM at the same time

@@ -2,6 +2,22 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.60.0] — 2026-11-16
+
+### Corrigido — o `flow` no terminal do Windows e do macOS
+Uma auditoria do que o terminal faz de diferente em cada sistema, com estas correções (as marcadas com «testado» têm teste automático com saídas de comando e sockets simulados; não há Windows nem macOS reais nos testes):
+- **Windows — `flow update` não rodava o instalador direito:** o `install.ps1` baixado era gravado em UTF-8 **sem BOM** e o Windows PowerShell 5.1 lê isso como ANSI: o «✓» do instalador (bytes E2 9C 93) vira «â œ “», e a aspa «“» fecha o texto no meio — erro de sintaxe antes de começar, fora os acentos trocados. Agora o `flow update` grava o instalador com BOM (testado). O arquivo publicado continua **sem** BOM de propósito, porque `irm … | iex` não aceita BOM no começo.
+- **Windows — instalador em Windows 10 antigo / Server 2016:** o `install.ps1` liga o TLS 1.2 (o PowerShell 5.1 nem sempre o liga sozinho e o download do GitHub falhava com «Could not create SSL/TLS secure channel»).
+- **Windows — saída do terminal quebrava com ✓ ⚠ → …:** com a saída redirecionada (`flow models list | clip`, `> arquivo`, agendador de tarefas) o Windows usa a página de código do sistema (cp1252/cp850), que não tem esses caracteres, e o `print` morria com `UnicodeEncodeError`. Agora o que a codificação não representa vira «?» (stdout e stderr) em vez de derrubar o comando (testado).
+- **Windows — abrir o `flow` duas vezes disputava a mesma porta:** o `SO_REUSEADDR` do Windows deixa dois programas abrirem a mesma porta sem erro, então a segunda instância não passava para a porta seguinte (8788…) e o navegador caía numa ou noutra. Agora o servidor usa `SO_EXCLUSIVEADDRUSE` no Windows (a segunda tentativa dá erro e o `flow` segue para a próxima porta). Linux e macOS ficam como estavam (testado o que dá para testar no Linux: a segunda instância não abre a mesma porta; o ramo do Windows é testado com um socket simulado).
+- **macOS — sem o núcleo Rust, a RAM aparecia como 0:** o caminho em Python lia só o `/proc` do Linux. Agora lê o total (`sysctl hw.memsize`), a memória disponível de verdade (`vm_stat`: livre + inativa + especulativa + purgável, na página de 16 KB do Apple Silicon ou 4 KB do Intel), os **núcleos físicos** (`hw.physicalcpu`; antes a conta «metade dos lógicos» errava no Apple Silicon, que não tem hyper-threading) e as **extensões da CPU** (NEON no Apple Silicon; SSE4.2/AVX/AVX2/FMA/AVX-512 pelo `sysctl` no Intel) (testado com saídas simuladas).
+- **macOS — a RAM disponível era só uma estimativa:** o núcleo Rust estima 60 % do total no macOS. O OpenFlow agora usa a leitura do `vm_stat` quando o núcleo só estima, então o planejador de modelos e a proteção do computador enxergam a memória real (guardada por 2 s para não chamar o `vm_stat` a toda hora).
+
+### Ainda não verificado
+- **Nada disto rodou em um Windows ou macOS de verdade.** Os testes usam saídas de `sysctl`/`vm_stat`, sockets e downloads simulados; o `install.ps1` não foi executado (não há PowerShell aqui, só a análise dos bytes). Que o PowerShell 5.1 aceite o instalador com BOM e que o TLS 1.2 resolva o download em um Windows 10 antigo é raciocínio sobre o comportamento conhecido, não uma execução.
+- **O núcleo Rust não foi alterado:** no macOS ele continua estimando 60 % de RAM livre e contando núcleos físicos = lógicos; a correção está do lado do Python, que sobrescreve a estimativa. Corrigir no Rust exige compilar e testar no macOS.
+- A auditoria foi uma leitura do código: outros problemas específicos de sistema podem existir (por exemplo, a URL mostrada é `localhost` e o Windows tenta `::1` antes do `127.0.0.1`, o que só atrasa a abertura).
+
 ## [0.59.0] — 2026-11-16
 
 ### Novo — Multi GPU: a VRAM de várias placas juntas, e VRAM + RAM ao mesmo tempo

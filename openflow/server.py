@@ -10,6 +10,7 @@ import json
 import os
 import mimetypes
 import re
+import socket
 import time
 import traceback
 import urllib.parse
@@ -811,11 +812,30 @@ class Handler(BaseHTTPRequestHandler):
         self._handle("DELETE")
 
 
+def exclusive_port(sock: Any, windows: Optional[bool] = None) -> bool:
+    """Porta só deste processo (v0.60). No Windows o `SO_REUSEADDR` deixa DOIS programas abrirem a mesma porta sem erro (diferente do Linux/macOS): abrir o `flow` duas vezes não passava para a porta seguinte
+    (8788…) — as duas janelas disputavam a 8787 e o navegador caía numa ou noutra. Lá usa-se `SO_EXCLUSIVEADDRUSE` (a segunda tentativa dá erro, e o laço de portas do `flow` segue para a próxima). True se aplicou."""
+    if not (os.name == "nt" if windows is None else windows):
+        return False
+    opt = getattr(socket, "SO_EXCLUSIVEADDRUSE", None)
+    if opt is None:
+        return False
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, opt, 1)
+    except OSError:
+        return False
+    return True
+
+
 class Server(ThreadingHTTPServer):
     daemon_threads = True
-    allow_reuse_address = True
+    allow_reuse_address = os.name != "nt"   # Windows: SO_REUSEADDR deixa duas instâncias na mesma porta (ver `exclusive_port`)
     request_queue_size = 64
     app: Optional["App"] = None
+
+    def server_bind(self) -> None:
+        exclusive_port(self.socket)
+        super().server_bind()
 
 
 def make_server(host: str, port: int, store: Optional[Store] = None) -> Tuple[Server, App]:
