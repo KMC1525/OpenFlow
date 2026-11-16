@@ -2,6 +2,23 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.57.0] — 2026-11-16
+
+### Fixed — “out of memory” when generating with Qwen-Image 2.1 (and other models through sd-cli)
+The error in the screenshot (`sd-cli failed (code -9): the system ended it for lack of memory (RAM)…`, in a project with Qwen-Image 2.1 Q4_0, one reference image and a Style Folder) showed generic advice and a leftover progress bar. Code -9 is the operating system killing the program for lack of RAM; in the screenshot's log that happened **while loading the model weights** (`6/297 – 0.00MB/s`), after the Qwen3-VL text encoder (≈ 5 GB) and the vision projector were already in memory.
+- **The message now says what happened and what to do:** at which stage memory ran out (loading the weights, or during the generation steps), how much the loaded files add up to (e.g. “model 4.2 GB, text encoder 5.1, vision projector 1.2, VAE 0.3”), how much RAM the computer has and how much is free, and the ways out: remove the reference image (the ≈ 1.2 GB vision projector is only loaded with it), use a smaller text encoder (Qwen3-VL-8B Q3_K_XL or Q2_K_XL, given in the node's “extra”) or a smaller quantization of the model, and close other programs. When it ran out during the weights, the message says that **lowering the resolution does not help** (before, that was exactly the advice).
+- **Automatic second attempt only when it makes sense:** if memory runs out **during the generation steps** (where resolution matters), OpenFlow retries once at 0.7× the size (multiples of 16) and says so in the node log. During the weights or at an unknown stage it does not repeat (each attempt reloads ≈ 11 GB and would waste minutes).
+- **Cut progress bar in the message:** lines like `| ## 6/297 - 0.00MB/s` (without enough `###` for v0.56 to recognize) still got into the error text. Now any progress line (bytes/s, s/it, it/s) is removed.
+
+### Tested
+- `tests/test_qwen21_memory_v057.py` (10 tests): the stage from the bar's unit (bytes/s → weights, s/it → steps), the cut bar, a program that kills itself with SIGKILL like the OOM killer (`OutOfMemory` with the stage, still a `ProviderError`), the message with file sum, RAM and tips (with and without references, without hardware info), the second attempt at 704×400 from 1024×576 and no attempt during the weights, at an unknown stage and on other errors. Without the fix, they fail.
+
+### Not verified yet
+- **I did not reproduce the out-of-memory for real** (nor do I have your machine): the diagnosis comes from the screenshot's log; the file sum and the tips are estimates from on-disk sizes, not from the memory sd-cli really asks for.
+- **I did not reduce memory use itself:** OpenFlow still loads the text encoder (≈ 5 GB), the projector (≈ 1.2 GB) and the model together when there is a reference image. If your RAM cannot hold that, the way out is one of those in the message (smaller encoder/quantization, or no reference). In a later version I can look into unloading the encoder before loading the model, if your sd-cli allows it.
+- Choosing the smaller encoder is still manual (the node's “extra” field); OpenFlow still uses the first file it finds in the folder.
+- The 7-image Style Folder was not the cause here: with a reference connected, style images do not become references (only the style text goes into the prompt).
+
 ## [0.56.0] — 2026-11-16
 
 ### Fixed — generating and editing with Qwen-Image 2.1 (ChatR Labs “Uncensored Omni Quantized”)

@@ -2,6 +2,23 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.57.0] — 2026-11-16
+
+### Corrigido — «falta de memória» ao gerar com o Qwen-Image 2.1 (e outros modelos pelo sd-cli)
+O erro da captura (`O sd-cli falhou (código -9): O sistema o encerrou por falta de memória (RAM)…`, num projeto com o Qwen-Image 2.1 Q4_0, uma imagem de referência e uma Style Folder) mostrava um conselho genérico e um resto de barra de progresso. O código -9 é o sistema operacional matando o programa por falta de RAM; no log da captura isso aconteceu **ao carregar os pesos do modelo** (`6/297 – 0.00MB/s`), depois de o codificador de texto Qwen3-VL (≈ 5 GB) e o projetor de visão já estarem na memória.
+- **A mensagem agora diz o que aconteceu e o que fazer:** em que etapa a memória acabou (carregando os pesos, ou nos passos da geração), quanto os arquivos carregados somam (ex.: «modelo 4,2 GB, codificador de texto 5,1, projetor de visão 1,2, VAE 0,3»), quanta RAM o computador tem e quanta está livre, e as saídas: tirar a imagem de referência (o projetor de visão de ≈ 1,2 GB só é carregado com ela), usar um codificador de texto menor (Qwen3-VL-8B Q3_K_XL ou Q2_K_XL, informado em «extra» do nó) ou uma quantização menor do modelo, e fechar outros programas. Quando acabou nos pesos, a mensagem avisa que **baixar a resolução não resolve** (antes o conselho era justamente esse).
+- **Segunda tentativa automática só quando faz sentido:** se a memória acabar **nos passos** da geração (aí a resolução pesa), o OpenFlow tenta de novo uma vez em 0,7× do tamanho (múltiplos de 16) e avisa no log do nó. Nos pesos ou em etapa desconhecida, não repete (cada tentativa recarrega ≈ 11 GB e levaria minutos à toa).
+- **Barra de progresso cortada na mensagem:** linhas como `| ## 6/297 - 0.00MB/s` (sem os `###` suficientes para a v0.56 reconhecer) ainda entravam no texto do erro. Agora qualquer linha de progresso (bytes/s, s/it, it/s) é removida.
+
+### Testado
+- `tests/test_qwen21_memory_v057.py` (10 testes): a etapa a partir da unidade da barra (bytes/s → pesos, s/it → passos), a barra cortada, um programa que se mata com SIGKILL como o OOM killer (`OutOfMemory` com a etapa, ainda um `ProviderError`), a mensagem com soma dos arquivos, RAM e dicas (com e sem referências, sem informação de hardware), a segunda tentativa a 704×400 a partir de 1024×576 e a ausência de tentativa nos pesos, em etapa desconhecida e em outros erros. Sem a correção, falham.
+
+### Ainda não verificado
+- **Não reproduzi a falta de memória de verdade** (nem tenho a sua máquina): o diagnóstico vem do log da captura; a soma de arquivos e as dicas são estimativas dos tamanhos em disco, não da memória real que o sd-cli pede.
+- **Não reduzi o uso de memória em si:** o OpenFlow ainda carrega o codificador de texto (≈ 5 GB), o projetor (≈ 1,2 GB) e o modelo juntos quando há imagem de referência. Se a sua RAM não comporta, a saída é uma das da mensagem (codificador/quantização menores ou sem referência). Posso estudar, numa próxima versão, descarregar o codificador antes de carregar o modelo, se o seu sd-cli permitir.
+- A escolha do codificador menor continua manual (campo «extra» do nó); o OpenFlow ainda usa o primeiro arquivo que achar na pasta.
+- A «Style Folder» de 7 imagens, nesse caso, não foi a causa: com uma referência ligada, as imagens de estilo não viram referências (só o texto de estilo entra no prompt).
+
 ## [0.56.0] — 2026-11-16
 
 ### Corrigido — gerar e editar com o Qwen-Image 2.1 (ChatR Labs «Uncensored Omni Quantized»)
