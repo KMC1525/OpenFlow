@@ -5,7 +5,7 @@ Format: `## [version] — date`. Each version lists what changed for users and, 
 ## [0.46.0] — 2026-11-16
 
 ### Changed — a shorter, more objective README
-- Both READMEs (Portuguese and English) were rewritten: from ~196 to ~85 lines each. What stays: install, the `flow` command, the nodes, the models (search and download only through the Canvas bar, with the downloads indicator), settings, data, development, limits and license.
+- Both READMEs (Portuguese and English) were rewritten: from 196 to 98 lines each. What stays: install, the `flow` command, the nodes, the models (search and download only through the Canvas bar, with the downloads indicator), settings, data, development, limits and license.
 - Outdated parts are gone: “models from companies (API)”, “30 utility nodes”, the Library's “Download more models” catalogue, “cloud providers with real keys”, the agent planner, and the long Style Folder and support-files sections (one line each now).
 - The installer variables table became one line; the commands table keeps only the main ones.
 

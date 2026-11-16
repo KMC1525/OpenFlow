@@ -5,7 +5,7 @@ Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e,
 ## [0.46.0] — 2026-11-16
 
 ### Mudou — README menor e mais objetivo
-- Os dois READMEs (português e inglês) foram reescritos: de ~196 para ~85 linhas cada. Ficaram instalar, o comando `flow`, os nós, os modelos (pesquisa e download só pela barra do Canvas, com o indicador de downloads), as configurações, os dados, o desenvolvimento, os limites e a licença.
+- Os dois READMEs (português e inglês) foram reescritos: de 196 para 98 linhas cada. Ficaram instalar, o comando `flow`, os nós, os modelos (pesquisa e download só pela barra do Canvas, com o indicador de downloads), as configurações, os dados, o desenvolvimento, os limites e a licença.
 - Saíram as partes desatualizadas: «modelos de empresas (API)», «30 nós utilitários», o catálogo «Baixar mais modelos» da Biblioteca, «provedores de nuvem com chaves reais», o planejador de agentes e a seção longa de pastas do Style Folder e de arquivos de apoio (agora uma linha cada).
 - A tabela de variáveis do instalador virou uma linha; a de comandos ficou só com os principais.
 
