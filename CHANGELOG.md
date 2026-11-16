@@ -2,6 +2,21 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.50.0] — 2026-11-16
+
+### Design e personalização
+- **Fundo cinza-grafite no lugar do preto puro:** o tema escuro agora usa um cinza suave (`#1e1f22`, painéis um pouco mais claros, texto em branco-gelo em vez de branco puro, sombras mais leves) que cansa menos a vista em sessões longas. Vale para a interface toda, a área dos nós do Canvas, a linha do tempo e o `theme-color` do navegador/app instalado. Só o palco do vídeo segue preto, porque é a tela de mídia. O tema claro não mudou.
+- **Tamanho da interface de 50% a 200%** (de 5 em 5): um controle deslizante em Configurações → Aparência, com atalhos 50 · 75 · 90 · 100 · 110 · 125 · 150 · 175 · 200%. Antes eram só cinco valores (90–150%). O tamanho é aplicado ao soltar o controle (a interface inteira muda junto com ele). Valores antigos continuam valendo.
+- **Mais fontes:** Sistema, Inter, Humanista, Arredondada, Verdana, Alta legibilidade (Atkinson Hyperlegible/Lexend/OpenDyslexic), Livro, Serifada e Monoespaçada — cada cartão mostra a própria fonte —, e **«Outra fonte»**, onde você digita o nome de qualquer fonte instalada no computador. O nome é limpo (só letras, números, espaço, ponto e hífen) antes de ir para o CSS.
+
+### Testado
+- `tests/test_design_v050.py` (8 testes): intervalo e arredondamento da escala, valores inválidos, nome de fonte sem injeção de CSS, todas as fontes com CSS e cartão, cor do fundo (nem preto, nem claro demais), ida e volta pela API. Teste de navegador: fundo, 50%/200%/100% aplicados e salvos, cartões de fonte, «Outra fonte».
+
+### Ainda não verificado
+- **Só medi o fundo pelos valores e por testes**, não por uma pessoa olhando por horas: o tom exato (`#1e1f22`) é uma escolha minha; se ainda incomodar, diga se prefere mais claro ou mais quente.
+- As fontes usam o que existe no computador; **nada é baixado**. Inter, Atkinson, Lexend e OpenDyslexic só aparecem se estiverem instaladas (senão cai numa fonte parecida do sistema). Não vi todas renderizadas em Windows, macOS e Linux.
+- Em 50% e 200% a tela principal e as Configurações seguem usáveis no teste, mas não percorri todas as telas e modais nesses extremos; o navegador sem suporte a `zoom` (Firefox antigo) ignora o tamanho.
+
 ## [0.49.0] — 2026-11-16
 
 ### Novo — Proteção do computador

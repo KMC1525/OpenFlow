@@ -13,16 +13,19 @@
     r.dataset.theme = resolved;
     r.dataset.density = ui.density === 'compact' ? 'compact' : 'comfortable';
     r.dataset.motion = ui.motion === 'reduce' || ui.motion === 'full' ? ui.motion : 'auto';
-    r.dataset.font = ui.font === 'serif' || ui.font === 'mono' ? ui.font : 'system';
+    var FONTS = ['system', 'inter', 'humanist', 'rounded', 'verdana', 'readable', 'book', 'serif', 'mono', 'custom'];
+    r.dataset.font = FONTS.indexOf(ui.font) >= 0 ? ui.font : 'system';
+    var fc = typeof ui.font_custom === 'string' ? ui.font_custom.replace(/[^\w .\-]/g, '').replace(/\s+/g, ' ').trim().slice(0, 60) : '';
+    if (r.dataset.font === 'custom' && fc) r.style.setProperty('--font-custom', '"' + fc + '"'); else r.style.removeProperty('--font-custom');
     r.dataset.chat = ui.chat_size === 'small' || ui.chat_size === 'large' ? ui.chat_size : 'medium';
-    var scale = [90, 100, 110, 125, 150].indexOf(Number(ui.scale)) >= 0 ? Number(ui.scale) : 100;
+    var scale = Number(ui.scale); scale = isFinite(scale) ? Math.max(50, Math.min(200, Math.round(scale / 5) * 5)) : 100;
     var zoomOk = !window.CSS || !CSS.supports || CSS.supports('zoom', '1.1');
     r.style.setProperty('--z', zoomOk ? String(scale / 100) : '1');
     var accent = /^#[0-9a-f]{6}$/i.test(ui.accent || '') ? ui.accent.toLowerCase() : '';
     if (accent) { r.style.setProperty('--accent-custom', accent); r.style.setProperty('--on-accent-custom', lum(accent) > 0.4 ? '#000' : '#fff'); }
     else { r.style.removeProperty('--accent-custom'); r.style.removeProperty('--on-accent-custom'); }
     var meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', resolved === 'light' ? '#f6f6f4' : '#000000');
+    if (meta) meta.setAttribute('content', resolved === 'light' ? '#f6f6f4' : '#1e1f22');
     var cs = document.querySelector('meta[name="color-scheme"]');
     if (cs) cs.setAttribute('content', resolved);
     try { localStorage.setItem('openflow.ui', JSON.stringify(ui)); } catch (e) { /* navegação privada: tudo bem, o servidor confirma */ }

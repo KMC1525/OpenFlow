@@ -8,10 +8,10 @@ import re
 from typing import Any, Dict
 
 THEMES = ("dark", "light", "auto")  # auto = segue o sistema operacional
-SCALES = (90, 100, 110, 125, 150)  # % da interface
+SCALE_MIN, SCALE_MAX, SCALE_STEP = 50, 200, 5  # % da interface (v0.50: de 50% a 200%, de 5 em 5)
 DENSITIES = ("comfortable", "compact")
 MOTIONS = ("auto", "reduce", "full")  # auto = respeita o sistema; reduce = sem animações; full = sempre animar
-FONTS = ("system", "serif", "mono")
+FONTS = ("system", "inter", "humanist", "rounded", "verdana", "readable", "book", "serif", "mono", "custom")   # v0.50: mais fontes (todas do próprio computador; "custom" = o nome de uma fonte instalada)
 LANGS = ("auto", "pt-BR", "en")
 
 DEFAULT_UI: Dict[str, Any] = {
@@ -21,6 +21,7 @@ DEFAULT_UI: Dict[str, Any] = {
     "density": "comfortable",
     "motion": "auto",
     "font": "system",
+    "font_custom": "",  # nome de uma fonte instalada no computador (usada com font = "custom")
     "shortcuts": True,
     "welcome_done": False,
 }
@@ -39,20 +40,36 @@ def normalize_accent(value: Any) -> str:
     return "#" + "".join(c * 2 for c in s[1:]) if len(s) == 4 else s
 
 
+_FONT_NAME = re.compile(r"[^\w .\-]", re.UNICODE)
+
+
+def normalize_font_name(value: Any) -> str:
+    """Nome de fonte seguro para ir ao CSS: só letras, números, espaço, ponto e hífen (nada de aspas, vírgulas ou `;`)."""
+    return " ".join(_FONT_NAME.sub("", str(value or "")).split())[:60] if isinstance(value, str) else ""
+
+
+def normalize_scale(value: Any) -> int:
+    try:
+        n = float(value)
+    except (TypeError, ValueError):
+        return 100
+    if n != n or n in (float("inf"), float("-inf")):
+        return 100
+    step = int(n / SCALE_STEP + 0.5) * SCALE_STEP   # meio arredonda para cima, igual ao Math.round do boot.js
+    return int(max(SCALE_MIN, min(SCALE_MAX, step)))
+
+
 def normalize_ui(data: Any) -> Dict[str, Any]:
     """Preferências válidas (todas as chaves presentes); o que for inválido volta ao padrão."""
     d = data if isinstance(data, dict) else {}
-    try:
-        scale = int(float(d.get("scale", 100)))
-    except (TypeError, ValueError):
-        scale = 100
     return {
         "theme": _choice(d.get("theme"), THEMES, DEFAULT_UI["theme"]),
         "accent": normalize_accent(d.get("accent")),
-        "scale": scale if scale in SCALES else 100,
+        "scale": normalize_scale(d.get("scale", 100)),
         "density": _choice(d.get("density"), DENSITIES, DEFAULT_UI["density"]),
         "motion": _choice(d.get("motion"), MOTIONS, DEFAULT_UI["motion"]),
         "font": _choice(d.get("font"), FONTS, DEFAULT_UI["font"]),
+        "font_custom": normalize_font_name(d.get("font_custom")),
         "shortcuts": d.get("shortcuts") is not False,
         "welcome_done": d.get("welcome_done") is True,
     }

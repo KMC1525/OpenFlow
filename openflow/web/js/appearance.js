@@ -3,7 +3,7 @@ import { t } from './i18n.js';
 import { h } from './ui.js';
 
 export const ACCENTS = [['', 'Padrão do tema'], ['#4f8cff', 'Azul'], ['#8b5cf6', 'Violeta'], ['#22c55e', 'Verde'], ['#f59e0b', 'Laranja'], ['#ec4899', 'Rosa'], ['#ef4444', 'Vermelho']];
-const PREVIEW = { dark: ['#000', '#181818', '#fff'], light: ['#f6f6f4', '#e6e6e3', '#17171a'] };
+const PREVIEW = { dark: ['#1e1f22', '#35363c', '#f4f4f5'], light: ['#f6f6f4', '#e6e6e3', '#17171a'] };
 
 export function themeCards(current, onPick) {
   const wrap = h('div', { class: 'themes', role: 'radiogroup', 'aria-label': t('Tema') });

@@ -1,11 +1,11 @@
-/* OpenFlow WebUI — preto, minimalista, detalhes em branco (inspirada no Grok) */
+/* OpenFlow WebUI — cinza-grafite suave (v0.50: sem o preto puro, que cansa a vista em sessões longas), minimalista */
 :root{
-  --bg:#000;--bg1:#080808;--bg2:#101010;--bg3:#181818;
-  --line:#1c1c1c;--line2:#2a2a2a;--line3:#3a3a3a;
-  --text:#ededed;--muted:#8b8b8b;--dim:#5c5c5c;
-  --strong:#fff;--accent:var(--accent-custom,#fff);--on-accent:var(--on-accent-custom,#000);--accent-h:color-mix(in srgb,var(--accent) 86%,#777);
+  --bg:#1e1f22;--bg1:#25262a;--bg2:#2c2d32;--bg3:#35363c;
+  --line:#2d2e33;--line2:#3a3b41;--line3:#4a4b53;
+  --text:#dedee0;--muted:#a0a1a8;--dim:#7a7b83;
+  --strong:#f4f4f5;--accent:var(--accent-custom,#e8e8ea);--on-accent:var(--on-accent-custom,#1e1f22);--accent-h:color-mix(in srgb,var(--accent) 86%,#777);
   --ok:#7ee2a8;--warn:#f2c46d;--err:#ff7b72;--info:#7cb7ff;
-  --scroll:#222;--scroll-h:#333;--ring:rgba(255,255,255,.04);--shadow:rgba(0,0,0,.7);--z:1;color-scheme:dark;
+  --scroll:#3a3b41;--scroll-h:#4b4c54;--ring:rgba(255,255,255,.05);--shadow:rgba(0,0,0,.45);--z:1;color-scheme:dark;
   --r:14px;--r-lg:22px;--side:236px;--side-s:68px;
   --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,"Helvetica Neue",Arial,sans-serif;
   --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
@@ -71,7 +71,7 @@ input[type=text],input[type=password],input[type=number],input[type=search],inpu
 input:focus,select:focus,textarea:focus{border-color:var(--dim)}
 textarea{resize:vertical;min-height:96px;line-height:1.5}
 select{appearance:none;-webkit-appearance:none;padding-right:32px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238b8b8b' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
-select option{background:#111}
+select option{background:#25262a}
 input[type=range]{width:100%;accent-color:var(--accent);padding:0;height:22px;background:none;border:0}
 input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px}
 input[type=color]{width:40px;height:32px;padding:2px;border-radius:10px;background:var(--bg1);border:1px solid var(--line2);cursor:pointer}
@@ -215,7 +215,7 @@ button.chip{cursor:pointer}button.chip:hover{border-color:var(--line3);color:var
 :root[data-theme="light"] select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235f5f66' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")}
 :root[data-theme="light"] select option{background:#fff;color:#18181a}
 /* superfícies de "estúdio" (grafo do Canvas, editor de vídeo, visualizador) ficam sempre escuras, como nos editores de mídia */
-.cv-surface,.tl-bg,.cv-lb{--bg:#000;--bg1:#080808;--bg2:#101010;--bg3:#181818;--line:#1c1c1c;--line2:#2a2a2a;--line3:#3a3a3a;--text:#ededed;--muted:#8b8b8b;--dim:#5c5c5c;--strong:#fff;--accent:var(--accent-custom,#fff);--on-accent:var(--on-accent-custom,#000);--ring:rgba(255,255,255,.04);--shadow:rgba(0,0,0,.7);--ok:#7ee2a8;--warn:#f2c46d;--err:#ff7b72;color:var(--text);color-scheme:dark}
+.cv-surface,.tl-bg,.cv-lb{--bg:#1e1f22;--bg1:#25262a;--bg2:#2c2d32;--bg3:#35363c;--line:#2d2e33;--line2:#3a3b41;--line3:#4a4b53;--text:#dedee0;--muted:#a0a1a8;--dim:#7a7b83;--strong:#f4f4f5;--accent:var(--accent-custom,#e8e8ea);--on-accent:var(--on-accent-custom,#1e1f22);--ring:rgba(255,255,255,.04);--shadow:rgba(0,0,0,.7);--ok:#7ee2a8;--warn:#f2c46d;--err:#ff7b72;color:var(--text);color-scheme:dark}
 /* densidade compacta */
 :root[data-density="compact"] .page{padding:20px 22px 56px}
 :root[data-density="compact"] .card{padding:14px}
@@ -230,8 +230,20 @@ button.chip{cursor:pointer}button.chip:hover{border-color:var(--line3);color:var
 #app{zoom:var(--z);height:calc(100vh / var(--z));height:calc(100dvh / var(--z))}
 #toasts,.modal-bg,.pop,.palette-bg{zoom:var(--z)}
 /* fonte */
+:root[data-font="inter"]{--font:Inter,"Inter var","Helvetica Neue",Helvetica,Arial,sans-serif}
+:root[data-font="humanist"]{--font:"Segoe UI","Gill Sans","Gill Sans MT",Candara,Optima,Calibri,"Trebuchet MS",sans-serif}
+:root[data-font="rounded"]{--font:ui-rounded,"SF Pro Rounded","Nunito","Varela Round","Quicksand","Arial Rounded MT Bold","Trebuchet MS",sans-serif}
+:root[data-font="verdana"]{--font:Verdana,Tahoma,Geneva,"DejaVu Sans",sans-serif}
+:root[data-font="readable"]{--font:"Atkinson Hyperlegible",Lexend,OpenDyslexic,"Comic Neue","Comic Sans MS",Verdana,sans-serif}
+:root[data-font="book"]{--font:Charter,"Bitstream Charter","Sitka Text",Cambria,Georgia,serif}
 :root[data-font="serif"]{--font:Georgia,"Iowan Old Style","Palatino Linotype",Palatino,"Times New Roman",serif}
 :root[data-font="mono"]{--font:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+:root[data-font="custom"]{--font:var(--font-custom,system-ui),-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+.fontgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.fontopt{border:1px solid var(--line2);background:var(--bg1);border-radius:12px;padding:10px 12px;cursor:pointer;text-align:left;color:var(--text)}
+.fontopt:hover{background:var(--bg3)}.fontopt.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.fontopt b{display:block;font-size:17px;font-weight:500}.fontopt small{color:var(--muted);font-size:11px}
+.scalebox{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.scalebox input[type=range]{flex:1;min-width:160px;accent-color:var(--accent)}.scalebox output{min-width:52px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
 /* texto do chat dos avatares */
 :root{--chat-fs:14px}
 :root[data-chat="small"]{--chat-fs:13px}:root[data-chat="large"]{--chat-fs:17px}

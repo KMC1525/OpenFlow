@@ -2,6 +2,21 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.50.0] — 2026-11-16
+
+### Design and customization
+- **Graphite gray instead of pure black:** the dark theme now uses a soft gray (`#1e1f22`, slightly lighter panels, off-white text instead of pure white, lighter shadows) that is easier on the eyes in long sessions. It applies to the whole interface, the Canvas node area, the timeline and the browser/installed-app `theme-color`. Only the video stage stays black, since it is the media screen. The light theme did not change.
+- **Interface size from 50% to 200%** (steps of 5): a slider in Settings → Appearance, with shortcuts 50 · 75 · 90 · 100 · 110 · 125 · 150 · 175 · 200%. It used to be five values (90–150%). The size applies when you release the slider (the whole interface resizes, the slider included). Old values stay valid.
+- **More fonts:** System, Inter, Humanist, Rounded, Verdana, High legibility (Atkinson Hyperlegible/Lexend/OpenDyslexic), Book, Serif and Monospace — each card shows its own font — plus **“Other font”**, where you type the name of any font installed on your computer. The name is sanitized (letters, digits, space, dot and hyphen only) before it reaches the CSS.
+
+### Tested
+- `tests/test_design_v050.py` (8 tests): scale range and rounding, invalid values, font names without CSS injection, every font having CSS and a card, background color (neither black nor too light), API round trip. Browser test: background, 50%/200%/100% applied and saved, font cards, “Other font”.
+
+### Not verified yet
+- **I only checked the background by values and tests**, not by a person looking at it for hours: the exact tone (`#1e1f22`) is my choice; if it still bothers you, tell me whether you prefer lighter or warmer.
+- Fonts use what exists on the computer; **nothing is downloaded**. Inter, Atkinson, Lexend and OpenDyslexic only show up if installed (otherwise a similar system font is used). I did not see them all rendered on Windows, macOS and Linux.
+- At 50% and 200% the main screen and Settings stay usable in the test, but I did not walk through every screen and modal at those extremes; a browser without `zoom` support (old Firefox) ignores the size.
+
 ## [0.49.0] — 2026-11-16
 
 ### New — Computer protection
