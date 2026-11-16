@@ -929,8 +929,17 @@ class LocalHFMedia(MediaProvider):
         m = res[0] if isinstance(res, (list, tuple)) else res
         return mesh3d.as_lists(m.vertices, m.faces)
 
+    def _expect(self, cap: str, model: str) -> None:
+        """Modelo de outro tipo no campo errado (o Whisper como voz…): mensagem clara em vez de um erro da biblioteca no meio do caminho (v0.67)."""
+        from . import modelkind
+
+        why = modelkind.mismatch(cap, model)
+        if why:
+            raise ProviderError(why)
+
     def sound(self, prompt, *, kind="sfx", duration=5, model="", extra=None, seed=0):
         model = self._pick("sound", model, "facebook/musicgen-small")
+        self._expect("sound", model)
         (tf,) = _local_import("transformers")
         ready = self._ready(model)
         pipe = _local_load("sound", model, lambda: _hf_pipeline(tf, "text-to-audio", model, ready["dtype"]))
@@ -1023,6 +1032,7 @@ class LocalHFMedia(MediaProvider):
 
     def voice(self, text, *, voice="", speed=1.0, model="", extra=None, instructions=""):
         model = self._pick("voice", model, "suno/bark-small")
+        self._expect("voice", model)
         if re.search(r"orpheus", model, re.I):
             return self._voice_orpheus(text, voice, model, extra, instructions)
         if re.search(r"(^|/)csm-1b", model, re.I):
@@ -1041,6 +1051,7 @@ class LocalHFMedia(MediaProvider):
 
     def _asr(self, data, filename, mime, language, model, long_audio=False):
         model = self._pick("stt", model, "openai/whisper-small")
+        self._expect("stt", model)
         (tf,) = _local_import("transformers")
         ready = self._ready(model)
         pipe = _local_load("stt", model, lambda: _hf_pipeline(tf, "automatic-speech-recognition", model, ready["dtype"]))
@@ -1055,14 +1066,16 @@ class LocalHFMedia(MediaProvider):
             return pipe(str(p), **kw)
 
     def transcribe(self, data, filename, mime, *, language="", model=""):
-        return str(self._asr(data, filename, mime, language, model).get("text", "")).strip()
+        from . import subtitles as sub
+
+        return sub.collapse_loops(str(self._asr(data, filename, mime, language, model).get("text", "")))
 
     def transcribe_segments(self, data, filename, mime, *, language="", model="", duration=0.0):
         from . import subtitles as sub
 
         res = self._asr(data, filename, mime, language, model, long_audio=True)
         segs = sub.segments_from_chunks(res.get("chunks") or [], float(duration or 0.0))
-        text = str(res.get("text", "")).strip()
+        text = sub.collapse_loops(str(res.get("text", "")))
         return segs or ([sub.seg(0.0, float(duration or 3.0), text)] if text else [])
 
     def timed_segments(self, model=""):

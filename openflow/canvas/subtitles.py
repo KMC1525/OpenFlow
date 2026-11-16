@@ -215,6 +215,30 @@ def transcript_text(segs: List[Seg], mode: str = "plain") -> str:
     return " ".join(s["text"].strip() for s in items)
 
 
+def collapse_loops(text: str, keep: int = 2) -> str:
+    """Tira os laços de repetição que o Whisper inventa em trechos sem fala («E aí e aí e aí e aí…» por dezenas de vezes): uma palavra repetida 12 vezes ou mais seguidas, ou uma frase curta (até 6 palavras)
+    repetida 6 vezes ou mais, fica com só `keep` repetições. Repetições normais de letra de música («la la la la») ficam como estão. Maiúsculas e pontuação não contam na comparação."""
+    toks = (text or "").split()
+    if len(toks) < 12:
+        return (text or "").strip()
+    key = [re.sub(r"\W", "", t.lower()) for t in toks]
+    out: List[str] = []
+    i, n = 0, len(toks)
+    while i < n:
+        for p in range(1, 7):
+            k = 1
+            while i + (k + 1) * p <= n and key[i + k * p:i + (k + 1) * p] == key[i:i + p]:
+                k += 1
+            if k >= (12 if p == 1 else 6):
+                out += toks[i:i + p * keep]
+                i += p * k
+                break
+        else:
+            out.append(toks[i])
+            i += 1
+    return " ".join(out)
+
+
 def segments_from_chunks(chunks: List[Dict[str, Any]], total: float = 0.0) -> List[Seg]:
     """Os `chunks` do pipeline de reconhecimento de fala do transformers («timestamp»: (início, fim), o fim do último pode ser None) em segmentos."""
     out: List[Seg] = []
@@ -225,7 +249,7 @@ def segments_from_chunks(chunks: List[Dict[str, Any]], total: float = 0.0) -> Li
         if b is None:   # o último trecho costuma vir sem fim: vale o começo do próximo, o fim do áudio ou alguns segundos
             nxt = chunks[i + 1].get("timestamp", (None,))[0] if i + 1 < len(chunks) else None
             b = nxt if nxt is not None else (total if total > a else a + 3.0)
-        text = str(c.get("text") or "").strip()
+        text = collapse_loops(str(c.get("text") or ""))
         if text:
             out.append(seg(a, max(b, a + 0.05), text))
     return out
