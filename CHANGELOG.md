@@ -2,6 +2,20 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.41.0] — 2026-11-16
+
+### Novo — ChatR Labs · Qwen-Image 2.1 Uncensored Omni Quantized
+- O repositório [`chatrlabs/Qwen-Image-2.1-Uncensored-Omni-Quantized`](https://huggingface.co/chatrlabs/Qwen-Image-2.1-Uncensored-Omni-Quantized) (Qwen-Image 2.1 com um adaptador Omni «sem censura» fundido e quantizado, passo 90000) aparece em **Modelos → Modelos da Unsloth e de parceiros** como *Experimental*, com a lista das quantizações GGUF (Q4_0 ≈ 4,2 GB … Q8_0 ≈ 7,7 GB e BF16 ≈ 14 GB; Q4_K_M é a recomendada) e o botão «Ver quantizações».
+- Os arquivos `qwen-image-2.1-step90000-*.gguf` são reconhecidos como **Qwen-Image 2.1** e usam a **receita do cartão: 35 passos e CFG 5,0** (os modelos oficiais do Qwen-Image 2.1 e o Turbo mantêm as receitas deles: 20 passos/CFG 6,0 e 8 passos/CFG 1,0). Edição com várias referências, como no Qwen-Image 2.1.
+- Ao baixar o GGUF, o OpenFlow baixa junto o **VAE do Qwen-Image 2.1** e o **codificador de texto Qwen3-VL-8B** (≈ 5,8 GB, sem baixar de novo se já existirem); os `-comfy.safetensors` e as pastas do diffusers do repositório não são confundidos com arquivos de apoio.
+- As pastas NF4/INT8/FP8 (só transformador, para o diffusers) e os `-comfy` (só ComfyUI) **não** rodam no OpenFlow: o provedor «Hugging Face local» recusa o repositório com uma mensagem que aponta os `.gguf` e o provedor «GGUF local».
+- Corrigido: os modelos «Experimental» do catálogo (MiniMax H3, LTX-2.x…) não tinham o botão «Ver quantizações»; agora têm.
+- A licença do modelo é a **Qwen Research** (só pesquisa e uso não comercial) e isso consta na dica do catálogo.
+
+### Ainda não verificado
+- **Nenhum desses GGUF foi gerado aqui** (sem pesos nem GPU). Não confirmei se a stable-diffusion.cpp instalada reconhece os nomes de tensores dos GGUF do ChatR Labs (layout «297»: o mesmo estilo dos GGUF da Unsloth); se não reconhecer, o aviso do nó diz e o botão de atualizar a biblioteca aparece, como nos outros modelos.
+- O cartão manda `er_sde` + `simple` no ComfyUI; o OpenFlow usa `euler` (o sampler que as outras receitas do Qwen-Image 2.1 usam na stable-diffusion.cpp). O prompt negativo de um espaço só vale para o diffusers/ComfyUI.
+
 ## [0.40.0] — 2026-11-16
 
 ### Removido — agentes, multi-agentes e níveis de esforço (Low … Omni) do ASTA

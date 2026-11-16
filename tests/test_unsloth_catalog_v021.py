@@ -77,7 +77,7 @@ class FamilyTests(unittest.TestCase):
 class CatalogTests(ServerCase):
     def test_catalog_is_honest_about_what_runs(self):
         cat = unsloth_models.catalog()
-        self.assertTrue(all(e["repo"].startswith("unsloth/") and e["kind"] in ("image", "video") for e in cat))
+        self.assertTrue(all(e["repo"].startswith(("unsloth/", "chatrlabs/")) and e["kind"] in ("image", "video") for e in cat))
         by = {e["repo"]: e for e in cat}
         self.assertEqual(by["unsloth/MOSS-Image-SFT-GGUF"]["status"], "ready")
         self.assertEqual(by["unsloth/Wan2.2-TI2V-5B-GGUF"]["status"], "ready")

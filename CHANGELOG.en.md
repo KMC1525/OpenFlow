@@ -2,6 +2,20 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.41.0] — 2026-11-16
+
+### New — ChatR Labs · Qwen-Image 2.1 Uncensored Omni Quantized
+- The [`chatrlabs/Qwen-Image-2.1-Uncensored-Omni-Quantized`](https://huggingface.co/chatrlabs/Qwen-Image-2.1-Uncensored-Omni-Quantized) repository (Qwen-Image 2.1 with an “uncensored” Omni adapter merged and quantized, step 90000) shows up in **Models → Unsloth and partner models** as *Experimental*, with the list of GGUF quantizations (Q4_0 ≈ 4.2 GB … Q8_0 ≈ 7.7 GB and BF16 ≈ 14 GB; Q4_K_M is the recommended one) and the “See quantizations” button.
+- The `qwen-image-2.1-step90000-*.gguf` files are recognized as **Qwen-Image 2.1** and use the **card's recipe: 35 steps and CFG 5.0** (the official Qwen-Image 2.1 and the Turbo keep theirs: 20 steps/CFG 6.0 and 8 steps/CFG 1.0). Multi-reference editing, as in Qwen-Image 2.1.
+- Downloading the GGUF also downloads the **Qwen-Image 2.1 VAE** and the **Qwen3-VL-8B text encoder** (≈ 5.8 GB, not downloaded again if already there); the repository's `-comfy.safetensors` and diffusers folders are not mistaken for support files.
+- The NF4/INT8/FP8 folders (transformer only, for diffusers) and the `-comfy` files (ComfyUI only) do **not** run in OpenFlow: the “Hugging Face local” provider refuses the repository with a message pointing to the `.gguf` files and the “GGUF local” provider.
+- Fixed: the catalog's “Experimental” models (MiniMax H3, LTX-2.x…) had no “See quantizations” button; they do now.
+- The model license is **Qwen Research** (research and non-commercial use only), noted in the catalog hint.
+
+### Not verified yet
+- **None of these GGUF files was run here** (no weights or GPU). I did not confirm that the installed stable-diffusion.cpp recognizes the tensor names of the ChatR Labs GGUF (“297” layout: the same style as Unsloth's GGUF); if it does not, the node's warning says so and the update-library button appears, as with other models.
+- The card says `er_sde` + `simple` in ComfyUI; OpenFlow uses `euler` (the sampler the other Qwen-Image 2.1 recipes use in stable-diffusion.cpp). The single-space negative prompt only applies to diffusers/ComfyUI.
+
 ## [0.40.0] — 2026-11-16
 
 ### Removed — ASTA's agents, multi-agents and effort levels (Low … Omni)
