@@ -21,6 +21,7 @@ FAMILIES: List[Dict[str, Any]] = [
     {"id": "qwen-image-2.1", "name": r"qwen[-_ ]?image[-_ ]?2[._]?1", "label": "Qwen-Image 2.1", "cap": "image",
      "load": {"vae_path": r"qwen[-_]?image[-_]?2[._]?1[-_]?vae.*\.safetensors$", "llm_path": r"^qwen[-_]?3[-_]?vl[-_]?8b[-_]?instruct(?!.*mmproj)[^/]*\.gguf$",
               "llm_vision_path": r"^qwen[-_]?3[-_]?vl[-_]?8b[-_]?instruct[^/]*mmproj[^/]*\.gguf$"},
+     "negative_default": " ",   # cartão do ChatR Labs: «um negativo omitido ou vazio desliga o CFG verdadeiro; use um único espaço»
      "optional": ["llm_vision_path"], "edit_needs": ["llm_vision_path"],   # v0.55: o projetor de visão (mmproj) do Qwen3-VL só é exigido ao EDITAR (imagem de referência); gerar só com texto funciona sem ele
      "run": {"cfg_scale": 6.0, "sample_steps": 20, "sample_method": "euler"}, "variants": [{"match": r"turbo", "run": {"cfg_scale": 1.0, "sample_steps": 8, "sample_method": "euler"}},
                   {"match": r"step\d+|chatr|uncensored|omni", "run": {"cfg_scale": 5.0, "sample_steps": 35, "sample_method": "euler"}}],   # Turbo: 8 passos, CFG 1; ChatR Labs «Uncensored Omni» (arquivos «qwen-image-2.1-step90000-…»): 35 passos e CFG 5,0 (cartão chatrlabs/Qwen-Image-2.1-Uncensored-Omni-Quantized; o ComfyUI usa er_sde, aqui euler)

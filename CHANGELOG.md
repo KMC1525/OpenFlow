@@ -2,6 +2,24 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.56.0] — 2026-11-16
+
+### Corrigido — gerar e editar com o Qwen-Image 2.1 (ChatR Labs «Uncensored Omni Quantized»)
+Li o cartão do modelo (receita do ChatR Labs) e o caminho de geração/edição do OpenFlow (sd-cli e biblioteca) e testei cada ponto com um sd-cli simulado:
+- **Mensagem de erro ilegível:** quando o sd-cli falhava, a tela mostrava os últimos 500 caracteres do log com as barras de progresso (`| | ######## 98/98 - 739MB/s`) misturadas, escondendo a causa (era o caso da captura). Agora a mensagem tira as barras e o `---`/`|` do começo das linhas, mostra as linhas de erro (`[E] …`) primeiro e só depois o contexto final do log.
+- **Erro do projetor de visão com explicação:** se, mesmo assim, o sd-cli responder «requires Qwen3-VL vision weights / --llm_vision», o nó agora diz o que falta (o mmproj do Qwen3-VL, ≈ 1,2 GB), onde está o botão «Baixar os arquivos de apoio» e o nome do arquivo na pasta.
+- **Limite de imagens de referência pelo modelo errado:** ao gerar pelo sd-cli, o máximo de referências vinha do modelo **padrão das configurações**, não do modelo escolhido no nó. Com um modelo padrão que aceita 1 imagem (ex.: Z-Image) e o Qwen-Image 2.1 (4 imagens) no nó, só a primeira referência era usada, em silêncio. Agora vale o do modelo do nó.
+- **Prompt negativo:** o cartão diz que um negativo omitido ou vazio desliga o CFG verdadeiro e manda usar um único espaço. Se o negativo do nó estiver vazio, o OpenFlow agora envia um espaço (só para esta família; outros modelos não mudam), tanto no sd-cli (`-n`) quanto na biblioteca.
+
+### Testado
+- `tests/test_qwen21_bugs_v056.py` (8 testes): a mensagem a partir do log da captura (sem barras, erro primeiro, limite de tamanho), a execução real de um programa que falha, o limite de referências com modelo padrão diferente do do nó, o negativo (vazio, só espaços, preenchido, outra família), os argumentos do sd-cli e a mensagem do projetor. Sem a correção, 7 falham.
+
+### Ainda não verificado
+- **Não rodei o Qwen-Image 2.1 de verdade** (nem o sd-cli): tudo foi testado até a linha de comando e com respostas simuladas. Não sei se, no sd-cli, o negativo de um espaço muda o resultado em relação ao vazio (o cartão fala do pipeline do diffusers); é a receita do autor e é inofensivo.
+- **Sampler:** o cartão recomenda `er_sde` com o agendador `simple` (ComfyUI); o OpenFlow segue com `euler`, porque não confirmei que a sua versão do sd-cli tem `er_sde`. Se tiver, dá para trocar em «extra» (`sample_method`).
+- **Resolução:** o cartão recomenda 768×1152 ou 1024×1024; as proporções do nó são as de sempre.
+- Imagens de referência extremamente estreitas (80:1) seguem com a proporção limitada a 256 px no lado menor (como na v0.51).
+
 ## [0.55.0] — 2026-11-16
 
 ### Corrigido — Qwen-Image 2.1 (Uncensored Omni Quantized) ao editar imagens
