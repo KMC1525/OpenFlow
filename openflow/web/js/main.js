@@ -2,6 +2,7 @@ import { api } from './api.js';
 import { setLang, t } from './i18n.js';
 import { applyUi, ui } from './prefs.js';
 import { installShell, maybeWelcome } from './shell.js';
+import { startGuardWatch } from './guard_ui.js';
 import { h, icon } from './ui.js';
 
 // Estado global compartilhado entre as telas
@@ -124,5 +125,6 @@ addEventListener('hashchange', () => { render(); });
   shell = installShell(app);
   render();
   maybeWelcome(app).catch((e) => console.error(e));
+  startGuardWatch();   // faixa de aviso quando a proteção do computador para tudo
 })();
 window.OPENFLOW_WELCOME = () => maybeWelcome({ state, NAV, go, saveSettings, renderSide, refreshState }, true);
