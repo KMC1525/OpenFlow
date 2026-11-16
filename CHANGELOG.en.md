@@ -2,6 +2,16 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.66.0] — 2026-11-16
+
+### Fixed — «got multiple values for keyword argument 'local_files_only'» in transcription
+- **The error in the screenshot:** when dubbing or transcribing with **local Whisper**, the node failed with *«Unexpected error: transformers.models.auto.configuration_auto.AutoConfig.from_pretrained() got multiple values for keyword argument 'local_files_only'»*. The new transformers already passes `local_files_only` by itself when loading the model configuration, and OpenFlow passed it again in `model_kwargs`. Now loading tries as before and, if transformers rejects the repeated argument, **repeats the load with offline mode through the `HF_HUB_OFFLINE` variable** (valid only during the load and restored as it was), which works on every version. Nothing is downloaded silently, as before.
+- **Where it applies:** transcription (Whisper — the Transcript, Subtitles and Dubbing nodes, and the Transcribe node), **voice** (Bark, MMS-TTS) and **sounds/music** (MusicGen): the three loaded the model the same way and had the same risk with the new transformers.
+
+### Not verified yet
+- **I did not run Whisper or the real transformers:** the tests use a fake `transformers` that rejects the repeated argument exactly as in the message. That Whisper loads, transcribes and gives the timings with the new transformers (and whether another error shows up after this one) **was not measured**.
+- The message still shows as «Unexpected error» when loading fails for another reason (for example, a model not downloaded or a missing library have their own message; other transformers errors do not).
+
 ## [0.65.0] — 2026-11-16
 
 ### New — Search bar for sound, music and SFX models (Hugging Face)
