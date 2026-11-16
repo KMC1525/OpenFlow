@@ -111,6 +111,9 @@ class BrowserTests(unittest.TestCase):
     def test_26_3d_texture_skeleton_and_animation_nodes(self):
         self.run_script("model3d_v058_ui.js")
 
+    def test_27_music_lyrics_and_sfx_nodes(self):
+        self.run_script("music_v061_ui.js")
+
     def test_19_the_ai_flow_generator_and_the_team_picker_are_gone(self):
         self.run_script("no_flow_ai_ui.js")
 

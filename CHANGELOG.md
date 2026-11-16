@@ -2,6 +2,23 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.61.0] — 2026-11-16
+
+### Novo — Música e SFX: três nós no grupo Som
+Três nós novos, no começo do grupo **Som** da paleta (o nó **Som** antigo continua, para quem já o usa):
+- **Música:** gera uma música a partir do estilo que você descreve (gênero, clima, instrumentos) — no campo do nó e/ou num texto ligado em «Descrição». Controles: **letra** (opcional; escreva no nó ou ligue um nó Letra na entrada «Letra»), **instrumental** (sem voz), **duração** (5 a 240 s), **andamento em BPM** (0 = automático), semente e o seletor de modelo (como nos outros nós de mídia). A música gerada guarda a letra usada junto do arquivo.
+- **Letra:** escreve a letra de uma música com o **modelo de texto** ativo (Configuração → Provedores) a partir de um tema (campo do nó e/ou texto ligado). Escolhe o **idioma** (português, inglês, espanhol, francês, italiano, alemão), **gênero**, **clima**, **estrutura** (música completa com versos, refrão e ponte; curta; só o refrão; rap), **rimas** (em pares, alternadas, livres) e se as partes vêm marcadas com `[Verse 1]`, `[Chorus]`… (o formato que os modelos de música leem). No modo **Arrumar a minha letra** não usa IA: limpa a sua letra e padroniza as marcas («Refrão:», «(verso 2)» → `[Chorus]`, `[Verse 2]`). Sem modelo de texto configurado (provedor Demo), monta uma letra de **exemplo** com as palavras do tema, e avisa.
+- **SFX:** gera efeitos sonoros curtos (passos, porta, chuva, laser…) a partir de uma descrição, com 1 a 4 **variações** de uma vez (cada uma com uma semente diferente), duração de 1 a 30 s.
+- Os três entram no **cache** do fluxo (mudar a letra ou o tema gera de novo só o que depende dele), aparecem no **Editor** e na **Biblioteca** como qualquer áudio, e têm tradução em inglês.
+- **Avisos honestos na execução:** se o modelo não canta letras, a música sai só com o estilo e o nó **avisa** (a letra não é enviada ao modelo como se fosse estilo); se o modelo devolve menos do que a duração pedida (os modelos locais geram um trecho curto de cada vez), o nó diz quantos segundos saíram; com **Instrumental** ligado, a letra é ignorada e isso também é dito.
+- **Demo (offline):** a música da demonstração ganha andamento por BPM e, com letra, um **balbucio rítmico** por cima (não é canto de verdade) — serve para testar o fluxo inteiro Texto → Letra → Música sem nenhum modelo.
+
+### Ainda não verificado
+- **Nenhum modelo de música de verdade foi usado.** Os testes usam o provedor Demo e provedores de mentira. O modelo local que o OpenFlow oferece para som (MusicGen) **não canta letras**: com ele, a música sai só com o estilo e o nó avisa. Música cantada de verdade (por exemplo ACE-Step ou YuE) **não está integrada nesta versão**: a porta «Letra», o aviso e a interface já estão prontos para um provedor que cante, mas nenhum foi ligado ainda.
+- Os modelos locais geram até 30 s de uma vez; durações maiores do que isso recebem o aviso acima (junte trechos com «Repetir áudio» ou no Editor).
+- O MusicGen é um modelo de **música**: usado no SFX ele funciona só de forma aproximada (não há ainda um modelo de efeitos sonoros dedicado).
+- A letra escrita pelo modelo de texto depende do modelo configurado (qualidade, idioma, respeito à estrutura): a limpeza e o formato são verificados, a qualidade da letra não.
+
 ## [0.60.0] — 2026-11-16
 
 ### Corrigido — o `flow` no terminal do Windows e do macOS

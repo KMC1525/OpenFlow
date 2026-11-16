@@ -30,6 +30,8 @@ NODE_TYPES: Dict[str, Dict[str, Any]] = {
     "image": {"label": "Imagem", "icon": "image", "out": "image", "ins": [("prompt", "Prompt", ["text"], True), ("refs", "Referências", ["image", "video"], True), ("style", "Estilo", ["style"], True)]},
     "video": {"label": "Vídeo", "icon": "video", "out": "video", "ins": [("prompt", "Prompt", ["text"], True), ("image", "Imagem inicial", ["image", "video"], False), ("style", "Estilo", ["style"], True)]},
     "sound": {"label": "Som", "icon": "audio", "out": "audio", "ins": [("prompt", "Prompt", ["text"], True), ("style", "Estilo", ["style"], True)]},
+    "music": {"label": "Música", "icon": "audio", "out": "audio", "ins": [("prompt", "Descrição", ["text"], True), ("lyrics", "Letra", ["text"], True), ("style", "Estilo", ["style"], True)]},
+    "sfx": {"label": "SFX", "icon": "audio", "out": "audio", "ins": [("prompt", "Descrição", ["text"], True)]},
     "voice": {"label": "Voz", "icon": "mic", "out": "audio", "ins": [("text", "Fala", ["text"], True), ("style", "Estilo", ["style"], True)]},
     "model3d": {"label": "Modelo 3D", "icon": "cube", "out": "model3d", "ins": [("prompt", "Prompt", ["text"], True), ("image", "Imagem", ["image", "video"], False), ("style", "Estilo", ["style"], True)]},
     "transcribe": {"label": "Transcrever", "icon": "doc", "out": "text", "ins": [("audio", "Áudio/vídeo", ["audio", "video"], False)]},
@@ -39,13 +41,13 @@ NODE_TYPES: Dict[str, Dict[str, Any]] = {
 }
 for _k, _v in nodes_ext.SPECS.items():  # v0.11: 5 nós novos por tipo (nodes_ext.py)
     NODE_TYPES[_k] = {"label": _v["label"], "icon": _v["icon"], "out": _v["out"], "ins": _v["ins"]}
-GENERATORS = ("llm", "image", "video", "sound", "voice", "transcribe", "model3d")  # nós que chamam um modelo
+GENERATORS = ("llm", "image", "video", "sound", "music", "sfx", "voice", "transcribe", "model3d")  # nós que chamam um modelo
 EXT_TYPES = tuple(nodes_ext.SPECS)  # nós novos: rodam ffmpeg/Python (só «Refinar com IA» usa o modelo de texto)
 # ordem e grupos da paleta: Texto, Imagem, Vídeo, Som, Input, Output
 PALETTE = [("Texto", ["text", "llm", "transcribe", "text_template", "text_join", "text_edit", "text_pick", "text_refine", "text_extract", "text_count"]),
            ("Imagem", ["image", "img_resize", "img_filter", "img_text", "img_collage", "img_frame", "img_crop", "img_watermark", "char_sheet", "comic_page"]),
            ("Vídeo", ["video", "vid_trim", "vid_join", "vid_speed", "vid_look", "vid_slideshow", "vid_reframe", "vid_loop", "vid_audio"]),
-           ("Som", ["sound", "voice", "aud_trim", "aud_mix", "aud_fx", "aud_from_video", "aud_loop", "aud_silence_cut"]),
+           ("Som", ["music", "lyrics", "sfx", "sound", "voice", "aud_trim", "aud_mix", "aud_fx", "aud_from_video", "aud_loop", "aud_silence_cut"]),
            ("Input", ["upload", "style_prompt", "style_folder", "in_color", "in_silence", "in_url", "in_random", "in_vars", "in_pattern"]),
            ("3D", ["model3d", "tex3d", "rig3d", "anim3d"]),
            ("Output", ["editor", "out_export", "out_gif", "out_audio", "out_image", "out_thumbnail", "out_gallery"])]
@@ -231,6 +233,13 @@ def normalize_params(ntype: str, p: Any) -> Dict[str, Any]:
     if ntype == "sound":
         return {"prompt": text(p.get("prompt"), "", 2000), "kind": "music" if p.get("kind") == "music" else "sfx", "duration": int(num(p.get("duration"), 5, 1, 120)), "provider": prov, "model": model,
                 "extra": _json_dict(p.get("extra")), "ignore_global_styles": bool(p.get("ignore_global_styles"))}
+    if ntype == "music":
+        bpm = int(num(p.get("bpm"), 0, 0, 220))
+        return {"prompt": text(p.get("prompt"), "", 2000), "lyrics": text(p.get("lyrics"), "", 8000), "instrumental": bool(p.get("instrumental")), "duration": int(num(p.get("duration"), 30, 5, 240)),
+                "bpm": bpm if bpm >= 40 else 0, "seed": int(num(p.get("seed"), 0, 0, 2 ** 31)), "provider": prov, "model": model, "extra": _json_dict(p.get("extra")), "ignore_global_styles": bool(p.get("ignore_global_styles"))}
+    if ntype == "sfx":
+        return {"prompt": text(p.get("prompt"), "", 2000), "duration": int(num(p.get("duration"), 4, 1, 30)), "variations": int(num(p.get("variations"), 1, 1, 4)), "seed": int(num(p.get("seed"), 0, 0, 2 ** 31)),
+                "provider": prov, "model": model, "extra": _json_dict(p.get("extra"))}
     if ntype == "voice":
         return {"text": text(p.get("text"), "", 8000), "voice": text(p.get("voice"), "", 80), "speed": round(num(p.get("speed"), 1, 0.5, 2), 2), "provider": prov, "model": model,
                 "extra": _json_dict(p.get("extra")), "ignore_global_styles": bool(p.get("ignore_global_styles"))}
