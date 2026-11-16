@@ -456,9 +456,31 @@ def progress_text(line: str) -> str:
     return (line.split("\r")[-1] if "\r" in line else line).strip()
 
 
+_SPEED = re.compile(r"\d+/\d+\s*-\s*[\d.]+\s*[KMGT]?B/s|\d+/\d+\s*-\s*[\d.]+\s*(?:s/it|it/s)")
+
+
 def _is_progress(line: str) -> bool:
-    """Linha da barra de progresso («| | ######## 98/98 - 739MB/s»): não diz nada sobre o motivo da falha."""
-    return bool(re.search(r"#{3,}|={5,}", line) and re.search(r"\d+/\d+", line))
+    """Linha da barra de progresso («| | ######## 98/98 - 739MB/s», ou só «| ## 6/297 - 0.00MB/s» quando o log foi cortado): não diz nada sobre o motivo da falha."""
+    return bool((re.search(r"#{3,}|={5,}", line) and re.search(r"\d+/\d+", line)) or _SPEED.search(line))
+
+
+def oom_stage(tail: Sequence[str]) -> str:
+    """Em que etapa o sistema matou o sd-cli por falta de memória (v0.57): «weights» (carregando os pesos: a barra mostra bytes/s — baixar a resolução não adianta), «sampling» (nos passos da difusão: s/it ou it/s —
+    a resolução pesa) ou «unknown»."""
+    last = next((ln for ln in reversed(list(tail)) if re.search(r"\d+/\d+", ln)), "")
+    if re.search(r"[KMGT]?B/s", last):
+        return "weights"
+    if re.search(r"s/it|it/s", last):
+        return "sampling"
+    return "unknown"
+
+
+class OutOfMemory(ProviderError):
+    """O sistema encerrou o sd-cli por falta de memória (código -9/137). `stage`: ver `oom_stage`."""
+
+    def __init__(self, message: str, stage: str = "unknown"):
+        super().__init__(message)
+        self.stage = stage
 
 
 def failure_text(tail: Sequence[str], limit: int = 600) -> str:
@@ -507,7 +529,10 @@ def run(args: Sequence[str], exe: Path, cancelled: Callable[[], bool] = lambda: 
                 pass
             raise GlibcError(why)
         oom = " O sistema o encerrou por falta de memória (RAM): use uma resolução ou quantização menores, ou feche outros programas." if p.returncode in (-9, 137) else ""
-        raise ProviderError(f"O sd-cli falhou (código {p.returncode}):{oom} " + failure_text(tail))
+        msg = f"O sd-cli falhou (código {p.returncode}):{oom} " + failure_text(tail)
+        if p.returncode in (-9, 137):
+            raise OutOfMemory(msg, oom_stage(tail))
+        raise ProviderError(msg)
     return "\n".join(tail)
 
 

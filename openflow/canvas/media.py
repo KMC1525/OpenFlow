@@ -1054,6 +1054,43 @@ def clean_png(data: bytes) -> bytes:
         return data
 
 
+_WEIGHT_LABELS = {"diffusion_model_path": "modelo", "model_path": "modelo", "llm_path": "codificador de texto", "llm_vision_path": "projetor de visão", "vae_path": "VAE", "t5xxl_path": "codificador T5",
+                  "clip_l_path": "CLIP-L", "clip_g_path": "CLIP-G", "clip_vision_path": "CLIP vision", "tokenizer_path": "tokenizador"}
+
+
+def _memory_hint(kw: Dict[str, Any], n_refs: int, stage: str) -> str:
+    """Complemento da mensagem de «falta de memória» (v0.57): quanto os arquivos carregados somam, quanto o computador tem, em que etapa acabou e o que fazer (em vez de só «use uma resolução ou quantização menores»)."""
+    parts = []
+    for k, label in _WEIGHT_LABELS.items():
+        v = kw.get(k)
+        if isinstance(v, str) and v:
+            try:
+                parts.append((label, os.path.getsize(v) / 1e9))
+            except OSError:
+                continue
+    total = sum(g for _, g in parts)
+    out = f" Os arquivos carregados somam ≈ {total:.1f} GB ({', '.join(f'{lb} {g:.1f}' for lb, g in parts)})" if parts else ""
+    try:
+        info = _native.sys_info() or {}
+        if info.get("ram_total"):
+            out += f" e o computador tem ≈ {info['ram_total'] / 2 ** 30:.0f} GB de RAM ({(info.get('ram_avail') or 0) / 2 ** 30:.0f} GB livres agora)"
+    except Exception:  # noqa: BLE001 — só informação
+        pass
+    out += "." if out else ""
+    if stage == "weights":
+        out += " Acabou ao CARREGAR os pesos, então baixar a resolução não resolve. "
+    elif stage == "sampling":
+        out += " Acabou durante a geração, mesmo depois de uma segunda tentativa em resolução menor. "
+    else:
+        out += " "
+    tips = []
+    if n_refs and kw.get("llm_vision_path"):
+        tips.append("tire as imagens de referência (o projetor de visão só é carregado com elas)")
+    tips.append("use um codificador de texto menor (ex.: Qwen3-VL-8B Q3_K_XL ou Q2_K_XL — informe o arquivo em «extra» do nó: {\"load\": {\"llm_path\": \"arquivo.gguf\"}}) ou uma quantização menor do modelo (Q3/Q2)")
+    tips.append("feche outros programas")
+    return out + "Para liberar memória: " + "; ".join(tips) + "."
+
+
 def _pil_refs(refs: Sequence[Ref], limit: int = 4, keep_alpha: bool = False) -> List[Any]:
     """Imagens de referência (bytes, mime) como imagens RGB da PIL (como a pessoa as vê: ver `open_rgb`); as ilegíveis são ignoradas."""
     __import__("PIL")   # sem a Pillow, falha logo aqui (e não vira «formato não suportado»)
@@ -1553,8 +1590,18 @@ class GGUFMedia(MediaProvider):
         for i in range(max(1, count)):
             self.ctl.check()
             try:
-                data, warns = self._cli_call(path, lambda c: sdcli.generate_image(c, kw, run_p, prompt=prompt, width=w, height=h, seed=int(seed + i) if seed else int(time.time() * 1000) % (2 ** 31) + i, negative=negative,
-                                                                                  refs=ref_png if multi else [], init=None if multi or not ref_png else ref_png[0], cancelled=self._cancelled, note=self.ctl.note))
+                gw, gh = w, h
+                for attempt in (0, 1):
+                    try:
+                        data, warns = self._cli_call(path, lambda c: sdcli.generate_image(c, kw, run_p, prompt=prompt, width=gw, height=gh, seed=int(seed + i) if seed else int(time.time() * 1000) % (2 ** 31) + i, negative=negative,
+                                                                                          refs=ref_png if multi else [], init=None if multi or not ref_png else ref_png[0], cancelled=self._cancelled, note=self.ctl.note))
+                        break
+                    except sdcli.OutOfMemory as oom:
+                        if attempt == 0 and oom.stage == "sampling" and min(gw, gh) > 256:   # a memória acabou NOS PASSOS (a resolução pesa): uma segunda tentativa, em resolução menor (v0.57)
+                            gw, gh = max(256, int(gw * 0.7) // mult * mult), max(256, int(gh * 0.7) // mult * mult)
+                            self.ctl.note(f"Faltou memória ao gerar: tentando de novo em {gw}×{gh}…")
+                            continue
+                        raise ProviderError(str(oom) + _memory_hint(kw, len(ref_png), oom.stage)) from None
             except ProviderError as exc:
                 if str(exc) == "cancelado":
                     self.ctl.check()   # o trabalho foi cancelado: levanta o cancelamento de verdade
