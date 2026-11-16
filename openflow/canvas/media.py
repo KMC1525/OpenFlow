@@ -484,8 +484,12 @@ def _local_load(cap: str, model: str, loader: Callable[[], Any]) -> Any:
 
 def _wav_from_array(arr: Any, rate: int) -> bytes:
     (np,) = _local_import("numpy")
-    a = np.asarray(arr, dtype="float32")
+    a = np.nan_to_num(np.asarray(arr, dtype="float32"), nan=0.0, posinf=1.0, neginf=-1.0)   # NaN/inf (modelo instável) viravam ruído estourado e um peak NaN
     a = np.squeeze(a)
+    if a.size == 0:
+        raise ProviderError("O modelo de áudio não devolveu nenhuma amostra. Tente de novo (ou mude a semente).")
+    if a.ndim == 0:
+        a = a.reshape(1)
     if a.ndim == 2 and a.shape[0] <= 8 < a.shape[1]:
         a = a.T
     if a.ndim > 2:
@@ -738,7 +742,7 @@ class LocalHFMedia(MediaProvider):
         fam = mesh3d.family(model)
         if not fam:
             raise ProviderError(f'O modelo 3D "{model}" não é de uma família conhecida. Use Shap-E (openai/shap-e), TripoSR (stabilityai/TripoSR) ou Hunyuan3D-2 (tencent/Hunyuan3D-2mini) — baixe em Configuração → Mídia.')
-        pil = _pil_refs([image], 1) if image else []
+        pil = _pil_refs([image], 1, keep_alpha=fam != "shap-e") if image else []   # TripoSR/Hunyuan3D recebem o recorte com transparência (v0.53); o Shap-E, RGB
         if image and not pil:
             raise ProviderError("Não consegui ler a imagem ligada ao nó 3D (formato não suportado).")
         if fam == "shap-e":
@@ -841,6 +845,8 @@ class LocalHFMedia(MediaProvider):
         (tf,) = _local_import("transformers")
         ready = self._ready(model)
         pipe = _local_load("sound", model, lambda: tf.pipeline("text-to-audio", model=model, torch_dtype=ready["dtype"], model_kwargs={"local_files_only": True}))
+        if duration > 30:
+            self.ctl.note("Os modelos de som locais geram até 30 s de uma vez: o resultado terá 30 s (use «Repetir áudio» ou o Editor para alongar).")
         self.ctl.note("Gerando som localmente…")
         res = pipe(prompt, forward_params={"do_sample": True, "max_new_tokens": int(max(1, min(30, duration)) * 50), **(extra or {})})
         return Media(_wav_from_array(res["audio"], res["sampling_rate"]), "audio/wav")
@@ -1008,7 +1014,7 @@ def _frames_to_mp4(frames: Any, fps: int) -> Media:
         return Media(dst.read_bytes(), "video/mp4")
 
 
-def open_rgb(data: bytes) -> Any:
+def open_rgb(data: bytes, keep_alpha: bool = False) -> Any:
     """Imagem de entrada como RGB da PIL, do jeito que a pessoa a vê (v0.51). `.convert("RGB")` direto errava em três casos comuns: fotos de celular saíam deitadas (ignora a orientação EXIF),
     o que era transparente virava a cor escondida por baixo (em geral preto) e PNG de 16 bits saía todo branco. Aqui: gira pelo EXIF, compõe sobre branco e reduz 16 bits para 8."""
     from PIL import Image, ImageOps  # type: ignore
@@ -1024,6 +1030,8 @@ def open_rgb(data: bytes) -> Any:
         im = im.point(lambda v: v * 255.0).convert("L")
     if im.mode in ("RGBA", "LA", "PA") or (im.mode == "P" and "transparency" in im.info):
         rgba = im.convert("RGBA")
+        if keep_alpha and rgba.getchannel("A").getextrema()[0] < 255:   # modelos 3D (TripoSR, Hunyuan3D) usam a transparência para separar o objeto do fundo
+            return rgba
         bg = Image.new("RGBA", rgba.size, (255, 255, 255, 255))
         bg.alpha_composite(rgba)
         return bg.convert("RGB")
@@ -1046,14 +1054,14 @@ def clean_png(data: bytes) -> bytes:
         return data
 
 
-def _pil_refs(refs: Sequence[Ref], limit: int = 4) -> List[Any]:
+def _pil_refs(refs: Sequence[Ref], limit: int = 4, keep_alpha: bool = False) -> List[Any]:
     """Imagens de referência (bytes, mime) como imagens RGB da PIL (como a pessoa as vê: ver `open_rgb`); as ilegíveis são ignoradas."""
     __import__("PIL")   # sem a Pillow, falha logo aqui (e não vira «formato não suportado»)
 
     out: List[Any] = []
     for data, _mime in list(refs)[:limit]:
         try:
-            out.append(open_rgb(data))
+            out.append(open_rgb(data, keep_alpha))
         except Exception:  # noqa: BLE001 — arquivo que não é imagem
             continue
     return out

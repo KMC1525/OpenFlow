@@ -209,8 +209,14 @@ class ProjectRoutes:
         if archives.archive_kind(name):   # ZIP, RAR, 7z, TAR…: as imagens, vídeos e áudios de dentro viram arquivos do canvas (uma resposta com `also` quando há mais de um)
             return self._asset_upload_archive(req, cid, name, data)
         mime = refine_mime(data, sniff_mime(data))  # o tipo vem do conteúdo (inclusive das trilhas: só áudio num .mp4 é áudio), nunca do nome nem do Content-Type enviado
-        kind = mime.split("/")[0] if mime.split("/")[0] in ("image", "audio", "video") else ("model3d" if mime == "model/gltf-binary" else "")
-        if kind == "model3d":   # um GLB só entra se o cabeçalho e o JSON conferem (v0.47): um arquivo que só começa com «glTF» não vira modelo
+        if not mime and mesh3d.looks_like_obj(data):   # OBJ (texto) não tem assinatura: entra se de fato tem malha (v0.53)
+            try:
+                mesh3d.obj_info(data)
+                mime = "model/obj"
+            except (ValueError, IndexError):
+                raise HttpError(400, "Esse arquivo não é um modelo 3D OBJ válido (vértices e faces que se conferem).")
+        kind = mime.split("/")[0] if mime.split("/")[0] in ("image", "audio", "video") else ("model3d" if mime in ("model/gltf-binary", "model/obj") else "")
+        if kind == "model3d" and mime == "model/gltf-binary":   # um GLB só entra se o cabeçalho e o JSON conferem (v0.47): um arquivo que só começa com «glTF» não vira modelo
             try:
                 mesh3d.glb_info(data)
             except (ValueError, KeyError, IndexError, TypeError):
