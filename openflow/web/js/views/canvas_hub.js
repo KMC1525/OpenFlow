@@ -16,7 +16,7 @@ const compact = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? Math.
 
 // c: { cid, selected(): nó selecionado | null, onUsed(res, node) }
 export function modelSearchBar(c) {
-  const st = { cap: 'image', fmt: 'gguf', q: '', results: null, open: null, busy: false, err: '', cat: null, pre: null };
+  const st = { cap: 'image', fmt: 'gguf', q: '', results: null, open: null, busy: false, err: '', cat: null };
   const capSel = h('select', { id: 'hub-cap', title: t('Tipo de modelo'), onchange: (e) => { st.cap = e.target.value; st.fmt = st.cap === 'text' ? 'gguf' : BOTH_CAPS.includes(st.cap) ? st.fmt : 'original'; st.results = null; st.open = null; syncFmt(); if (st.q) search(); else paint(); } }, CAPS.map(([v, l]) => h('option', { value: v }, t(l))));
   const fmtSel = h('select', { id: 'hub-fmt', title: t('Formato'), onchange: (e) => { st.fmt = e.target.value; st.results = null; st.open = null; if (st.q) search(); else paint(); } }, h('option', { value: 'gguf' }, t('GGUF · quantizações')), h('option', { value: 'original' }, t('Original · fp32/fp16/bf16')));
   const syncFmt = () => { fmtSel.value = st.fmt; fmtSel.disabled = !BOTH_CAPS.includes(st.cap); };
@@ -113,25 +113,15 @@ export function modelSearchBar(c) {
     } catch (e) { fill(slot, h('div', { class: 'errbox' }, e.message)); }
   }
 
-  // Recomendados: modelos prontos para instalar (um clique) e o catálogo da Unsloth/ChatR Labs (GGUF) — tudo pesquisado e baixado aqui, pela barra do Canvas
+  // Recomendados: o catálogo da Unsloth/ChatR Labs (GGUF) — só uma lista para abrir; quem escolhe, pesquisa e baixa o modelo é você, pela barra do Canvas (v0.48: sem modelos «prontos para instalar»)
   async function loadRecs() {
     if (!st.cat) { try { st.cat = (await api('/api/unsloth/catalog')).models; } catch (e) { st.cat = []; } }
-    if (!st.pre) { try { st.pre = (await api('/api/preinstalled')).models; } catch (e) { st.pre = []; } }
   }
   function recs() {
     const box = h('div', { class: 'hub-recs', id: 'hub-recs' });
-    if (!st.cat || !st.pre) { loadRecs().then(() => { if (st.results === null && !panel.classList.contains('hidden')) paint(); }); return h('div', { class: 'muted small', style: { padding: '12px' } }, h('span', { class: 'spinner' }), ' ', t('Carregando os recomendados…')); }
-    const pre = st.pre.filter((m) => m.kind === st.cap), cat = st.fmt === 'gguf' ? st.cat.filter((m) => m.kind === st.cap) : [];
+    if (!st.cat) { loadRecs().then(() => { if (st.results === null && !panel.classList.contains('hidden')) paint(); }); return h('div', { class: 'muted small', style: { padding: '12px' } }, h('span', { class: 'spinner' }), ' ', t('Carregando os recomendados…')); }
+    const cat = st.fmt === 'gguf' ? st.cat.filter((m) => m.kind === st.cap) : [];
     const chip = { ready: [t('Funciona'), 'chip on'], alt: [t('Use outro repositório'), 'chip'], beta: [t('Experimental'), 'chip on'], soon: [t('Ainda não'), 'chip'] };
-    if (pre.length) box.append(h('div', { class: 'hub-head muted small' }, t('Prontos para instalar')), ...pre.map((m) => {
-      const area = h('div');
-      const act = m.installed ? h('span', { class: 'chip on' }, '✓ ' + t('Instalado')) : h('button', { class: 'btn sm primary', type: 'button', dataset: { act: 'preinstall', id: m.id }, onclick: async () => {
-        let jid; try { jid = (await api('/api/preinstalled/install', { method: 'POST', body: { id: m.id } })).job_id; } catch (e) { return toast(e.message, 'err'); }
-        progressRow(area, t('Baixando {n}…', { n: m.label }), jid, (ok) => { if (ok) { st.pre = null; c.onUsed({ cap: st.cap }, null); } paint(); });
-      } }, icon('download', 13), t('Instalar'));
-      return h('div', { class: 'hub-rec' }, h('div', { class: 'row nw', style: { gap: '8px' } }, h('div', { class: 'grow', style: { minWidth: 0 } }, h('div', { class: 'row', style: { gap: '8px', flexWrap: 'wrap' } }, h('b', null, m.label), h('span', { class: 'chip solid' }, m.quant), h('span', { class: 'dim small' }, bytes(m.size))),
-        h('div', { class: 'dim small' }, t(m.hint))), act), area);
-    }));
     if (cat.length) box.append(h('div', { class: 'hub-head muted small' }, t('Catálogo recomendado (GGUF)')), ...cat.map((m) => {
       const go = (repo) => { input.value = repo; st.q = repo; search(); };
       return h('div', { class: 'hub-rec', dataset: { repo: m.repo } }, h('div', { class: 'row nw', style: { gap: '8px' } }, h('div', { class: 'grow', style: { minWidth: 0 } },

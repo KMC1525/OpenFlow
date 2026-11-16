@@ -8,7 +8,7 @@ Ligue alguns nós, veja cada resultado no próprio nó e edite o vídeo final se
 
 [Instalar](#instalar) · [Usar](#usar) · [Nós](#nós) · [Modelos](#modelos) · [Configurações](#configurações) · [Seus dados](#seus-dados) · [Desenvolvimento](#desenvolvimento) · [Changelog](CHANGELOG.md) · [English](README.md)
 
-`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Núcleo Rust` · `v0.47.0`
+`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Núcleo Rust` · `v0.48.0`
 
 </div>
 
@@ -62,7 +62,7 @@ O Style Prompt e o Style Folder (pastas e subpastas, renomeáveis) valem para to
 
 ## Modelos
 
-**Toda pesquisa e download de modelos acontece na barra de pesquisa de modelos no topo do editor do Canvas**, com um indicador de downloads ao lado (progresso, velocidade, tempo restante, cancelar). Clique nela para ver os recomendados, pesquisar no Hugging Face por tipo ou colar um endereço `dono/nome`. Em imagem e vídeo escolha **GGUF** (a quantização: bits, tamanho, qualidade, cabe na sua RAM?) ou o formato **original** do diffusers; texto é só GGUF; som, voz, transcrição e 3D usam o formato original.
+**Toda pesquisa e download de modelos acontece na barra de pesquisa de modelos no topo do editor do Canvas**, com um indicador de downloads ao lado (progresso, velocidade, tempo restante, cancelar). Clique nela para ver um catálogo de modelos conhecidos (ele só lista), pesquisar no Hugging Face por tipo ou colar um endereço `dono/nome`. Em imagem e vídeo escolha **GGUF** (a quantização: bits, tamanho, qualidade, cabe na sua RAM?) ou o formato **original** do diffusers; texto é só GGUF; som, voz, transcrição e 3D usam o formato original.
 
 - **Arquivos de apoio vêm junto:** VAE, codificadores de texto e `mmproj` baixam com o modelo (desligue em *Configurações → Desempenho → Downloads de modelos*).
 - **Provedores:** só locais — *Hugging Face local* (diffusers, transformers), *GGUF local* (llama.cpp no texto, stable-diffusion.cpp em imagem/vídeo) e um *Demo* offline. 3D: Shap-E, TripoSR, Hunyuan3D-2.

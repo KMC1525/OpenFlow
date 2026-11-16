@@ -2,6 +2,15 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.48.0] — 2026-11-16
+
+### Removido — «Prontos para instalar» na barra de pesquisa do Canvas
+- Saiu a seção **«Prontos para instalar»** (com o Z-Image e o modelo de texto, e o botão Instalar) que aparecia ao clicar na barra de pesquisa de modelos: quem escolhe, pesquisa e baixa o modelo é o usuário. A barra não consulta mais `/api/preinstalled`.
+- **Fica** o **«Catálogo recomendado (GGUF)»** (Unsloth e ChatR Labs): ele só **lista** modelos conhecidos e abre a pesquisa de cada um com «Ver quantizações»; nada é instalado sem você escolher a quantização e apertar Baixar.
+
+### Ainda não verificado
+- Não mexi no que existe fora da barra: o instalador (`install.sh`/`install.ps1`) e o `flow setup` ainda **perguntam** se você quer os modelos pré-instalados (a variável `OPENFLOW_MODELS=none` desliga), e `flow models install` e a rota `/api/preinstalled` continuam existindo.
+
 ## [0.47.0] — 2026-11-16
 
 ### Corrigido — varredura geral 4
