@@ -8,6 +8,7 @@ const CAPS = [['image', 'Imagem'], ['video', 'Vídeo'], ['sound', 'Som'], ['voic
 const GGUF_CAPS = ['image', 'video', 'text'];   // os únicos com provedor GGUF no OpenFlow
 const BOTH_CAPS = ['image', 'video'];   // escolhem entre GGUF e o formato original (diffusers: fp32/fp16/bf16); o texto roda só GGUF (llama.cpp) e som, voz, transcrição e 3D só o formato original
 const REPO_RE = /^[A-Za-z0-9][\w.-]{0,95}\/[A-Za-z0-9][\w.-]{0,95}$/;
+const SOUND_CAPS = ['sound', 'voice', 'stt'];   // v0.65: pesquisam por assunto (música, efeitos, voz, dublagem…) e já abrem com os mais baixados
 const NODE_OF = { image: 'image', video: 'video', sound: 'sound', voice: 'voice', stt: 'transcribe', text: 'llm', model3d: 'model3d' };
 const QUALITY = { very_low: 'qualidade muito baixa', low: 'qualidade baixa', good: 'boa qualidade', very_good: 'ótima qualidade', high: 'alta qualidade', lossless: 'quase sem perdas', original: 'original' };
 const PREC_HINT = { fp32: 'Maior e mais lento; funciona em qualquer computador', fp16: 'Metade do tamanho; ideal com placa de vídeo', bf16: 'Como o fp16, com a faixa do fp32' };
@@ -16,19 +17,31 @@ const compact = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? Math.
 
 // c: { cid, selected(): nó selecionado | null, onUsed(res, node) }
 export function modelSearchBar(c) {
-  const st = { cap: 'image', fmt: 'gguf', q: '', results: null, open: null, busy: false, err: '', cat: null };
-  const capSel = h('select', { id: 'hub-cap', title: t('Tipo de modelo'), onchange: (e) => { st.cap = e.target.value; st.fmt = st.cap === 'text' ? 'gguf' : BOTH_CAPS.includes(st.cap) ? st.fmt : 'original'; st.results = null; st.open = null; syncFmt(); if (st.q) search(); else paint(); } }, CAPS.map(([v, l]) => h('option', { value: v }, t(l))));
+  const st = { cap: 'image', fmt: 'gguf', q: '', results: null, open: null, busy: false, err: '', cat: null, topic: '', topics: null, browsed: '' };
+  const capSel = h('select', { id: 'hub-cap', title: t('Tipo de modelo'), onchange: (e) => { st.cap = e.target.value; st.topic = ''; st.fmt = st.cap === 'text' ? 'gguf' : BOTH_CAPS.includes(st.cap) ? st.fmt : 'original'; st.results = null; st.open = null; syncFmt(); syncTopic(); if (st.q) search(); else paint(); } }, CAPS.map(([v, l]) => h('option', { value: v }, t(l))));
   const fmtSel = h('select', { id: 'hub-fmt', title: t('Formato'), onchange: (e) => { st.fmt = e.target.value; st.results = null; st.open = null; if (st.q) search(); else paint(); } }, h('option', { value: 'gguf' }, t('GGUF · quantizações')), h('option', { value: 'original' }, t('Original · fp32/fp16/bf16')));
+  const topicSel = h('select', { id: 'hub-topic', title: t('Assunto'), onchange: (e) => { st.topic = e.target.value; st.results = null; st.open = null; if (st.q) search(); else paint(); } });
+  const topicLabel = h('label', { class: 'dim small hidden', id: 'hub-topic-label' }, t('Assunto'), ' ', topicSel);
+  const topicsOf = () => ((st.topics || {})[st.cap] || []);
+  const syncTopic = () => {   // v0.65: o seletor de assunto aparece para som, voz e transcrição (os assuntos vêm do servidor)
+    const list = topicsOf();
+    if (!list.some((x) => x.id === st.topic)) st.topic = list.length ? list[0].id : '';
+    fill(topicSel, ...list.map((x) => h('option', { value: x.id }, t(x.label))));
+    topicSel.value = st.topic;
+    topicLabel.classList.toggle('hidden', list.length < 2);
+    input.placeholder = SOUND_CAPS.includes(st.cap) ? t('Buscar modelos de som: musicgen, whisper, voz em português…') : t('Buscar modelos no Hugging Face…');
+  };
   const syncFmt = () => { fmtSel.value = st.fmt; fmtSel.disabled = !BOTH_CAPS.includes(st.cap); };
   const input = h('input', { type: 'search', id: 'hub-q', placeholder: t('Buscar modelos no Hugging Face…'), 'aria-label': t('Buscar modelos no Hugging Face'), autocomplete: 'off', onkeydown: (e) => { if (e.key === 'Enter') { st.q = input.value.trim(); search(); } else if (e.key === 'Escape') close(); }, onfocus: () => { openPanel(); } });
   const panel = h('div', { class: 'cv-hub-panel hidden', id: 'hub-panel' });
-  const filters = h('div', { class: 'hub-filters' }, h('label', { class: 'dim small' }, t('Tipo'), ' ', capSel), h('label', { class: 'dim small' }, t('Formato'), ' ', fmtSel));
+  const filters = h('div', { class: 'hub-filters' }, h('label', { class: 'dim small' }, t('Tipo'), ' ', capSel), topicLabel, h('label', { class: 'dim small' }, t('Formato'), ' ', fmtSel));
   const root = h('div', { class: 'cv-hub', role: 'search' }, input, h('button', { class: 'btn icon sm', type: 'button', id: 'hub-go', title: t('Buscar'), 'aria-label': t('Buscar modelos'), onclick: () => { st.q = input.value.trim(); search(); } }, icon('search', 15)), panel);
   syncFmt();
+  api('/api/media/hub/topics').then((r) => { st.topics = r.topics; syncTopic(); if (!panel.classList.contains('hidden')) paint(); }).catch(() => { st.topics = {}; });
   const openPanel = () => { panel.classList.remove('hidden'); paint(); };
   input.addEventListener('focus', () => { if (panel.classList.contains('hidden')) openPanel(); });   // ao clicar na barra já aparecem os recomendados
   // outras partes do app (avisos dos nós) pedem uma busca aqui: «flow:hub» { q, cap, fmt }
-  const onHubEvent = (e) => { if (!root.isConnected) return; const d = (e && e.detail) || {}; if (d.cap && CAPS.some(([v]) => v === d.cap)) { st.cap = d.cap; capSel.value = d.cap; } if (d.fmt) st.fmt = d.fmt; st.fmt = st.cap === 'text' ? 'gguf' : BOTH_CAPS.includes(st.cap) ? st.fmt : 'original'; syncFmt(); input.focus(); if (d.q) { input.value = d.q; st.q = d.q; search(); } else openPanel(); };
+  const onHubEvent = (e) => { if (!root.isConnected) return; const d = (e && e.detail) || {}; if (d.cap && CAPS.some(([v]) => v === d.cap)) { st.cap = d.cap; capSel.value = d.cap; st.topic = d.topic || ''; st.results = null; } if (d.fmt) st.fmt = d.fmt; st.fmt = st.cap === 'text' ? 'gguf' : BOTH_CAPS.includes(st.cap) ? st.fmt : 'original'; syncFmt(); syncTopic(); input.focus(); if (d.q) { input.value = d.q; st.q = d.q; search(); } else openPanel(); };
   window.addEventListener('flow:hub', onHubEvent);
   const close = () => panel.classList.add('hidden');
   const onHubDown = (e) => { if (root.isConnected && !root.contains(e.target)) close(); };
@@ -36,10 +49,10 @@ export function modelSearchBar(c) {
 
   let searchSeq = 0;   // só a resposta mais recente vale (uma busca lenta e antiga não apaga a nova)
   async function search() {
-    if (!st.q) return toast(t('Escreva o nome ou o assunto do modelo (ex.: flux, sdxl, whisper, wan).'));
+    if (!st.q && !SOUND_CAPS.includes(st.cap)) return toast(t('Escreva o nome ou o assunto do modelo (ex.: flux, sdxl, whisper, wan).'));
     const my = ++searchSeq;
     st.busy = true; st.err = ''; st.open = null; openPanel();
-    try { const r = await api(`/api/media/hub/search?q=${encodeURIComponent(st.q)}&cap=${st.cap}&format=${st.fmt}`); if (my !== searchSeq) return; st.results = r.results; st.fmt = r.format; syncFmt(); if (REPO_RE.test(st.q) && !st.results.some((x) => x.id.toLowerCase() === st.q.toLowerCase())) st.results = [{ id: st.q, downloads: 0, likes: 0 }].concat(st.results); if (REPO_RE.test(st.q) && st.results.length === 1) st.open = st.results[0].id; } catch (e) { if (my !== searchSeq) return; st.err = e.message; st.results = []; }
+    try { const r = await api(`/api/media/hub/search?q=${encodeURIComponent(st.q)}&cap=${st.cap}&format=${st.fmt}` + (SOUND_CAPS.includes(st.cap) ? '&topic=' + encodeURIComponent(st.topic) : '')); if (my !== searchSeq) return; st.results = r.results; st.fmt = r.format; syncFmt(); if (REPO_RE.test(st.q) && !st.results.some((x) => x.id.toLowerCase() === st.q.toLowerCase())) st.results = [{ id: st.q, downloads: 0, likes: 0 }].concat(st.results); if (REPO_RE.test(st.q) && st.results.length === 1) st.open = st.results[0].id; } catch (e) { if (my !== searchSeq) return; st.err = e.message; st.results = []; }
     st.busy = false; paint();
   }
 
@@ -93,13 +106,14 @@ export function modelSearchBar(c) {
       } else {
         const [o, q] = await Promise.all([api('/api/media/local/options?model=' + encodeURIComponent(repo)), api('/api/media/local/quants?model=' + encodeURIComponent(repo)).catch(() => ({ variants: [] }))]);
         let state = {}; try { state = await api('/api/media/local/state'); } catch (e) { /* sem estado */ }
+        const meta = (st.results || []).find((x) => x.id === repo), blocked = !!(meta && meta.compat && meta.compat.level === 'no');   // v0.65: um modelo que o OpenFlow não roda não vira «Usar»
         const prec = (state.models && state.models[st.cap] && state.models[st.cap].model === repo && state.models[st.cap].precision) || '';
-        const draw = (cur) => fill(slot, !state.libs ? h('div', { class: 'errbox', style: { marginBottom: '8px' } }, t('Instale as bibliotecas dos modelos locais para baixar:') + ' pip install "openflow[media]"  (' + t('ou rode') + ' flow libs)') : null,
+        const draw = (cur) => fill(slot, blocked ? h('div', { class: 'errbox', dataset: { blocked: '1' }, style: { marginBottom: '8px' } }, meta.compat.reason) : null, !state.libs ? h('div', { class: 'errbox', style: { marginBottom: '8px' } }, t('Instale as bibliotecas dos modelos locais para baixar:') + ' pip install "openflow[media]"  (' + t('ou rode') + ' flow libs)') : null,
           h('div', { class: 'muted small', style: { marginBottom: '6px' } }, t('Precisão do download: menos bits = menor; o fp16 pede placa de vídeo.')),
           o.options.map((p) => { const row = h('div', { class: 'hub-q', dataset: { quant: p.id } });
             fill(row, h('div', { class: 'grow' }, h('div', { class: 'row', style: { gap: '8px' } }, h('b', null, p.id), p.recommended ? h('span', { class: 'chip on' }, t('Recomendada')) : null, cur === p.id ? h('span', { class: 'chip on' }, t('baixado')) : null), h('div', { class: 'dim small' }, t(PREC_HINT[p.id] || ''))),
               h('span', { class: 'chip solid' }, bytes(p.size)),
-              cur === p.id ? h('button', { class: 'btn sm primary', type: 'button', dataset: { act: 'use' }, onclick: () => useModel('local_hf', repo) }, icon('check', 13), t('Usar'))
+              cur === p.id ? h('button', { class: 'btn sm primary', type: 'button', dataset: { act: 'use' }, disabled: blocked, title: blocked ? t('O OpenFlow ainda não roda este modelo') : '', onclick: () => useModel('local_hf', repo) }, icon('check', 13), t('Usar'))
                 : h('button', { class: 'btn sm', type: 'button', dataset: { act: 'download' }, disabled: !state.libs, onclick: async () => {
                   let jid; try { jid = (await api('/api/media/local/download', { method: 'POST', body: { model: repo, precision: p.id } })).job_id; } catch (e) { return toast(e.message, 'err'); }
                   progressRow(row, repo.split('/')[1] + ' · ' + p.id, jid, (ok) => draw(ok ? p.id : cur));
@@ -135,15 +149,25 @@ export function modelSearchBar(c) {
     return box;
   }
 
+  const topicName = (id) => { for (const l of Object.values(st.topics || {})) { const x = l.find((y) => y.id === id); if (x) return x.label; } return id; };
+  // v0.65: o selo «Roda no OpenFlow» / «Ainda não roda», os assuntos do modelo e a biblioteca dele
+  const badges = (r) => (r.compat ? h('div', { class: 'hub-badges' }, h('span', { class: 'chip ' + (r.compat.level === 'ok' ? 'on' : 'warn'), dataset: { compat: r.compat.level }, title: r.compat.reason }, r.compat.level === 'ok' ? t('Roda no OpenFlow') : t('Ainda não roda no OpenFlow')),
+    ...(r.topics || []).slice(0, 3).map((x) => h('span', { class: 'chip', dataset: { topic: x } }, t(topicName(x)))), r.library ? h('span', { class: 'chip', title: t('Biblioteca') }, r.library) : null) : null);
+
   function paint() {
+    if (st.results === null && !st.busy && !st.err && SOUND_CAPS.includes(st.cap) && st.fmt === 'original' && st.topics) {   // som, voz e transcrição: ao abrir já aparecem os mais baixados do assunto (sem digitar nada)
+      const key = st.cap + '|' + st.topic + '|' + st.q;
+      if (st.browsed !== key) { st.browsed = key; setTimeout(search, 0); fill(panel, filters, h('div', { class: 'muted small', style: { padding: '12px' } }, h('span', { class: 'spinner' }), ' ', t('Procurando…'))); return; }
+    }
     if (st.results === null && !st.busy && !st.err) { fill(panel, filters, recs()); return; }
-    const hint = st.fmt === 'gguf' ? t('GGUF: cada arquivo é uma quantização do mesmo modelo; você escolhe qual baixar.') : t('Formato original (diffusers/transformers): você escolhe a precisão antes do download.');
+    const hint = SOUND_CAPS.includes(st.cap) ? t('Mais baixados do assunto; os que o OpenFlow roda vêm primeiro. Escreva o nome de uma família (musicgen, whisper…), de um autor ou um idioma («voz em português») e aperte Enter.')
+      : st.fmt === 'gguf' ? t('GGUF: cada arquivo é uma quantização do mesmo modelo; você escolhe qual baixar.') : t('Formato original (diffusers/transformers): você escolhe a precisão antes do download.');
     fill(panel, filters, h('div', { class: 'hub-head muted small' }, hint),
       st.busy ? h('div', { class: 'muted small', style: { padding: '12px' } }, h('span', { class: 'spinner' }), ' ', t('Procurando…')) : st.err ? h('div', { class: 'errbox', style: { margin: '8px' } }, st.err)
         : (st.results || []).length ? (st.results || []).map((r) => {
           const slot = h('div', { class: 'hub-detail' + (st.open === r.id ? '' : ' hidden') });
           const row = h('div', { class: 'hub-r' + (st.open === r.id ? ' on' : ''), dataset: { repo: r.id }, onclick: () => { st.open = st.open === r.id ? null : r.id; paint(); } },
-            icon('chev', 12), h('span', { class: 'nm mono' }, r.id), h('span', { class: 'muted small' }, '↓ ' + compact(r.downloads) + (r.likes ? ' · ♥ ' + compact(r.likes) : '')));
+            icon('chev', 12), h('span', { class: 'nm mono' }, r.id), h('span', { class: 'muted small' }, '↓ ' + compact(r.downloads) + (r.likes ? ' · ♥ ' + compact(r.likes) : '')), badges(r));
           if (st.open === r.id) setTimeout(() => detail(r.id, slot), 0);
           return h('div', { class: 'hub-item' }, row, slot);
         }) : h('div', { class: 'muted small', style: { padding: '12px' } }, st.results ? t('Nada encontrado. Tente outro nome.') : ''));

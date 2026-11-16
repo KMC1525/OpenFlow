@@ -192,6 +192,48 @@ def search_original(query: str, token: str = "", cap: str = "image", limit: int 
     return sorted(found.values(), key=lambda m: -m["downloads"])[:limit]
 
 
+def search_sound(query: str, token: str = "", cap: str = "sound", topic: str = "", limit: int = 24) -> List[Dict[str, Any]]:
+    """Busca modelos de SOM no Hub por assunto (v0.65): música, efeitos, separar/melhorar áudio (`sound`); voz, clonar/trocar a voz, voz por descrição, dublagem (`voice`); transcrição (`stt`). Pergunta ao Hub pelas tags
+    de cada assunto (`soundsearch.FETCH`), tira o ruído (modelos de vídeo, «omni», codecs), fica só com quem tem o assunto, põe à frente os que o OpenFlow roda e devolve cada um com o selo de compatibilidade.
+    Sem texto, navega os mais baixados do assunto. Se NENHUMA consulta chegou ao Hub (sem rede), repete o erro em vez de «nada encontrado»."""
+    from . import soundsearch as ss
+
+    if cap not in ss.TOPICS:
+        raise ProviderError("Capacidade inválida.")
+    topic = ss.check_topic(cap, topic)
+    terms = ss.expand_query(query)
+    queries: List[Dict[str, str]] = [{"search": t} for t in terms] or [{}]
+    for t in terms:
+        queries += _author_queries(t)
+    langs = ss.languages_in(query) if cap in ("voice", "stt") else []   # «voz em português»: só quem declara o idioma
+    urls = []
+    for pipeline, extra_tag in ss.FETCH[(cap, topic)]:
+        for q in queries:
+            params = [(k, v) for k, v in q.items() if v] + [("pipeline_tag", pipeline), ("sort", "downloads"), ("direction", "-1"), ("limit", "50" if extra_tag is None else "30")]
+            params += [("filter", x) for x in ([extra_tag] if extra_tag else []) + langs]
+            urls.append(f"{HF}/api/models?{urllib.parse.urlencode(params)}")
+    rows: Dict[str, Dict[str, Any]] = {}
+    answered, failure = False, None
+    for data in _fetch_all(urls, token):
+        if isinstance(data, ProviderError):
+            failure = data
+            continue
+        answered = True
+        for m in data if isinstance(data, list) else []:
+            mid = (m.get("id") or m.get("modelId")) if isinstance(m, dict) else None
+            if not (isinstance(mid, str) and REPO_RE.match(mid)):
+                continue
+            row = rows.setdefault(mid, {"id": mid, "downloads": 0, "likes": 0, "tags": [], "library": "", "pipeline_tag": ""})
+            row["downloads"] = max(int(row["downloads"]), int(m.get("downloads") or 0))
+            row["likes"] = max(int(row["likes"]), int(m.get("likes") or 0))
+            row["tags"] = list(dict.fromkeys(list(row["tags"]) + [str(t) for t in (m.get("tags") or [])]))
+            row["library"] = row["library"] or str(m.get("library_name") or "")
+            row["pipeline_tag"] = row["pipeline_tag"] or str(m.get("pipeline_tag") or "")
+    if not answered and failure is not None:
+        raise failure
+    return ss.rank(list(rows.values()), cap, topic, limit)
+
+
 def group_files(raw: List[Dict[str, Any]], ram_gb: float = 0) -> List[Dict[str, Any]]:
     """Agrupa arquivos GGUF em opções de download: junta partes divididas, ignora projetores de visão (mmproj) e marca a recomendada.
 

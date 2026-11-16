@@ -168,7 +168,7 @@
 .cv-hub-panel.hidden{display:none}
 .hub-head{padding:6px 8px}
 .hub-item{border-bottom:1px solid var(--line)}
-.hub-r{display:flex;align-items:center;gap:8px;padding:8px;cursor:pointer;border-radius:8px}.hub-r:hover{background:var(--bg2)}.hub-r.on{background:var(--bg3)}.hub-r.on svg{transform:rotate(90deg)}
+.hub-r{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px;cursor:pointer;border-radius:8px}.hub-badges{flex-basis:100%;display:flex;gap:6px;flex-wrap:wrap;padding-left:20px}.hub-r:hover{background:var(--bg2)}.hub-r.on{background:var(--bg3)}.hub-r.on svg{transform:rotate(90deg)}
 .hub-r .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
 .hub-detail{padding:4px 8px 10px 26px}.hub-detail.hidden{display:none}
 .hub-q{display:flex;align-items:center;gap:10px;padding:7px 8px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;background:var(--bg2)}
