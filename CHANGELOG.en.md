@@ -2,6 +2,15 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.48.0] — 2026-11-16
+
+### Removed — “Ready to install” in the Canvas search bar
+- The **“Ready to install”** section (with Z-Image and the text model, and an Install button) that showed up when clicking the model search bar is gone: the user chooses, searches and downloads the model. The bar no longer queries `/api/preinstalled`.
+- **Stays** the **“Recommended catalog (GGUF)”** (Unsloth and ChatR Labs): it only **lists** known models and opens each one's search with “See quantizations”; nothing is installed until you pick the quantization and press Download.
+
+### Not verified yet
+- I did not touch anything outside the bar: the installer (`install.sh`/`install.ps1`) and `flow setup` still **ask** whether you want the pre-installed models (`OPENFLOW_MODELS=none` turns it off), and `flow models install` and the `/api/preinstalled` route still exist.
+
 ## [0.47.0] — 2026-11-16
 
 ### Fixed — general sweep 4

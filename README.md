@@ -8,7 +8,7 @@ Connect a few nodes, see each result on the node, edit the final video without l
 
 [Install](#install) · [Use](#use) · [Nodes](#nodes) · [Models](#models) · [Settings](#settings) · [Data](#your-data) · [Development](#development) · [Changelog](CHANGELOG.en.md) · [Português](README.pt-BR.md)
 
-`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Rust core` · `v0.47.0`
+`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Rust core` · `v0.48.0`
 
 </div>
 
@@ -62,7 +62,7 @@ The Style Prompt and Style Folder (folders and subfolders, renameable) apply to 
 
 ## Models
 
-**All model search and download happens in the model search bar at the top of the Canvas editor**, with a downloads indicator next to it (progress, speed, time left, cancel). Click it to see the recommended models, search Hugging Face by type, or paste an `owner/name` address. For image and video choose **GGUF** (pick the quantization: bits, size, quality, fits your RAM?) or the **original** diffusers format; text is GGUF only; sound, voice, transcription and 3D use the original format.
+**All model search and download happens in the model search bar at the top of the Canvas editor**, with a downloads indicator next to it (progress, speed, time left, cancel). Click it to see a catalog of known models (it only lists them), search Hugging Face by type, or paste an `owner/name` address. For image and video choose **GGUF** (pick the quantization: bits, size, quality, fits your RAM?) or the **original** diffusers format; text is GGUF only; sound, voice, transcription and 3D use the original format.
 
 - **Support files come along:** VAE, text encoders and `mmproj` are downloaded with the model (switch off in *Settings → Performance → Model downloads*).
 - **Providers:** only local ones — *Hugging Face local* (diffusers, transformers), *GGUF local* (llama.cpp for text, stable-diffusion.cpp for image/video) and an offline *Demo*. 3D: Shap-E, TripoSR, Hunyuan3D-2.

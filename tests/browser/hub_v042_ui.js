@@ -16,7 +16,7 @@ run('hub_v042', async ({ api, open, check }) => {
   await page.locator('#hub-q').focus(); await page.waitForSelector('#hub-recs', { timeout: 8000 });
   await page.waitForSelector('.hub-rec[data-repo="chatrlabs/Qwen-Image-2.1-Uncensored-Omni-Quantized"]', { timeout: 8000 });
   check('recomendados:catalogo-com-chatrlabs', (await page.locator('.hub-rec[data-repo^="unsloth/"]').count()) >= 5 && (await page.locator('.hub-rec[data-repo^="chatrlabs/"]').count()) === 1);
-  check('recomendados:prontos-para-instalar', (await page.locator('[data-act="preinstall"], #hub-recs .chip.on:has-text("Instalado"), #hub-recs .chip.on:has-text("Installed")').count()) >= 1);
+  check('recomendados:sem-prontos-para-instalar', (await page.locator('[data-act="preinstall"]').count()) === 0 && !/Prontos para instalar|Ready to install/.test(await page.locator('#hub-recs').innerText()) && (await page.locator('#hub-recs .hub-rec .chip.on:has-text("Instalado")').count()) === 0);   // v0.48: quem escolhe o modelo é o usuário
   // «Ver quantizações» pesquisa o repositório (GGUF)
   await page.locator('.hub-rec[data-repo="chatrlabs/Qwen-Image-2.1-Uncensored-Omni-Quantized"] [data-act="rec-open"]').click(); await page.waitForTimeout(500);
   check('recomendados:ver-quantizacoes-pesquisa-o-repositorio', seen.search.some((u) => u.includes('q=chatrlabs%2FQwen-Image-2.1-Uncensored-Omni-Quantized') && u.includes('format=gguf')));
