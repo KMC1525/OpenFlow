@@ -2,6 +2,24 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.45.0] — 2026-11-16
+
+### Novo — computadores de 16 GB de RAM (DDR4 e DDR5), com o núcleo Rust
+- **Planejador de memória por classe de RAM** (`flow_plan_ram`, interface 7 do núcleo Rust; espelho em Python com as mesmas contas, conferidas nos testes): desconta o que o sistema, o navegador e o OpenFlow usam (≈ 22% da RAM, entre 2,5 e 6 GB) e decide, sobre o que sobra:
+  - **Um modelo de cada vez na RAM:** se o modelo de texto e o de imagem/vídeo/som não cabem juntos, o que está carregado **sai antes** de carregar o outro (antes os dois ficavam na RAM e o computador começava a usar o disco).
+  - **Contexto** que cabe na RAM que sobra e **cache de atenção em 8 bits** quando o modelo ocupa mais de 60% dela.
+  - **Threads e lotes pela velocidade da memória** (DDR4/DDR5 × MT/s × canais, lidos do SMBIOS quando há permissão): mais threads do que a memória consegue alimentar só atrapalham a geração na CPU; DDR5 e dual channel aguentam lotes maiores; RAM apertada usa lotes menores (os buffers de cálculo também ocupam RAM).
+  - **`mlock` só quando sobra bastante**, pré-carga só quando o modelo cabe folgado e cache de prompt menor quando aperta.
+  - **Imagem, vídeo e som:** fatias de atenção e de VAE ligadas quando o modelo ocupa boa parte da RAM; descarga de ociosos mais cedo (2 a 5 min) nessa classe.
+- Só atua nas classes «pequena» (< 12 GB) e «16 GB» (12 a 24 GB); em 32 GB ou mais nada muda. Qualquer falha do planejador volta ao comportamento de antes, e um contexto definido à mão nunca é encolhido.
+- **Configurações → Desempenho → Processador:** nova linha «Memória para os modelos» (o que sobra depois do sistema, GB/s e threads úteis) com a classe da sua RAM.
+- O núcleo passou à **interface 7**: bibliotecas da interface 6 (v0.29–v0.44) ainda carregam e o OpenFlow usa o espelho em Python do planejador até a biblioteca nova ser baixada (`flow native setup`).
+
+### Ainda não verificado
+- **Não medi ganho de velocidade real em uma máquina de 16 GB** (este ambiente não é uma): os testes provam as contas (Rust = Python em 400 casos aleatórios), a integração e os limites; os ganhos esperados vêm de evitar uso de disco quando texto e mídia competem pela RAM e de não usar mais threads do que a memória alimenta.
+- DDR4/DDR5, MT/s e canais vêm do SMBIOS (Windows e `dmidecode` no Linux, com permissão); sem isso o planejador assume DDR4-2400 em dois canais, que é conservador.
+- Os limites (22% de reserva, 60% de «apertado», ~12 GB/s por núcleo) são heurísticas; ajuste-os se medir diferente.
+
 ## [0.44.0] — 2026-11-16
 
 ### Removido — configurações legadas ou inúteis

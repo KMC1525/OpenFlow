@@ -347,6 +347,32 @@ PERF: Dict[str, Any] = {}  # settings["performance"], preenchido pela rota/engin
 _PLAN: Dict[str, Any] = {}   # plano de carga do modelo que está sendo carregado (núcleo Rust): estratégia de GPU/descarga, fatias de atenção e VAE
 
 
+def resident_bytes() -> int:
+    """Quanta RAM o modelo de imagem/vídeo/som carregado ocupa (o tamanho dos pesos do último plano; 0 se não há modelo carregado)."""
+    with _LOCAL_LOCK:
+        loaded = bool(_LOCAL_CACHE)
+    return int(_PLAN.get("weights") or 0) if loaded else 0
+
+
+def _apply_ram(plan: Dict[str, Any], weights: int) -> None:
+    """Computador de 16 GB (v0.45, núcleo Rust: native.plan_ram): se o modelo de texto carregado e este não cabem juntos na RAM, o de texto sai antes; fatias de atenção e de VAE também ficam ligadas
+    quando o modelo ocupa boa parte da RAM, e o modelo descarrega mais cedo quando ocioso."""
+    try:
+        from ..providers import local_llama
+
+        ram = _perf.ram_plan(weights, 0, local_llama.resident_bytes())
+        if not ram or ram.get("class") not in ("small", "16"):
+            return
+        plan["ram"] = ram
+        if ram.get("evict_other"):
+            local_llama._unload()
+        plan["slicing"] = bool(plan.get("slicing")) or bool(ram.get("media_slicing"))
+        plan["tiling"] = bool(plan.get("tiling")) or bool(ram.get("media_tiling"))
+        plan["prefetch"] = bool(plan.get("prefetch")) and bool(ram.get("prefetch"))
+    except Exception:  # noqa: BLE001 — sem plano de RAM, vale o plano de antes
+        pass
+
+
 def _media_plan(model: str) -> Dict[str, Any]:
     """Plano de carga a partir do tamanho REAL dos pesos baixados e da memória livre agora. Qualquer falha devolve {} (comportamento antigo)."""
     try:
@@ -360,6 +386,7 @@ def _media_plan(model: str) -> Dict[str, Any]:
         mode = _perf.MODE_NUM[_perf.profile(PERF, hardware_info())["mode"]]
         plan = _native.plan_media(weights, mem["vram_free"], mem["ram_avail"], mem["unified"], mode)
         plan.update(weights=weights, files=_native.weight_files(snap))
+        _apply_ram(plan, weights)
         return plan
     except Exception:  # noqa: BLE001
         return {}
