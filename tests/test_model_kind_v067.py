@@ -138,7 +138,7 @@ class LoopTests(unittest.TestCase):
 
     def test_case_and_punctuation_do_not_hide_a_loop(self):
         text = " ".join(["Tchau!", "tchau", "TCHAU,"] * 8)
-        self.assertEqual(sub.collapse_loops(text), "Tchau! tchau TCHAU, Tchau! tchau TCHAU,")        # as três formas contam como a mesma frase: ficam duas repetições
+        self.assertEqual(sub.collapse_loops(text), "Tchau! tchau")        # as três formas contam como a mesma palavra (maiúsculas e pontuação não contam): um laço de 24 repetições fica com duas
 
     def test_segments_from_the_speech_model_are_cleaned(self):
         chunks = [{"text": " " + "E aí " * 30, "timestamp": (0.0, 20.0)}, {"text": " Fim.", "timestamp": (20.0, 22.0)}]
