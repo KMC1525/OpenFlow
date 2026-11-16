@@ -2,6 +2,23 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.52.0] — 2026-11-16
+
+### Corrigido — melhorias gerais 5 (imagens e vídeos)
+Passei os nós de vídeo, áudio e o Editor por uma bateria com entradas difíceis: clipes de 1 frame e de 0,1 s, vídeos de 16×16, de 333×221 (ímpar), verticais, ultrawide, a 5 e a 59,94 fps, sem áudio, WebM, GIF, rotacionados; cortes, velocidades (0,25×–4×), visuais, mudança de proporção, repetição, troca de áudio, juntar clipes, GIF, vídeo final; e o Editor com clipes além do fim do arquivo, fades maiores que o clipe, escala 4×, canvas de 160×160 a 3840×160, textos com aspas, `%`, `:`, emoji e 300 caracteres, clipes sobrepostos, arquivo que sumiu e 40 clipes. Quase tudo já estava certo; os defeitos achados:
+- **Áudio dentro de um arquivo de vídeo era tratado como vídeo.** Uma nota de voz salva como `.mp4`/`.mov`/`.3gp`, uma gravação `.webm`/`.mka` só com som, entrava como «vídeo» e quebrava os nós de vídeo com um erro técnico do ffmpeg; um vídeo Ogg (`.ogv`) entrava como «áudio» e sumia das portas de vídeo. Agora o tipo vem das trilhas de dentro do arquivo (envio direto, arquivos dentro de ZIP/RAR e anexos).
+- **«Cortar áudio» além do fim gravava um arquivo vazio** sem avisar (e a saída aparecia como um áudio quebrado). Agora o nó diz «O início do corte passa do fim do áudio», o nó «Tirar silêncios» com um limite alto demais salvava um áudio de 0 s em vez de avisar «O áudio ficou vazio»; e qualquer nó de áudio que terminasse sem som (ex.: acelerar 5× um clipe de 0,05 s) avisa «O resultado ficou sem áudio…» em vez de salvar o vazio.
+
+### Testado
+- `tests/test_general_v052.py` (8 testes): tipo por trilhas (áudio em .mp4/.mov/.3gp/.webm/.mka, vídeo com e sem som, `.ogv`), envio pela API, corte além do fim, efeito que esvazia o áudio e corte válido. Sem a correção, 7 falham.
+- A bateria completa de vídeo (13 vídeos × centenas de parâmetros) e a do Editor (cerca de 170 casos) terminaram sem outros defeitos (só erros esperados e mensagens claras, como «ligue um vídeo» para um GIF numa porta de vídeo).
+
+### Ainda não verificado
+- Arquivos já enviados antes da correção continuam classificados como estavam (basta enviá-los de novo).
+- Formatos que o OpenFlow não reconhece (`.mpg`, `.flv`, `.ts`) seguem recusados no envio com a mensagem de formato inválido; não os adicionei porque o navegador não os toca na prévia.
+- Um arquivo de vídeo sem trilha de vídeo que passe como vídeo por outro caminho (ex.: gerado por um provedor) ainda daria o erro técnico do ffmpeg.
+- Não testei vídeos grandes (minutos/GB) nem codecs raros; modelos locais de vídeo reais não rodam neste ambiente.
+
 ## [0.51.0] — 2026-11-16
 
 ### Corrigido — bugs ao editar imagens nos nós do Canvas

@@ -21,6 +21,7 @@ import io
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import threading
@@ -45,7 +46,7 @@ MIME_EXT = {
     "audio/mpeg": "mp3", "audio/mp3": "mp3", "audio/wav": "wav", "audio/x-wav": "wav", "audio/wave": "wav", "audio/ogg": "ogg", "audio/opus": "ogg",
     "audio/flac": "flac", "audio/x-flac": "flac", "audio/mp4": "m4a", "audio/aac": "aac", "audio/webm": "weba",
     "model/gltf-binary": "glb", "model/obj": "obj",
-    "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov", "video/x-msvideo": "avi",
+    "video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov", "video/x-msvideo": "avi", "video/ogg": "ogv",
 }
 
 
@@ -80,6 +81,33 @@ def sniff_mime(data: bytes, fallback: str = "") -> str:
     if h[:4] == b"\x1aE\xdf\xa3":
         return "video/webm"
     return fallback
+
+
+def refine_mime(data: bytes, mime: str) -> str:
+    """Corrige o tipo pelas trilhas de dentro do arquivo (v0.52). `sniff_mime` só olha o contêiner: uma nota de voz em .mp4/.mov/.3gp, uma gravação .webm/.mka só com áudio ou um .m4a salvo como
+    vídeo virava «vídeo» e quebrava os nós de vídeo; um vídeo Ogg (.ogv) virava «áudio». Sem o ffprobe, ou se não der para ler, o tipo fica como veio."""
+    if not (mime.startswith("video/") or mime == "audio/ogg"):
+        return mime
+    probe = shutil.which("ffprobe")
+    if not probe:
+        return mime
+    with tempfile.TemporaryDirectory(prefix="flow-sniff-") as td:
+        f = Path(td) / "m.bin"
+        f.write_bytes(data)
+        try:
+            r = subprocess.run([probe, "-v", "error", "-show_entries", "stream=codec_type:stream_disposition=attached_pic", "-of", "csv=p=0", str(f)], capture_output=True, text=True, timeout=30)
+        except (OSError, subprocess.SubprocessError):
+            return mime
+    rows = [ln.split(",") for ln in r.stdout.splitlines() if ln.strip()]
+    video = any(x[0] == "video" and not (len(x) > 1 and x[1] == "1") for x in rows)   # capa de álbum (attached_pic) não é vídeo
+    audio = any(x[0] == "audio" for x in rows)
+    if r.returncode != 0 or not (video or audio):
+        return mime
+    if mime.startswith("video/") and audio and not video:
+        return {"video/mp4": "audio/mp4", "video/webm": "audio/webm", "video/quicktime": "audio/mp4"}.get(mime, "audio/" + mime.split("/")[1])
+    if mime == "audio/ogg" and video:
+        return "video/ogg"
+    return mime
 
 
 class Media:

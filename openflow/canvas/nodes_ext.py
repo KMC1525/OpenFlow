@@ -844,7 +844,21 @@ def _aud_args(fmt: str) -> List[str]:
     return {"mp3": ["-c:a", "libmp3lame", "-b:a", "192k"], "wav": ["-c:a", "pcm_s16le"], "m4a": ["-c:a", "aac", "-b:a", "160k"]}[fmt] + ["-ar", "44100", "-ac", "2"]
 
 
+def _file_duration(path: Path) -> Optional[float]:
+    probe = shutil.which("ffprobe")
+    if not probe:
+        return None
+    code, o = _run_out([probe, "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)])
+    try:
+        return float(o.strip().splitlines()[0]) if code == 0 and o.strip() else 0.0
+    except ValueError:
+        return 0.0
+
+
 def _aud_out(eng, node, out: Path, name: str) -> Dict[str, Any]:
+    d = _file_duration(out)
+    if d is not None and d <= 0.001:   # corte além do fim, efeito que encurta demais…: o ffmpeg "dá certo" e grava um arquivo vazio (v0.52)
+        raise ValueError("O resultado ficou sem áudio (o trecho pedido está depois do fim do áudio ou ficou curto demais).")
     mime = {"mp3": "audio/mpeg", "wav": "audio/wav", "m4a": "audio/mp4"}[out.suffix.lstrip(".")]
     return {"assets": [_save_file(eng, node, out, "audio", name, mime)], "text": ""}
 
@@ -859,6 +873,8 @@ def _need_sound(eng, a: Dict[str, Any]) -> Path:
 def run_aud_trim(eng, canvas, node):
     p = node["params"]
     a = _first(eng, canvas, node, "audio", ("audio", "video"), "um áudio")
+    if p["start"] > 0 and p["start"] >= (a.get("duration") or 1e9):
+        raise ValueError("O início do corte passa do fim do áudio.")
     src = _need_sound(eng, a)
     dur = (a.get("duration") or 0) - p["start"]
     if p["duration"] > 0:
@@ -1317,7 +1333,8 @@ def run_aud_silence_cut(eng, canvas, node):
     with tempfile.TemporaryDirectory() as td:
         out = Path(td) / "o.mp3"
         _ff(eng, ["-i", str(src), "-vn", "-af", f"silenceremove={rule}", *_aud_args("mp3"), str(out)])
-        if out.stat().st_size < 400:
+        dur = _file_duration(out)
+        if out.stat().st_size < 400 or (dur is not None and dur <= 0.001):   # (v0.52) um MP3 só com cabeçalho passa de 400 bytes e tem 0 s
             raise ValueError("O áudio ficou vazio: ele inteiro está abaixo do limite de silêncio. Aumente o limite (ex.: −50 dB).")
         return _aud_out(eng, node, out, _title(node, "Áudio sem silêncios"))
 

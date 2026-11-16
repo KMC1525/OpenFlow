@@ -195,7 +195,7 @@ class RunTests(unittest.TestCase):
         _, f = self.result(self.run_graph([self.up("src", self.gappy), self.node("aud_silence_cut", {"threshold": -40, "min_silence": 0.3, "keep": 0.1})], e))
         self.assertLess(f[0]["duration"], 2.6)                                                # 3 s com 1 s de silêncio no meio
         self.assertGreater(f[0]["duration"], 1.8)
-        self.assertIn("vazio", self.error_of(self.run_graph([self.up("src", self.gappy), self.node("aud_silence_cut", {"threshold": -15})], e)) or "vazio")
+        self.assertIn("vazio", self.error_of(self.run_graph([self.up("src", self.gappy), self.node("aud_silence_cut", {"threshold": -15})], e)))   # (v0.52) antes passava sem erro: `or "vazio"` escondia que o nó salvava um áudio de 0 s
 
     # ------------------------------------------------------------------ input e output
     def test_in_pattern_all_kinds(self):

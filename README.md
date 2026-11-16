@@ -8,7 +8,7 @@ Connect a few nodes, see each result on the node, edit the final video without l
 
 [Install](#install) · [Use](#use) · [Nodes](#nodes) · [Models](#models) · [Settings](#settings) · [Data](#your-data) · [Development](#development) · [Changelog](CHANGELOG.en.md) · [Português](README.pt-BR.md)
 
-`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Rust core` · `v0.51.0`
+`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Rust core` · `v0.52.0`
 
 </div>
 
