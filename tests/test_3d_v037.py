@@ -186,7 +186,7 @@ class SchemaTests(unittest.TestCase):
     def test_node_type_palette_and_params(self):
         self.assertIn("model3d", schema.NODE_TYPES)
         self.assertEqual(schema.NODE_TYPES["model3d"]["out"], "model3d")
-        self.assertIn(("3D", ["model3d"]), schema.PALETTE)
+        self.assertIn(("3D", ["model3d", "tex3d", "rig3d", "anim3d"]), schema.PALETTE)   # v0.58: +textura, esqueleto e animação
         self.assertIn("model3d", schema.CAPS)
         self.assertIn("model3d", schema.KINDS)
         p = schema.normalize_params("model3d", {"format": "zzz", "provider": "openai", "model": "x", "seed": -3, "prompt": "p"})
