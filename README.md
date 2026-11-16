@@ -8,7 +8,7 @@ Connect a few nodes, see each result on the node, edit the final video without l
 
 [Install](#install) · [Use](#use) · [Nodes](#nodes) · [Models](#models) · [Settings](#settings) · [Data](#your-data) · [Development](#development) · [Changelog](CHANGELOG.en.md) · [Português](README.pt-BR.md)
 
-`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Rust core` · `v0.58.0`
+`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Rust core` · `v0.59.0`
 
 </div>
 
@@ -70,7 +70,7 @@ The Style Prompt and Style Folder (folders and subfolders, renameable) apply to 
 
 ## Settings
 
-**Text (AI)** model and context window · **Image, video, sound and voice** default model per type · **Projects** starting template · **Appearance** theme, color, size, font, language · **Performance** mode, CPU/GPU (several GPUs, hybrid CPU+GPU), RAM-class planner for 16 GB machines (DDR4/DDR5), download connections, Hugging Face token (gated models).
+**Text (AI)** model and context window · **Image, video, sound and voice** default model per type · **Projects** starting template · **Appearance** theme, color, size, font, language · **Performance** mode, CPU/GPU (several GPUs pooled, VRAM + RAM together, hybrid CPU+GPU), RAM-class planner for 16 GB machines (DDR4/DDR5), download connections, Hugging Face token (gated models).
 
 ## Your data
 

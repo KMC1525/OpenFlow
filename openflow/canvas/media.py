@@ -420,6 +420,43 @@ def _media_plan(model: str) -> Dict[str, Any]:
         return {}
 
 
+def _balanced_kwargs(weights: int) -> Dict[str, Any]:
+    """Várias placas (v0.59): argumentos do `from_pretrained` do diffusers para dividir o modelo entre as placas escolhidas — `device_map="balanced"` e `max_memory` (a memória usável de cada placa e, com «usar a RAM junto»,
+    a RAM livre). {} quando o modelo cabe numa placa só (o plano de sempre vale), quando há uma placa só, ou quando nem as placas juntas (nem com a RAM) o comportam."""
+    try:
+        (torch,) = _local_import("torch")
+        if not weights or _perf.device() == "cpu" or not torch.cuda.is_available() or torch.cuda.device_count() < 2:
+            return {}
+        pool = _perf.gpu_pool()
+        if len(pool) < 2 or weights <= pool[0]["usable"]:
+            return {}
+        total = sum(g["usable"] for g in pool)
+        cfg = _perf.memory_cfg()
+        ram = int(_perf.pool_summary()["ram_usable"])
+        if weights > total and (not cfg["ram_spill"] or weights > total + ram):
+            return {}
+        mm: Dict[Any, str] = {g["index"]: f"{max(1, g['usable'] // 1048576)}MiB" for g in pool}
+        if cfg["ram_spill"] and ram > 0:
+            mm["cpu"] = f"{max(1, ram // 1048576)}MiB"
+        return {"device_map": "balanced", "max_memory": mm}
+    except Exception:  # noqa: BLE001 — sem o plano de várias placas, vale o plano de uma
+        return {}
+
+
+def _load_pipeline(factory: Callable[..., Any], kw: Dict[str, Any], note: Callable[[str], None] = lambda m: None) -> Any:
+    """`factory(**kw)` dividindo o modelo entre as placas quando ele não cabe numa só (v0.59); se a versão do diffusers/accelerate não aceitar (ou falhar), repete do jeito de sempre."""
+    extra = _balanced_kwargs(int(_PLAN.get("weights") or 0))
+    if extra:
+        try:
+            pipe = factory(**{**kw, **extra})
+            _PLAN["balanced"] = {"gpus": [k for k in extra["max_memory"] if k != "cpu"], "ram": "cpu" in extra["max_memory"]}
+            note("Modelo dividido entre as placas de vídeo" + (" e a RAM" if "cpu" in extra["max_memory"] else "") + ".")
+            return pipe
+        except Exception:  # noqa: BLE001
+            gc.collect()
+    return factory(**kw)
+
+
 def _slim(pipe: Any, dev: str) -> Any:
     """Coloca o modelo no dispositivo seguindo o plano: tudo na GPU, descarga do modelo, descarga sequencial (cabe em pouca VRAM) ou CPU; fatias de atenção/VAE quando o plano pede.
     Sem plano (tamanho desconhecido), vale o modo de desempenho como antes."""
@@ -434,6 +471,8 @@ def _slim(pipe: Any, dev: str) -> Any:
                     getattr(pipe, fn)()
                 except Exception:  # noqa: BLE001
                     pass
+    if getattr(pipe, "hf_device_map", None) and _PLAN.get("balanced"):   # dividido entre as placas pelo device_map (v0.59): cada parte já está no seu lugar
+        return pipe
     if dev == "cuda" and plan["strategy"] == "gpu" and _perf.device() == "hybrid":   # CPU + GPU juntas (v0.31): cada parte (texto, difusão, VAE) só ocupa a placa enquanto trabalha; o resto espera na RAM
         plan = dict(plan, strategy="model_offload")
     if dev == "cuda" and plan["strategy"] in ("model_offload", "sequential_offload"):
@@ -661,10 +700,10 @@ class LocalHFMedia(MediaProvider):
             if ready["variant"]:
                 kw["variant"] = ready["variant"]
             try:
-                pipe = diffusers.AutoPipelineForText2Image.from_pretrained(model, **kw)
+                pipe = _load_pipeline(lambda **k: diffusers.AutoPipelineForText2Image.from_pretrained(model, **k), kw, self.ctl.note)
             except Exception as exc:  # noqa: BLE001 — pipelines novos (FLUX.2 klein…) que o AutoPipeline da versão instalada ainda não conhece: a classe vem do model_index.json
                 try:
-                    pipe = diffusers.DiffusionPipeline.from_pretrained(model, **kw)
+                    pipe = _load_pipeline(lambda **k: diffusers.DiffusionPipeline.from_pretrained(model, **k), kw, self.ctl.note)
                 except Exception:  # noqa: BLE001
                     raise ProviderError(f"Não foi possível carregar {model}: {exc}. Se o modelo é novo (FLUX.2…), atualize as bibliotecas:  pip install -U diffusers transformers  (ou: flow libs).") from None
             return _slim(pipe, dev)
@@ -968,7 +1007,7 @@ class LocalHFMedia(MediaProvider):
         dev, _ = _device()
         ready = self._ready(model)
         vkw = {"torch_dtype": ready["dtype"], "local_files_only": True, **({"variant": ready["variant"]} if ready["variant"] else {})}
-        pipe = _local_load("video", model, lambda: _slim(diffusers.DiffusionPipeline.from_pretrained(model, **vkw), dev))
+        pipe = _local_load("video", model, lambda: _slim(_load_pipeline(lambda **k: diffusers.DiffusionPipeline.from_pretrained(model, **k), vkw, self.ctl.note), dev))
         w, h = size_of_aspect(aspect, long_side or (704 if dev != "cpu" else 384))
         w, h = w // 32 * 32 or 32, h // 32 * 32 or 32
         fps = 24

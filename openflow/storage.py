@@ -32,7 +32,7 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
         "models": {},  # {"local_hf": {"image": "stabilityai/sd-turbo"}} — modelo por provedor e capacidade
     },
     "canvas": {"template": "text_image"},
-    "performance": {"mode": "auto", "idle_unload_min": 10, "device": "auto", "gpus": [], "cpu_pin": True, "guard": {"enabled": True, "limit": 90, "hold_s": 5, "cpu": True, "ram": True, "gpu": True}},   # guard: proteção do computador (guard.py)  # auto | light | balanced | max — veja perf.py
+    "performance": {"mode": "auto", "idle_unload_min": 10, "device": "auto", "gpus": [], "cpu_pin": True, "memory": {"multi_gpu": True, "ram_spill": True, "gpu_reserve_mb": 512, "ram_reserve_gb": 2}, "guard": {"enabled": True, "limit": 90, "hold_s": 5, "cpu": True, "ram": True, "gpu": True}},   # guard: proteção do computador (guard.py)  # auto | light | balanced | max — veja perf.py
     "server": {"max_upload_mb": 200},
     "storage": {"models_dir": "", "files_dir": ""},   # v0.33: onde guardar os modelos e os arquivos dos projetos ("" = a pasta padrão do OpenFlow; um disco externo, outro disco…)
     "hf": {"token": "", "auto_support": True, "connections": 4},  # auto_support: baixa junto do modelo o VAE, os codificadores de texto e o mmproj (ver canvas/support.py); connections: conexões simultâneas por download (1 a 8; ver dl.py)
@@ -79,9 +79,12 @@ def _normalize_guard(settings: dict) -> None:
     """Proteção do computador (v0.49): limite entre 50 e 99 %, tempo entre 1 e 60 s e as chaves ligar/desligar sempre válidos."""
     from . import guard
 
+    from . import perf as perf_mod
+
     perf = settings.get("performance")
     if isinstance(perf, dict):
         perf["guard"] = guard.normalize(perf.get("guard"))
+        perf["memory"] = perf_mod.normalize_memory(perf.get("memory"))   # v0.59: várias placas + RAM
 
 
 def conform(defaults: Any, value: Any) -> Any:

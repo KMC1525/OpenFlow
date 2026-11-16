@@ -16,13 +16,14 @@ import shutil
 import subprocess
 import threading
 import time
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Sequence
 
 os.environ.setdefault("CUDA_DEVICE_ORDER", "PCI_BUS_ID")   # o torch e o CUDA numeram as placas como o nvidia-smi (senão «placa 1» podia ser outra)
 
 MODES = ("auto", "light", "balanced", "max")
 DEVICES = ("auto", "cpu", "gpu", "hybrid")   # `settings.performance.device`: onde os modelos rodam (hybrid = CPU e GPU juntas, v0.31)
-DEFAULTS = {"mode": "auto", "idle_unload_min": 10, "device": "auto", "gpus": [], "cpu_pin": True}   # gpus: índices das placas NVIDIA a usar ([] = todas)
+MEMORY_DEFAULTS = {"multi_gpu": True, "ram_spill": True, "gpu_reserve_mb": 512, "ram_reserve_gb": 2}   # v0.59: dividir modelos entre as placas · usar a RAM para o que não couber · folgas
+DEFAULTS = {"mode": "auto", "idle_unload_min": 10, "device": "auto", "gpus": [], "cpu_pin": True, "memory": MEMORY_DEFAULTS}   # gpus: índices das placas NVIDIA a usar ([] = todas)
 
 
 def resolve(mode: str, hw: Dict[str, Any]) -> str:
@@ -229,23 +230,135 @@ def primary_gpu() -> Optional[int]:
     return max(st, key=lambda g: g["free"])["index"] if st else None
 
 
+# --------------------------------------------------------------------------- memória das placas + RAM (v0.59)
+def normalize_memory(raw: Any) -> Dict[str, Any]:
+    """`settings.performance.memory` válido: duas chaves ligar/desligar e as folgas (VRAM deixada livre em cada placa: 0–8192 MB; RAM deixada livre: 0–64 GB). Valor inválido volta ao padrão."""
+    d = raw if isinstance(raw, dict) else {}
+
+    def num(key: str, lo: float, hi: float) -> float:
+        v = d.get(key)
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or v != v:
+            return MEMORY_DEFAULTS[key]
+        return max(lo, min(hi, float(v)))
+    return {"multi_gpu": d.get("multi_gpu") is not False, "ram_spill": d.get("ram_spill") is not False,
+            "gpu_reserve_mb": int(num("gpu_reserve_mb", 0, 8192)), "ram_reserve_gb": round(num("ram_reserve_gb", 0, 64), 1)}
+
+
+def memory_cfg() -> Dict[str, Any]:
+    return normalize_memory(CURRENT.get("memory"))
+
+
+def gpu_pool() -> list:
+    """As placas que o OpenFlow pode usar juntas agora: [{index, name, total, free, usable}] (bytes), a de mais memória livre primeiro. `usable` = livre menos a folga de cada placa. Com «dividir entre as placas»
+    desligado, só a principal. Vazio sem NVIDIA."""
+    cfg = memory_cfg()
+    sel = set(selected_gpus())
+    reserve = int(cfg["gpu_reserve_mb"]) * 1048576
+    pool = [dict(g, usable=max(0, int(g["free"]) - reserve)) for g in gpu_status() if g["index"] in sel]
+    pool.sort(key=lambda g: -g["free"])
+    return pool if cfg["multi_gpu"] else pool[:1]
+
+
+def pool_summary() -> Dict[str, Any]:
+    """O que o planejador tem para trabalhar: as placas do `gpu_pool`, a soma de VRAM e a RAM (total, livre e usável, descontada a folga)."""
+    from . import native
+
+    pool = gpu_pool()
+    si = native.sys_info()
+    ram_total, ram_avail = int(si.get("ram_total") or 0), int(si.get("ram_avail") or 0)
+    cfg = memory_cfg()
+    return {"gpus": pool, "vram_total": sum(g["total"] for g in pool), "vram_free": sum(g["free"] for g in pool), "vram_usable": sum(g["usable"] for g in pool),
+            "ram_total": ram_total, "ram_avail": ram_avail, "ram_usable": max(0, ram_avail - int(cfg["ram_reserve_gb"] * 2 ** 30)), "config": cfg}
+
+
+def placement(need: int, pool: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Onde cabem `need` bytes de modelo: «gpu» (numa placa), «multi_gpu» (dividido entre as placas, em proporção à memória usável de cada uma), «gpu+ram» / «multi_gpu+ram» (o que passa da VRAM vai para a RAM,
+    se «usar RAM junto» está ligado), «ram» (sem placa) ou «no_fit». É aritmética pura sobre `pool_summary()` (injetável nos testes)."""
+    pool = pool if pool is not None else pool_summary()
+    need = max(0, int(need))
+    gpus = pool["gpus"]
+    cfg = pool["config"]
+    ram = int(pool["ram_usable"])
+    out: Dict[str, Any] = {"need": need, "vram_usable": int(pool["vram_usable"]), "ram_usable": ram, "gpus": [], "ram_bytes": 0, "multi_gpu": False}
+    if not gpus:
+        out.update(strategy="ram" if need <= ram else "no_fit", ram_bytes=need if need <= ram else 0, fits=need <= ram)
+        return out
+    best = gpus[0]["usable"]
+    if need <= best:
+        out.update(strategy="gpu", fits=True, gpus=[{"index": gpus[0]["index"], "bytes": need}])
+        return out
+    total = sum(g["usable"] for g in gpus)
+    if len(gpus) >= 2 and need <= total:
+        share = [{"index": g["index"], "bytes": int(need * g["usable"] / total)} for g in gpus if g["usable"] > 0]
+        out.update(strategy="multi_gpu", fits=True, gpus=share, multi_gpu=True)
+        return out
+    if cfg["ram_spill"]:
+        vram = total if len(gpus) >= 2 else best
+        spill = need - vram
+        if spill <= ram:
+            share = [{"index": g["index"], "bytes": int(vram * g["usable"] / (total or 1))} for g in gpus if g["usable"] > 0] if len(gpus) >= 2 else [{"index": gpus[0]["index"], "bytes": int(vram)}]
+            out.update(strategy="multi_gpu+ram" if len(gpus) >= 2 else "gpu+ram", fits=True, gpus=share, ram_bytes=int(spill), multi_gpu=len(gpus) >= 2)
+            return out
+    out.update(strategy="no_fit", fits=False)
+    return out
+
+
+def assign_components(sizes: Dict[str, int], free: Sequence[int], reserve: int = 0) -> Dict[str, int]:
+    """Imagem/vídeo pelo sd-cli: em qual placa fica cada parte (v0.59). `sizes`: bytes de `diffusion`, `te` (codificadores de texto) e `vae`; `free`: memória livre de cada placa, a principal primeiro.
+    O modelo de difusão fica na principal (ele não se divide); o codificador de texto e o VAE vão para outra placa se, com a difusão e uma folga de ativações (15 %), não couberem na principal.
+    Devolve só o que sai da principal: {«te»: 1, «vae»: 1}. {} quando tudo cabe nela (ou não há segunda placa, ou a difusão sozinha não cabe: aí vale a descarga para a RAM)."""
+    if len(free) < 2:
+        return {}
+    avail = [max(0, int(f) - int(reserve)) for f in free]
+    diff = int(sizes.get("diffusion") or 0)
+    rest = {k: int(v) for k, v in sizes.items() if k != "diffusion" and v}
+    if diff + sum(rest.values()) + int(0.15 * diff) <= avail[0]:
+        return {}
+    if diff + int(0.15 * diff) > avail[0]:
+        return {}
+    avail[0] -= diff + int(0.15 * diff)
+    out: Dict[str, int] = {}
+    for name, size in sorted(rest.items(), key=lambda kv: -kv[1]):
+        if size <= avail[0]:
+            avail[0] -= size
+            continue
+        cand = [i for i in range(1, len(avail)) if avail[i] >= size]
+        if cand:
+            i = max(cand, key=lambda k: avail[k])
+            avail[i] -= size
+            out[name] = i
+    return out
+
+
+def gpu_order() -> list:
+    """Os índices das placas escolhidas, a de mais memória livre primeiro (a ordem em que o processo à parte as enxerga: CUDA0 é a principal)."""
+    return [g["index"] for g in gpu_pool()]
+
+
 def llama_split() -> Dict[str, Any]:
-    """Parâmetros do llama.cpp para várias placas: `tensor_split` (a camada de cada placa em proporção à memória livre; as não escolhidas recebem 0) e `main_gpu`. Com uma placa só (ou sem NVIDIA): {}."""
+    """Parâmetros do llama.cpp para várias placas: `tensor_split` (a camada de cada placa em proporção à memória usável de cada uma; as não escolhidas recebem 0) e `main_gpu`. Com «dividir entre as placas»
+    desligado, o modelo vai inteiro na principal. Com uma placa só (ou sem NVIDIA): {}."""
     st = gpu_status()
-    sel = selected_gpus()
     if len(st) < 2:
         return {}
-    free = {g["index"]: g["free"] for g in st}
-    if len(sel) < 2:   # uma placa escolhida entre várias: o modelo inteiro nela
-        return {"main_gpu": sel[0], "tensor_split": [1.0 if g["index"] == sel[0] else 0.0 for g in st]}
-    tot = float(sum(free[i] for i in sel)) or 1.0
-    return {"main_gpu": primary_gpu() or sel[0], "tensor_split": [round(free[g["index"]] / tot, 4) if g["index"] in sel else 0.0 for g in st]}
+    pool = gpu_pool()
+    if len(pool) < 2:   # uma placa escolhida entre várias (ou «dividir» desligado): o modelo inteiro nela
+        first = pool[0]["index"] if pool else selected_gpus()[0]
+        return {"main_gpu": first, "tensor_split": [1.0 if g["index"] == first else 0.0 for g in st]}
+    usable = {g["index"]: g["usable"] for g in pool}
+    tot = float(sum(usable.values())) or 1.0
+    return {"main_gpu": pool[0]["index"], "tensor_split": [round(usable[g["index"]] / tot, 4) if g["index"] in usable else 0.0 for g in st]}
 
 
-def gpu_env(env: Dict[str, str]) -> Dict[str, str]:
-    """Para processos à parte (sd-cli): `CUDA_VISIBLE_DEVICES` com a placa certa — a de mais memória livre entre as escolhidas — quando há mais de uma placa. Uma variável já definida pelo usuário manda."""
+def gpu_env(env: Dict[str, str], multi: bool = False) -> Dict[str, str]:
+    """Para processos à parte (sd-cli): `CUDA_VISIBLE_DEVICES` quando há mais de uma placa. Normal: só a escolhida com mais memória livre. Com `multi` (v0.59, componentes em placas diferentes): todas as escolhidas, a principal
+    primeiro (CUDA0). Uma variável já definida pelo usuário manda."""
     if env.get("CUDA_VISIBLE_DEVICES") or device() == "cpu" or len(gpu_status()) < 2:
         return env
+    if multi:
+        order = gpu_order()
+        if len(order) >= 2:
+            return dict(env, CUDA_VISIBLE_DEVICES=",".join(str(i) for i in order))
     i = primary_gpu()
     if i is not None:
         env = dict(env, CUDA_VISIBLE_DEVICES=str(i))
@@ -340,6 +453,16 @@ def best_discrete_gpu() -> Optional[Dict[str, Any]]:
     return max(gpus, key=lambda g: g["vram_free"]) if gpus else None
 
 
+def pooled_gpu(g: Dict[str, Any]) -> Dict[str, Any]:
+    """`g` (a melhor placa) como o planejador de texto deve enxergá-la: com duas ou mais placas NVIDIA escolhidas e «dividir entre as placas» ligado, uma «placa» com a soma da VRAM total e da usável; senão, a própria `g`."""
+    if g.get("vendor") != "nvidia" or g.get("integrated"):
+        return g
+    pool = gpu_pool()
+    if len(pool) < 2:
+        return g
+    return dict(g, vram_total=sum(x["total"] for x in pool), vram_free=sum(x["usable"] for x in pool), name=f"{len(pool)} placas ({' + '.join(str(x['index']) for x in pool)})", pooled=[x["index"] for x in pool])
+
+
 def gpu_tuning(weights: int, layers: int, kv_per_token: int, ctx: int, mode: str) -> Dict[str, Any]:
     """Plano da placa de vídeo para um modelo de texto (native.plan_gpu): camadas na placa, cache de atenção na VRAM ou na RAM, atenção flash e velocidade esperada. {} sem placa dedicada
     ou se algo falhar — quem chama segue com o plano antigo."""
@@ -353,11 +476,12 @@ def gpu_tuning(weights: int, layers: int, kv_per_token: int, ctx: int, mode: str
             if not ig:
                 return {}
             g, integrated = ig[0], True
+        g = pooled_gpu(g) if not integrated else g   # várias placas NVIDIA escolhidas (v0.59): o llama.cpp divide as camadas entre elas, então o planejador conta a memória USÁVEL de todas juntas
         bench = native.cached_bench() or {}
         mem = memory_state()
         plan = native.plan_gpu(int(weights), int(layers), int(kv_per_token), int(ctx), int(g.get("vram_total") or 0), int(g.get("vram_free") or 0), g["vendor"], integrated, float(g.get("bw_gbs") or 0),
                                float(bench.get("bwn") or 0), int(mem.get("ram_avail") or 0), MODE_NUM.get(mode, 1))
-        plan["gpu"] = {k: g.get(k) for k in ("index", "vendor", "name", "backend", "vram_total", "vram_free", "integrated")}
+        plan["gpu"] = {k: g.get(k) for k in ("index", "vendor", "name", "backend", "vram_total", "vram_free", "integrated", "pooled")}
         return plan
     except Exception:  # noqa: BLE001
         return {}

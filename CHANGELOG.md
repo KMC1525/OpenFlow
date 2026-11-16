@@ -2,6 +2,23 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.59.0] — 2026-11-16
+
+### Novo — Multi GPU: a VRAM de várias placas juntas, e VRAM + RAM ao mesmo tempo
+Para rodar modelos maiores do que cabe em uma placa só. Tudo em **Configurações → Desempenho → Memória** (novo cartão) e com padrões que já funcionam: **dividir entre as placas** (ligado), **usar a RAM junto** (ligado), folga de VRAM por placa (512 MB) e folga de RAM (2 GB).
+- **Modelos de texto (llama.cpp):** com duas ou mais placas NVIDIA escolhidas, o planejador passa a contar a **memória usável de todas juntas** — um modelo de 30 GB que antes deixava parte das camadas na RAM numa placa de 24 GB agora cabe inteiro em duas. As camadas são repartidas em proporção à memória livre de cada placa (`tensor_split`, a de mais memória livre é a principal). O que ainda assim não cabe nas placas vai para a **RAM** (camadas na CPU) — as duas coisas ao mesmo tempo.
+- **Imagem e vídeo (diffusers):** quando o modelo não cabe numa placa, ele é carregado com `device_map="balanced"` e `max_memory` (VRAM usável de cada placa e, com «usar a RAM junto», a RAM livre). Se a sua versão do diffusers/accelerate recusar, o OpenFlow repete o carregamento do jeito de antes.
+- **Imagem e vídeo (sd-cli):** com sd-cli CUDA instalado pelo OpenFlow e que aceite `--backend`, o **codificador de texto e o VAE vão para outra placa** quando não cabem junto do modelo de difusão na principal (o modelo de difusão não se divide: continua numa placa, com descarga para a RAM se preciso). Em qualquer outro caso (Vulkan, sd-cli sem `--backend`, uma placa só), vale o comportamento de antes.
+- **«Usar a RAM junto» desligado:** um modelo de texto que não cabe todo nas placas escolhidas **para com uma mensagem clara** (em vez de ir devagar para a CPU em silêncio).
+- **Nova rota** `GET /api/perf/memory` e o cartão mostram as placas, a VRAM e a RAM usáveis e, para cada modelo baixado, **onde ele caberia**: numa placa, dividido entre placas, placas + RAM, só RAM ou não cabe.
+- As configurações são validadas (folgas de 0–8192 MB e 0–64 GB; valor inválido volta ao padrão) e entram na exportação/importação.
+
+### Ainda não verificado
+- **Nenhuma placa de vídeo real foi usada**: os testes usam placas simuladas, um `torch` e um `sd-cli` de mentira. Que o modelo de fato **rode mais rápido ou caiba** com duas placas reais não foi medido; a velocidade entre placas depende de PCIe/NVLink.
+- A sintaxe `--backend te=CUDA1,vae=CUDA1` e a numeração CUDA0/CUDA1 (na ordem de `CUDA_VISIBLE_DEVICES`) foram escritas pela documentação do ggml/stable-diffusion.cpp, **não testadas com um sd-cli real**; o OpenFlow só a usa se `--help` do executável mostra `--backend`.
+- O `max_memory` do diffusers com a chave `"cpu"` pode ser recusado por algumas versões (há o plano de reserva); a divisão automática do diffusers vale para modelos carregados de pastas do Hugging Face, não para GGUF.
+- **AMD/Intel (Vulkan) não dividem entre placas**: só NVIDIA. O estado `_SPLIT_ACTIVE` do sd-cli é global: duas gerações simultâneas com planos diferentes poderiam se confundir (o OpenFlow roda uma por vez).
+
 ## [0.58.0] — 2026-11-16
 
 ### Novo — 3D 2: textura, esqueleto e animação de modelos 3D

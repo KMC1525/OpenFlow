@@ -388,7 +388,7 @@ def _probe(exe: Path) -> Tuple[bool, str]:
 def _env(exe: Path) -> Dict[str, str]:
     from .. import perf
 
-    env = perf.gpu_env(dict(os.environ))   # várias placas: o sd-cli usa a escolhida com mais memória livre
+    env = perf.gpu_env(dict(os.environ), multi=_SPLIT_ACTIVE["v"])   # várias placas: o sd-cli usa a escolhida com mais memória livre (ou, dividindo as partes, todas as escolhidas)
     d = str(exe.parent)
     if sys_platform() == "linux":
         env["LD_LIBRARY_PATH"] = d + (os.pathsep + env["LD_LIBRARY_PATH"] if env.get("LD_LIBRARY_PATH") else "")
@@ -414,6 +414,73 @@ RUN_FLAGS = {"cfg_scale": "--cfg-scale", "sample_steps": "--steps", "sample_meth
              "high_noise_sample_steps": "--high-noise-steps", "sigmas": "--sigmas", "rng": "--rng"}
 
 
+# ----------------------------------------------------------------------------- várias placas (v0.59)
+_BACKEND_OK: Dict[str, bool] = {}
+_SPLIT_ACTIVE: Dict[str, bool] = {"v": False}   # a última geração dividiu as partes entre placas? (`_env` precisa enxergar todas)
+_COMPONENT_KEYS = {"diffusion": ("diffusion_model_path", "model_path"), "te": ("llm_path", "t5xxl_path", "clip_l_path", "clip_g_path", "llm_vision_path"), "vae": ("vae_path",)}
+
+
+def supports_backend(exe: Path) -> bool:
+    """O sd-cli aceita `--backend componente=dispositivo`? Lê a ajuda dele uma vez (por executável). Sem a opção, o OpenFlow não tenta dividir as partes entre placas."""
+    key = str(exe)
+    if key not in _BACKEND_OK:
+        ok = False
+        try:
+            r = subprocess.run([str(exe), "--help"], capture_output=True, text=True, timeout=30, cwd=str(Path(exe).parent), env=_env(Path(exe)))
+            ok = "--backend" in (r.stdout + r.stderr)
+        except (OSError, subprocess.SubprocessError):
+            ok = False
+        _BACKEND_OK[key] = ok
+    return _BACKEND_OK[key]
+
+
+def component_split(load: Dict[str, Any], exe: Optional[Path] = None) -> Dict[str, int]:
+    """Quais partes do modelo vão para uma placa que NÃO é a principal: {«te»: 1, «vae»: 1} (o número é a posição na ordem em que o sd-cli enxerga as placas: 0 = principal). Só com CUDA (NVIDIA), duas ou mais
+    placas escolhidas, «dividir entre as placas» ligado e um sd-cli que aceita `--backend`. {} em qualquer outro caso — e aí vale o comportamento de antes (uma placa, com descarga para a RAM)."""
+    from .. import perf
+
+    try:
+        if perf.device() in ("cpu", "hybrid") or not perf.memory_cfg()["multi_gpu"] or _backend_kind() != "cuda12":
+            return {}
+        pool = perf.gpu_pool()
+        if len(pool) < 2:
+            return {}
+        sizes: Dict[str, int] = {}
+        for comp, keys in _COMPONENT_KEYS.items():
+            n = 0
+            for k in keys:
+                v = load.get(k)
+                if isinstance(v, str) and v and v != "@model" and os.path.isfile(v):
+                    n += os.path.getsize(v)
+            if n:
+                sizes[comp] = n
+        if "diffusion" not in sizes:
+            return {}
+        if load.get("te_on_cpu") or load.get("keep_clip_on_cpu"):
+            sizes.pop("te", None)   # o codificador de texto já foi para a CPU
+        if load.get("vae_on_cpu"):
+            sizes.pop("vae", None)
+        split = perf.assign_components(sizes, [g["free"] for g in pool], int(perf.memory_cfg()["gpu_reserve_mb"]) * 1048576)
+        if split and exe is not None and not supports_backend(exe):
+            return {}
+        return split
+    except Exception:  # noqa: BLE001 — o planejamento nunca derruba a geração
+        return {}
+
+
+def _backend_kind() -> str:
+    """O tipo do sd-cli só vale quando foi o OpenFlow que o baixou (arquivo BACKEND): um sd-cli de outra origem pode ser Vulkan, onde os dispositivos não se chamam CUDA0/CUDA1 — nesse caso não se divide."""
+    try:
+        return installed_backend()
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def backend_args(split: Dict[str, int]) -> List[str]:
+    """`--backend te=CUDA1,vae=CUDA1`: os nomes dos dispositivos do ggml CUDA são CUDA0, CUDA1… na ordem de `CUDA_VISIBLE_DEVICES` (a principal primeiro; ver `perf.gpu_env`)."""
+    return ["--backend", ",".join(f"{c}=CUDA{i}" for c, i in sorted(split.items()))] if split else []
+
+
 def build_args(exe: Path, load: Dict[str, Any], run: Dict[str, Any], *, prompt: str, width: int, height: int, seed: int, negative: str = "", refs: Sequence[Path] = (), init: Optional[Path] = None,
                out: Path, video: bool = False) -> Tuple[List[str], List[str]]:
     """(argumentos, avisos) do `sd-cli`: arquivos do modelo e de apoio, parâmetros da geração, imagens de referência (`-r`) ou inicial (`-i`)."""
@@ -431,6 +498,10 @@ def build_args(exe: Path, load: Dict[str, Any], run: Dict[str, Any], *, prompt: 
                 args += LOAD_SWITCHES[k]
         else:
             warns.append(k)
+    split = component_split(load, exe)
+    _SPLIT_ACTIVE["v"] = bool(split)
+    if split:   # componentes em placas diferentes (v0.59): o codificador de texto e/ou o VAE na outra placa
+        args += backend_args(split)
     for k, v in run.items():
         if k in RUN_FLAGS and v is not None:
             args += [RUN_FLAGS[k], str(v)]

@@ -137,6 +137,7 @@ class App:
         a("GET", r"/api/guard", self.r_guard)
         a("POST", r"/api/guard/stop", self.r_guard_stop)
         a("GET", r"/api/gpu", self.r_gpu)
+        a("GET", r"/api/perf/memory", self.r_perf_memory)
         a("POST", r"/api/cpu/bench", self.r_cpu_bench)
         a("GET", r"/api/jobs/(?P<jid>[\w-]+)/events", self.r_job_events)
         a("POST", r"/api/jobs/(?P<jid>[\w-]+)/cancel", self.r_job_cancel)
@@ -314,6 +315,8 @@ class App:
         gpus = native.gpu_info()
         sup = native.llama_gpu_support()
         best = perf.best_discrete_gpu()
+        if best:
+            best = perf.pooled_gpu(best)   # várias placas escolhidas (v0.59): o plano de cada modelo conta a memória delas juntas
         mode = perf.MODE_NUM[perf.resolve(str((self.store.get_settings().get("performance") or {}).get("mode") or "auto"), hardware_info())]
         bench = native.cached_bench() or {}
         models = []
@@ -326,6 +329,22 @@ class App:
                                "est_tps": plan["est_tps"], "est_tps_cpu": plan["est_tps_cpu"], "notes": plan["notes"]})
         backend = best["backend"] if best else (gpus[0]["backend"] if gpus else "")
         req.json({"gpus": gpus, "llama": sup, "backend": backend, "best": (best or {}).get("name", ""), "sd_cli": sdcli.backend(), "models": models, "device": perf.device()})
+
+    def r_perf_memory(self, req: "Request") -> None:
+        """Memória das placas de vídeo + RAM (v0.59): o que o OpenFlow tem para dividir (VRAM usável de cada placa, RAM usável), as folgas configuradas e, para cada modelo baixado (texto, imagem, vídeo), onde ele caberia:
+        numa placa, dividido entre as placas, placas + RAM, só RAM ou não cabe."""
+        from . import perf
+
+        pool = perf.pool_summary()
+        models = []
+        for m in hf.local_models(self.store.models_dir, "all"):
+            if m.get("kind") not in ("text", "image", "video"):
+                continue
+            need = int(int(m["size"]) * 1.1)   # os pesos mais uma folga de cache e ativações
+            pl = perf.placement(need, pool)
+            models.append({"name": m["name"], "kind": m["kind"], "size": int(m["size"]), "strategy": pl["strategy"], "fits": pl["fits"], "gpus": pl["gpus"], "ram_bytes": pl["ram_bytes"]})
+        models.sort(key=lambda x: -x["size"])
+        req.json({"pool": pool, "models": models[:40], "multi_gpu_possible": len(pool["gpus"]) >= 2 or len(perf.gpu_status()) >= 2})
 
     def r_guard(self, req: "Request") -> None:
         """Proteção do computador: o uso atual de CPU, RAM e GPU, o limite, o que está acima dele e a última parada (se houve)."""

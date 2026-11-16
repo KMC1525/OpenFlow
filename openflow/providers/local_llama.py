@@ -346,7 +346,10 @@ class LocalLlamaProvider(Provider):
                         use_gpu, ngl = False, 0   # integrada (ou sem memória para uma camada): a CPU rende igual ou mais
                     elif gtune and gtune.get("use_gpu"):
                         ngl = int(gtune["n_gpu_layers"])
-                        native.LAST["gpu"] = {"model": os.path.basename(path), "layers": gtune["layers_fit"], "kv_on_gpu": gtune["offload_kqv"], "est_tps": gtune.get("est_tps"), "gpu": (gtune.get("gpu") or {}).get("name")}
+                        if not perf.memory_cfg()["ram_spill"] and int(ginfo.get("layers") or 0) and int(gtune.get("layers_fit") or 0) < int(ginfo.get("layers") or 0):   # «usar a RAM junto» desligado (v0.59)
+                            raise ProviderError(f"O modelo {os.path.basename(path)} não cabe na VRAM das placas escolhidas ({gtune.get('layers_fit')} de {ginfo.get('layers')} camadas) e «Usar a RAM junto» está desligado em Configurações → Desempenho → Memória. "
+                                                "Ligue essa opção, escolha mais placas ou use uma quantização menor.")
+                        native.LAST["gpu"] = {"model": os.path.basename(path), "layers": gtune["layers_fit"], "kv_on_gpu": gtune["offload_kqv"], "est_tps": gtune.get("est_tps"), "gpu": (gtune.get("gpu") or {}).get("name"), "pooled": (gtune.get("gpu") or {}).get("pooled")}
                 threads = int(plan["n_threads"]) if plan else max(1, hw["cpus"] - 1)
                 base = dict(model_path=path, n_ctx=ctx, n_threads=threads, n_gpu_layers=ngl, verbose=False)
                 if ngl == 0:   # só CPU (AMD/Intel/ARM, v0.28): threads, lotes e cache de atenção conforme o processador e a memória (núcleo Rust)
