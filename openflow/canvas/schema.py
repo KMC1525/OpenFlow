@@ -229,7 +229,7 @@ def _speech_params(ntype: str, p: Dict[str, Any], prov: str, model: str) -> Dict
         return {"format": "vtt" if p.get("format") == "vtt" else "srt", "language": _lang(p.get("language"), "auto", ("auto",)), "translate_to": _lang(p.get("translate_to"), "", ("",)), "max_chars": int(num(p.get("max_chars"), 42, 20, 80)),
                 "lines": int(num(p.get("lines"), 2, 1, 3)), "max_seconds": round(num(p.get("max_seconds"), 6, 1, 15), 1), "offset": round(num(p.get("offset"), 0, -30, 30), 2), "duration": int(num(p.get("duration"), 0, 0, 36000)),
                 "provider": prov, "model": model}
-    return {"language": _lang(p.get("language"), "en", ("keep",)), "source_language": _lang(p.get("source_language"), "auto", ("auto",)), "voice": text(p.get("voice"), "", 80), "speed": round(num(p.get("speed"), 1, 0.5, 2), 2),
+    return {"language": _lang(p.get("language"), "en", ("keep",)), "source_language": _lang(p.get("source_language"), "auto", ("auto",)), "voice": text(p.get("voice"), "", 80), "voice_style": text(p.get("voice_style"), "", 600), "speed": round(num(p.get("speed"), 1, 0.5, 2), 2),
             "assign": "alternate" if p.get("assign") == "alternate" else "labels", "mix": "duck" if p.get("mix") == "duck" else "replace", "original_volume": round(num(p.get("original_volume"), 0.15, 0, 1), 2), "fit": p.get("fit", True) is not False, "provider": prov, "model": model,
             "extra": _json_dict(p.get("extra"))}
 
@@ -266,7 +266,7 @@ def normalize_params(ntype: str, p: Any) -> Dict[str, Any]:
     if ntype in ("transcript", "sub", "dub"):
         return _speech_params(ntype, p, prov, model)
     if ntype == "voice":
-        return {"text": text(p.get("text"), "", 8000), "voice": text(p.get("voice"), "", 80), "speed": round(num(p.get("speed"), 1, 0.5, 2), 2), "provider": prov, "model": model,
+        return {"text": text(p.get("text"), "", 8000), "voice_style": text(p.get("voice_style"), "", 600), "voice": text(p.get("voice"), "", 80), "speed": round(num(p.get("speed"), 1, 0.5, 2), 2), "provider": prov, "model": model,
                 "extra": _json_dict(p.get("extra")), "ignore_global_styles": bool(p.get("ignore_global_styles"))}
     if ntype == "model3d":
         return {"prompt": text(p.get("prompt"), "", 2000), "format": "obj" if p.get("format") == "obj" else "glb", "seed": int(num(p.get("seed"), 0, 0, 2 ** 31)), "provider": prov, "model": model,

@@ -120,6 +120,9 @@ class BrowserTests(unittest.TestCase):
     def test_29_dubbing_connected_voices(self):
         self.run_script("dub_voices_v063_ui.js")
 
+    def test_30_voice_style_box(self):
+        self.run_script("voice_style_v064_ui.js")
+
     def test_19_the_ai_flow_generator_and_the_team_picker_are_gone(self):
         self.run_script("no_flow_ai_ui.js")
 
