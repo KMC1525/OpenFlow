@@ -602,7 +602,7 @@ class LocalHFMedia(MediaProvider):
     def image(self, prompt, *, size="1024x1024", count=1, seed=0, negative="", refs=(), model="", extra=None):
         model = self._pick("image", model, "stabilityai/sd-turbo")
         if self._transformer_only(model):
-            raise ProviderError(f'«{model}» traz só o transformador quantizado (sem o codificador de texto e o VAE): o diffusers do OpenFlow carrega repositórios completos. Use os arquivos .gguf deste repositório pelo provedor «GGUF local» (Biblioteca → Baixar → Q4_K_M, Q5_K_M…): o OpenFlow baixa junto o VAE e o codificador Qwen3-VL-8B.')
+            raise ProviderError(f'«{model}» traz só o transformador quantizado (sem o codificador de texto e o VAE): o diffusers do OpenFlow carrega repositórios completos. Use os arquivos .gguf deste repositório pelo provedor «GGUF local» (barra de pesquisa de modelos do Canvas → Q4_K_M, Q5_K_M…): o OpenFlow baixa junto o VAE e o codificador Qwen3-VL-8B.')
         (diffusers,) = _local_import("diffusers")
         dev, _ = _device()
         ready = self._ready(model)
@@ -1298,7 +1298,7 @@ class GGUFMedia(MediaProvider):
             raise ProviderError(f"Escolha um modelo GGUF de {CAP_LABELS[cap]} em Configuração → Modelos locais ({'Imagem' if cap == 'image' else 'Vídeo'}).")
         path = Path(self.cfg.get("models_dir") or ".") / cap / name
         if not path.is_file():
-            raise ProviderError(f"Modelo GGUF não encontrado: {path}. Baixe-o em Configuração → Modelos locais.")
+            raise ProviderError(f"Modelo GGUF não encontrado: {path}. Baixe-o pela barra de pesquisa de modelos do Canvas.")
         return path
 
     @staticmethod

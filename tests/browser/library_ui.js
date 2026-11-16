@@ -67,11 +67,10 @@ run('library', async ({ api, open, check, base, expectError }) => {
   const root = await api('/api/library/items?scope=files');
   check('excluir-pasta:arquivos-voltam-para-a-raiz', root.items.some((i) => i.name === 'paisagem.png'));
 
-  // modelos: pastas de modelos são separadas; «Baixar mais modelos» abre o catálogo
-  await page.locator('#lib-tab-models').click(); await page.waitForSelector('#lib-get', { timeout: 8000 });
-  check('modelos:botao-baixar-mais', true);
-  await page.click('#lib-get'); await page.waitForSelector('.prerow', { timeout: 10000 });
-  check('modelos:catalogo-abre', (await page.locator('.prerow').count()) >= 1);
+  // modelos: a Biblioteca só guarda e organiza (v0.42): pesquisar e baixar modelos é só na barra de pesquisa do Canvas
+  await page.locator('#lib-tab-models').click(); await page.waitForSelector('.lib-main, #lib-items, .lib-empty, .lib-main *', { timeout: 8000 }); await page.waitForTimeout(400);
+  check('modelos:sem-botao-de-baixar-mais', (await page.locator('#lib-get').count()) === 0);
+  check('modelos:sem-busca-no-hugging-face', (await page.locator('.prerow, #md-unsloth, #md-conn').count()) === 0 && !/Baixar mais modelos/i.test(await page.locator('body').innerText()));
 
   // downloads
   await page.locator('#lib-tab-downloads').click(); await page.waitForSelector('.dlrow[data-job="j_a"]', { timeout: 8000 });

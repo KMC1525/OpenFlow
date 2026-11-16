@@ -2,6 +2,21 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.42.0] — 2026-11-16
+
+### Mudou — pesquisar e baixar modelos agora é só pela barra de pesquisa do Canvas
+- **A barra de pesquisa de modelos do Canvas** (no topo do editor) ganhou tudo o que a tela de modelos da Biblioteca tinha: ao clicar nela aparecem os **recomendados** (modelos «prontos para instalar» e o catálogo GGUF da Unsloth e de parceiros, como o ChatR Labs); dá para **colar um endereço `dono/nome`** (o repositório abre direto, mesmo que a busca não o liste); a lista de quantizações mostra o aviso de repositório incompatível e o que **vem junto** (VAE, codificador de texto, mmproj).
+- **Formato não-GGUF:** imagem e vídeo escolhem entre **GGUF** (quantizações) e **Original** (diffusers, com a precisão fp32/fp16/bf16); som, voz, transcrição e 3D usam o formato original; o **texto só roda GGUF** (llama.cpp), então o formato fica travado em GGUF.
+- **Biblioteca:** saíram o botão «Baixar mais modelos», a tela de busca/download de modelos (`views/models.js`) e a rota `GET /api/hf/search`. A Biblioteca só guarda, organiza, usa e apaga modelos e arquivos; a aba Downloads continua mostrando o progresso.
+- Os avisos que antes mandavam para a Biblioteca/Modelos (nó sem o modelo baixado, repositório compatível com a stable-diffusion.cpp, boas-vindas, mensagens do servidor) agora abrem ou apontam a barra de pesquisa do Canvas.
+- **Configurações → Desempenho → Downloads de modelos:** passaram para cá as conexões por download, o «baixar junto o VAE/codificadores/mmproj» e o token do Hugging Face (modelos restritos), que moravam na tela de modelos removida.
+- Corrigido: o texto do núcleo Rust ainda dizia «Agentes, armazenamento e memória» (agentes saíram na v0.40).
+
+### Ainda não verificado
+- A pesquisa de verdade no Hugging Face não rodou aqui (sem rede no ambiente): os testes de navegador usam respostas simuladas da API.
+- Modelos de texto no formato original (transformers) não rodam no OpenFlow, por isso o texto só pesquisa GGUF.
+- O download de modelos continua disponível também em Configurações → Imagem, vídeo, som e voz (a escolha de precisão de cada provedor) e nos modelos recomendados do `flow setup`: só a Biblioteca perdeu a pesquisa e o download.
+
 ## [0.41.0] — 2026-11-16
 
 ### Novo — ChatR Labs · Qwen-Image 2.1 Uncensored Omni Quantized

@@ -8,7 +8,7 @@ Inspirado no ElevenLabs Flow e muito mais leve que o ComfyUI: ligue alguns nós,
 
 [Instalar](#instalar) · [O comando `flow`](#o-comando-flow) · [Projetos](#projetos--a-tela-inicial) · [Nós](#os-nós) · [Style Folder](#style-folder--pastas-e-subpastas) · [Modelos](#modelos--os-arquivos-de-apoio-se-instalam-sozinhos) · [Provedores](#provedores-de-ia) · [Núcleo Rust](#núcleo-rust) · [Desenvolvimento](#desenvolvimento) · [Changelog](CHANGELOG.md) · [English](README.md)
 
-`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Núcleo Rust` · `sem dependências obrigatórias` · `v0.41.0`
+`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Núcleo Rust` · `sem dependências obrigatórias` · `v0.42.0`
 
 </div>
 
@@ -100,7 +100,7 @@ Cada nó tem **uma saída**, **entradas tipadas** e um **resultado que aparece n
 | **3D** | **Modelo 3D** (texto ou imagem → GLB/OBJ, com modelos locais Shap-E, TripoSR ou Hunyuan3D-2; visualizador no próprio nó) |
 | **Output** | **Editor** (editor de vídeo: trilhas, bandeja, prévia, dividir/cortar, fades, legendas, MP4) · Vídeo final · GIF · Áudio final · Imagem final · Galeria |
 
-Extras: menções com `@` a imagens, vídeos e sons do projeto dentro dos prompts; seletor de modelo em cada nó de mídia (modelos locais instalados); **barra de busca de modelos** do Hugging Face no editor; modelos de projeto para começar rápido.
+Extras: menções com `@` a imagens, vídeos e sons do projeto dentro dos prompts; seletor de modelo em cada nó de mídia (modelos locais instalados); **barra de busca de modelos** do Hugging Face no editor do Canvas — o **único** lugar para pesquisar e baixar modelos (quantizações GGUF ou o formato original diffusers/transformers, catálogo recomendado, ou cole um endereço `dono/nome`); modelos de projeto para começar rápido.
 
 ## Style Folder — pastas e subpastas
 
@@ -187,7 +187,7 @@ node tests/js/i18n_check.mjs                     # toda frase da interface tem t
 
 Os testes de navegador precisam de Node, Playwright e Chromium (`NODE_PATH` apontando para a sua instalação do `playwright`). Código compatível com Python 3.9 (sem `match`, sem `X | Y` em tempo de execução). Todo texto da interface e do terminal é em português primeiro, com tradução para o inglês (`openflow/web/js/en.js`, `openflow/term_en.py`); os testes conferem.
 
-## Limites honestos (v0.41.0)
+## Limites honestos (v0.42.0)
 
 Verificado aqui (Linux, Python 3.13): a suíte completa de testes em Python (a suíte completa), os testes de navegador no Chromium, os testes em Rust e o `install.sh` de ponta a ponta contra uma cópia local. **Não verificado:** o `install.ps1` num Windows de verdade e o `install.sh` no macOS (os jobs de CI estão escritos mas não rodaram); a compilação do núcleo Rust para macOS/Windows/ARM; downloads reais de VAEs, codificadores de texto e `mmproj` do Hugging Face (os testes simulam os downloads — os nomes de arquivo dos repositórios curados e de exemplo foram conferidos nas listagens do Hugging Face); inferência com modelos GGUF e GPUs reais; entrada de imagens por `mmproj` com um modelo real; provedores de nuvem com chaves reais (os testes usam servidores falsos). Não há medições de desempenho.
 

@@ -138,7 +138,6 @@ class App:
         a("GET", r"/api/jobs/(?P<jid>[\w-]+)/events", self.r_job_events)
         a("POST", r"/api/jobs/(?P<jid>[\w-]+)/cancel", self.r_job_cancel)
 
-        a("GET", r"/api/hf/search", self.r_hf_search)
         a("GET", r"/api/unsloth/catalog", self.r_unsloth_catalog)
         a("GET", r"/api/hf/files", self.r_hf_files)
         a("GET", r"/api/hf/local", self.r_hf_local)
@@ -385,16 +384,6 @@ class App:
 
     def _auto_support(self) -> bool:
         return self.store.get_settings()["hf"].get("auto_support", True) is not False
-
-    def r_hf_search(self, req: "Request") -> None:
-        q = (req.query.get("q", [""])[0] or "gguf").strip()
-        kind = req.query.get("kind", ["text"])[0] or "text"
-        if kind not in hf.GGUF_KINDS:
-            raise HttpError(400, "Tipo de modelo inválido.")
-        try:
-            req.json({"results": hf.search(q, self._hf_token(), kind=kind)})
-        except ProviderError as exc:
-            raise HttpError(502, str(exc))
 
     def r_unsloth_catalog(self, req: "Request") -> None:
         """Os modelos de imagem e vídeo da Unsloth e o que o OpenFlow faz com cada um (`?kind=image|video`)."""

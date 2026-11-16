@@ -10,8 +10,7 @@ const LS = (k, v) => { try { if (v === undefined) return localStorage.getItem('o
 const DRAG = 'application/x-openflow-library';
 
 export default async function render(root, ctx) {
-  const S = { scope: (ctx && ctx.tab === 'downloads') ? 'downloads' : (ctx && ctx.tab === 'files') ? 'files' : 'models', folder: '', q: '', view: LS('view') === 'list' ? 'list' : 'grid', kind: '', source: 'all', browse: false, tree: [] };
-  if (ctx && ctx.repo) S.browse = true;   // vindo do aviso de um nó: abre o catálogo de modelos já no repositório indicado
+  const S = { scope: (ctx && ctx.tab === 'downloads') ? 'downloads' : (ctx && ctx.tab === 'files') ? 'files' : 'models', folder: '', q: '', view: LS('view') === 'list' ? 'list' : 'grid', kind: '', source: 'all', tree: [] };
   let stop = () => {};
   const main = h('div', { class: 'lib-main', id: 'lib-body' });
   const side = h('nav', { class: 'lib-side', 'aria-label': t('Seções da Biblioteca') });
@@ -25,15 +24,15 @@ export default async function render(root, ctx) {
   async function go(next) { Object.assign(S, next); LS('scope', S.scope); await show(); }
 
   const search = h('input', { type: 'search', id: 'lib-q', 'aria-label': t('Buscar pastas e arquivos'), placeholder: t('Buscar pastas e arquivos…'), autocomplete: 'off',
-    oninput: debounce(() => { S.q = search.value.trim(); if (S.scope === 'downloads' || S.scope === 'storage' || S.browse) { S.scope = 'files'; S.browse = false; show(); } else loadItems(); }, 250) });
+    oninput: debounce(() => { S.q = search.value.trim(); if (S.scope === 'downloads' || S.scope === 'storage') { S.scope = 'files'; show(); } else loadItems(); }, 250) });
 
   function paintSide() {
     const sec = [['models', 'Modelos de IA', 'layers'], ['files', 'Arquivos gerados', 'image'], ['downloads', 'Downloads', 'download'], ['storage', 'Armazenamento', 'archive']];
     const nodes = [];
     for (const [k, label, ic] of sec) {
-      const on = S.scope === k && !S.browse;
+      const on = S.scope === k;
       nodes.push(h('button', { type: 'button', class: 'lib-sec' + (on && !S.folder ? ' on' : ''), id: 'lib-tab-' + k, 'data-scope': k, 'aria-current': on ? 'page' : null,
-        onclick: () => { S.q = ''; search.value = ''; go({ scope: k, folder: '', browse: false }); },
+        onclick: () => { S.q = ''; search.value = ''; go({ scope: k, folder: '' }); },
         ondragover: (e) => { if (k !== 'downloads' && k !== 'storage' && e.dataTransfer.types.includes(DRAG)) { e.preventDefault(); e.currentTarget.classList.add('drop'); } },
         ondragleave: (e) => e.currentTarget.classList.remove('drop'),
         ondrop: (e) => { e.currentTarget.classList.remove('drop'); if (k !== 'downloads' && k !== 'storage') dropOn(e, ''); } }, icon(ic, 16), h('span', null, t(label))));
@@ -44,7 +43,7 @@ export default async function render(root, ctx) {
   function treeNode(parent, depth) {
     const kids = S.tree.filter((f) => (f.parent || '') === parent).sort((a, b) => a.name.localeCompare(b.name));
     return h('div', { class: 'lib-tree' }, kids.map((f) => h('div', null,
-      h('button', { type: 'button', class: 'lib-fold' + (S.folder === f.id && !S.browse ? ' on' : ''), style: { paddingLeft: (10 + depth * 14) + 'px' }, 'data-folder': f.id, onclick: () => { S.q = ''; search.value = ''; go({ folder: f.id, browse: false }); },
+      h('button', { type: 'button', class: 'lib-fold' + (S.folder === f.id ? ' on' : ''), style: { paddingLeft: (10 + depth * 14) + 'px' }, 'data-folder': f.id, onclick: () => { S.q = ''; search.value = ''; go({ folder: f.id }); },
         ondragover: (e) => { if (e.dataTransfer.types.includes(DRAG)) { e.preventDefault(); e.currentTarget.classList.add('drop'); } }, ondragleave: (e) => e.currentTarget.classList.remove('drop'),
         ondrop: (e) => { e.currentTarget.classList.remove('drop'); dropOn(e, f.id); } }, icon('folder', 14), h('span', null, f.name)),
       treeNode(f.id, depth + 1))));
@@ -114,7 +113,6 @@ export default async function render(root, ctx) {
     crumbs.replaceChildren();
     if (S.scope === 'downloads') { crumbs.append(h('b', null, t('Downloads'))); }
     else if (S.scope === 'storage') { crumbs.append(h('b', null, t('Armazenamento'))); }
-    else if (S.browse) { crumbs.append(h('button', { type: 'button', class: 'lib-crumb', onclick: () => go({ browse: false }) }, '← ' + rootName), h('b', null, t('Baixar mais modelos'))); }
     else if (S.q) { crumbs.append(h('b', null, t('Resultados para «{q}»', { q: S.q }))); }
     else {
       crumbs.append(h('button', { type: 'button', class: 'lib-crumb', ...dropTarget(''), onclick: () => go({ folder: '' }) }, rootName));
@@ -122,18 +120,17 @@ export default async function render(root, ctx) {
     }
     const kinds = S.scope === 'models' ? [['', 'Todos os tipos'], ...GGUF_KINDS.map(([k, l]) => [k, l])] : [['', 'Todos os tipos'], ['image', 'Imagens'], ['video', 'Vídeos'], ['audio', 'Sons'], ['model3d', 'Modelos 3D']];
     filters.replaceChildren();
-    if ((S.scope === 'models' || S.scope === 'files') && !S.browse) {
+    if ((S.scope === 'models' || S.scope === 'files')) {
       filters.append(h('select', { id: 'lib-kind', 'aria-label': t('Tipo de arquivo'), onchange: (e) => { S.kind = e.target.value; loadItems(); } }, kinds.map(([v, l]) => h('option', { value: v, selected: v === S.kind }, t(l)))));
       if (S.scope === 'files') filters.append(h('select', { id: 'lib-source', 'aria-label': t('Origem'), onchange: (e) => { S.source = e.target.value; loadItems(); } },
         [['all', 'Todos'], ['generated', 'Gerados por modelos'], ['upload', 'Enviados por você']].map(([v, l]) => h('option', { value: v, selected: v === S.source }, t(l)))));
     }
-    const can = (S.scope === 'models' || S.scope === 'files') && !S.browse && !S.q;
+    const can = (S.scope === 'models' || S.scope === 'files') && !S.q;
     bar.replaceChildren(
       h('div', { class: 'lib-search' }, icon('search', 16), search),
       h('div', { class: 'grow' }),
       can ? h('button', { class: 'btn', type: 'button', id: 'lib-newfolder', onclick: newFolder }, icon('plus', 14), t('Nova pasta')) : null,
-      S.scope === 'models' && !S.browse ? h('button', { class: 'btn primary', type: 'button', id: 'lib-get', onclick: () => go({ browse: true }) }, icon('download', 14), t('Baixar mais modelos')) : null,
-      (S.scope === 'models' || S.scope === 'files') && !S.browse ? h('div', { class: 'seg', role: 'group', 'aria-label': t('Visualização') },
+      (S.scope === 'models' || S.scope === 'files') ? h('div', { class: 'seg', role: 'group', 'aria-label': t('Visualização') },
         h('button', { type: 'button', class: S.view === 'grid' ? 'on' : '', id: 'lib-grid', title: t('Grade'), 'aria-label': t('Grade'), onclick: () => { S.view = 'grid'; LS('view', 'grid'); paintBar(); paintItems(); } }, icon('grid', 15)),
         h('button', { type: 'button', class: S.view === 'list' ? 'on' : '', id: 'lib-list', title: t('Lista'), 'aria-label': t('Lista'), onclick: () => { S.view = 'list'; LS('view', 'list'); paintBar(); paintItems(); } }, icon('rowsmall', 15))) : null);
   }
@@ -168,7 +165,7 @@ export default async function render(root, ctx) {
     icon('folder', S.view === 'grid' ? 30 : 18),
     h('div', { class: 'meta' }, h('div', { class: 'nm' }, f.name), h('div', { class: 'dim small' }, f.path ? t('em {p}', { p: f.path }) : t('{n} item(ns)', { n: f.count || 0 }))),
     menu([[t('Abrir'), () => open(f)], [t('Renomear'), () => renameFolder(f)], [t('Mover para…'), () => moveDialog([], [f.id])], [t('Excluir pasta'), () => deleteFolder(f), 'danger']]));
-  const open = (f) => { S.q = ''; search.value = ''; go({ folder: f.id, browse: false }); };
+  const open = (f) => { S.q = ''; search.value = ''; go({ folder: f.id }); };
 
   const thumb = (f) => f.kind === 'image' ? h('img', { src: f.url, alt: f.name, loading: 'lazy', draggable: 'false' })
     : f.kind === 'video' ? h('video', { src: f.url, preload: 'metadata', muted: true, 'aria-label': f.name }) : h('div', { class: 'ico' }, icon(f.kind === 'model3d' ? 'cube' : 'audio', 30));
@@ -209,7 +206,7 @@ export default async function render(root, ctx) {
   function emptyText() {
     if (data.search) return t('Nada encontrado para «{q}».', { q: S.q });
     if (S.folder) return t('Esta pasta está vazia. Arraste itens para cá ou crie uma subpasta.');
-    return S.scope === 'models' ? t('Nenhum modelo baixado ainda. Use «Baixar mais modelos».') : t('Nenhum arquivo ainda. Rode um nó de imagem, vídeo, som ou voz num projeto.');
+    return S.scope === 'models' ? t('Nenhum modelo baixado ainda. Para pesquisar e baixar modelos, abra um projeto e use a barra de pesquisa de modelos do Canvas.') : t('Nenhum arquivo ainda. Rode um nó de imagem, vídeo, som ou voz num projeto.');
   }
 
   function paintItems() {
@@ -223,13 +220,6 @@ export default async function render(root, ctx) {
   }
 
   // ---------------------------------------------------------------------------------------------- baixar mais modelos (o catálogo e a busca de antes)
-  async function browseModels() {
-    const holder = h('div');
-    main.replaceChildren(bar, crumbs, holder);
-    const m = await import('./models.js');
-    await m.default(holder, { ...(ctx || {}), embedded: true });
-  }
-
   // ---------------------------------------------------------------------------------------------- downloads
   async function downloadsTab(box) {
     const active = h('div', { class: 'col', id: 'lib-active', 'aria-live': 'polite' }), recent = h('div', { class: 'col', id: 'lib-recent' }), done = h('div', { class: 'col', id: 'lib-done' });
@@ -266,7 +256,7 @@ export default async function render(root, ctx) {
             h('div', { class: 'grow', style: { minWidth: 0 } }, h('div', { class: 'mono', style: { fontSize: '13px', overflowWrap: 'anywhere' } }, m.name),
               h('div', { class: 'dim small' }, [kindLabel(m.kind), fmtBytes(m.size), m.mtime ? new Date(m.mtime * 1000).toLocaleString() : ''].filter(Boolean).join(' · '))),
             m.quant ? h('span', { class: 'chip solid' }, m.quant) : null)))
-            : [h('div', { class: 'muted small' }, t('Nenhum modelo baixado ainda.'), ' ', h('button', { class: 'btn sm', type: 'button', onclick: () => { go({ scope: 'models', browse: true }); } }, t('Baixar modelos')))]));
+            : [h('div', { class: 'muted small' }, t('Nenhum modelo baixado ainda. Pesquise e baixe pela barra de pesquisa de modelos dentro de um projeto (Canvas).'))]));
         }
         timer = setTimeout(tick, run.length ? 1000 : 4000);   // mais rápido enquanto há download; devagar quando parado
       } catch (e) { if (alive) timer = setTimeout(tick, 5000); }
@@ -377,7 +367,6 @@ export default async function render(root, ctx) {
     paintSide(); paintBar();
     if (S.scope === 'downloads') { const holder = h('div'); main.replaceChildren(bar, crumbs, holder); stop = await downloadsTab(holder); return; }
     if (S.scope === 'storage') { const holder = h('div'); main.replaceChildren(bar, crumbs, holder); await storageTab(holder); return; }
-    if (S.browse) return browseModels();
     main.replaceChildren(bar, crumbs, filters, content);
     await loadItems();
   }

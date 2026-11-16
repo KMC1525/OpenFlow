@@ -96,7 +96,7 @@ class RegexTests(GraphCase):
 
 class ApiValidationTests(ServerCase):
     def test_bad_input_is_a_client_error_not_a_gateway_error(self):
-        self.assertEqual(self.c.json("GET", "/api/hf/search?kind=zzz")[0], 400)
+        self.assertEqual(self.c.json("GET", "/api/hf/search?kind=zzz")[0], 404)   # v0.42: a busca da Biblioteca saiu (a pesquisa de modelos é a barra do Canvas)
         self.assertEqual(self.c.json("GET", "/api/hf/files?repo=nada")[0], 400)
         self.assertEqual(self.c.json("POST", "/api/media/test", {"provider": ""})[0], 400)
         self.assertEqual(self.c.json("GET", "/api/media/models?provider=nada&cap=image")[0], 400)

@@ -97,7 +97,7 @@ def download_components(base: str, token: str = "", note: Callable[[str], None] 
     except Exception as exc:  # noqa: BLE001 — repositório restrito (gated), rede, disco
         msg = str(exc)
         if "401" in msg or "403" in msg or "gated" in msg.lower():
-            raise ProviderError(f"{base} é um repositório restrito: aceite a licença na página do modelo e informe o token do Hugging Face em Modelos. ({msg[:120]})") from None
+            raise ProviderError(f"{base} é um repositório restrito: aceite a licença na página do modelo e informe o token do Hugging Face em Configurações → Desempenho → Downloads de modelos. ({msg[:120]})") from None
         raise ProviderError(f"Não consegui baixar {base}: {msg[:200]}") from None
     return str(path)
 

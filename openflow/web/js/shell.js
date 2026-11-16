@@ -87,8 +87,8 @@ export async function maybeWelcome(app, force = false) {
     h('label', { class: 'f', style: { marginTop: '14px' } }, t('Idioma')), langSel,
     h('div', { style: { marginTop: '16px' } }, ai),
     h('p', { class: 'dim small', style: { marginBottom: 0 } }, t('Dica: aperte Ctrl+K a qualquer momento para buscar telas, projetos e ações.')));
-  const choice = await modal(t('Bem-vindo ao OpenFlow'), body, [{ label: demo ? t('Explorar no Demo') : t('Começar'), value: 'go' }, ...(demo ? [{ label: t('Instalar modelos'), value: 'models', cls: 'primary' }] : [])]);
+  const choice = await modal(t('Bem-vindo ao OpenFlow'), body, [{ label: demo ? t('Explorar no Demo') : t('Começar'), value: 'go' }, ...(demo ? [{ label: t('Abrir um projeto para baixar modelos'), value: 'models', cls: 'primary' }] : [])]);
   await saveSettings({ ui: { welcome_done: true } });
   renderSide();
-  if (choice === 'models') go('library');
+  if (choice === 'models') go('projects');   // os modelos se pesquisam e baixam pela barra de pesquisa dentro de um projeto (Canvas)
 }
