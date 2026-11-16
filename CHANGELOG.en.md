@@ -2,6 +2,24 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.62.0] — 2026-11-16
+
+### New — Dubbing, Subtitles and Transcript: three nodes in the Sound group
+Three new nodes, right after the **Voice** node in the palette. They take a video or audio (from the **Media** node or any node that generates audio/video) and chain with each other.
+- **Transcript (`transcript`):** transcribes the speech of the video or audio with the project's default transcription model (local Whisper) and delivers **text**: running, **with timestamps** (`[1:05] sentence`) or in **paragraphs** (a long pause opens a new one). Speech language automatic or of your choice; a **Download (.txt)** button on the node. Long audio is read in 30 s windows without losing each piece's timing.
+- **Subtitles (`sub`):** generates **SRT or VTT** for any player, from the speech of the video/audio **or from a text**: a text that already is a subtitle (SRT/VTT) is reformatted (format change, advance/delay); plain text is **spread across the file** in proportion to the size of each sentence (using the connected file's duration, or the one you type in the node). Controls: characters per line (20 to 80), lines per subtitle (1 to 3), maximum duration of each subtitle (long ones are split so every part fits both limits), advance/delay in seconds and optional **translation** to another language with the text model (10 languages). A **Download (.srt / .vtt)** button on the node (the file is built in the browser).
+- **Dubbing (`dub`):** dubs a video or audio: **transcribes** the speech (or uses the **script/subtitles connected** to the «Script» input, which are dubbed as they are), **translates** with the text model, **speaks** each piece with the node's voice model (adjustable voice and speed), **fits** each line into the time of the original piece (speeds up to 1.6× what does not fit; speech never overlaps: a piece that did not fit pushes the next one back and the node warns) and **mixes**: replaces the original audio with the dub or keeps it low underneath. With video, the picture is kept (copied without re-encoding when possible) and the audio is swapped; with audio, an MP3 comes out. What was dubbed, with timestamps, stays in the node's result. Up to 300 pieces per dub.
+- **A flow with no transcription model:** since the Demo voice works offline, a **script (or SRT subtitles) connected to «Script»** gives a complete dub (the demo babble) without Whisper; the node warns that it is a demo voice.
+- All three take part in the **cache** (changing the script, the transcription model or the text model regenerates only what depends on it), have English translations and clear warnings: a transcription model that returns no timings, plain text spread over the file, lines the translation did not return (they stay in the original language, with the count), no text model (does not translate, and says so), demo voice, pieces sped up or delayed.
+- **New in the media-provider API:** `transcribe_segments` (the speech with the timing of each piece) and `timed_segments`; local Whisper returns the timings, other providers fall back to a single block.
+
+### Not verified yet
+- **No real transcription or voice model was used.** The tests use a fake provider with known timings and the demo babble; ffmpeg is real. That local Whisper gets the words and the **timings** right (and how it behaves on long audio, with music or several voices) **was not measured**; `chunk_length_s=30` was chosen from the transformers documentation, without running the model.
+- The **quality of the dub** depends on the configured voice and text models: the mixing, the fitting in time and the audio swap are verified; the naturalness of the voice, the accent and the rhythm of the translated speech are not. The dub does not separate the voices from the effects and music of the original: with «Keep it low underneath» they stay underneath; with «Replace with the dub» they go away.
+- Translation depends on the text model (and on it following the numbered format); lines it does not return stay in the original language.
+- **Subtitles are not «burned» into the video** (that stays in the Editor/Final video); here the result is the subtitle file. There is no speaker change (diarization) or styles (ASS) — only SRT and VTT.
+- The formats were checked by round-trip reading inside OpenFlow itself (SRT and VTT), **not** loaded into real players (VLC, browsers, YouTube).
+
 ## [0.61.0] — 2026-11-16
 
 ### New — Music and SFX: three nodes in the Sound group

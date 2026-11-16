@@ -8,7 +8,7 @@ Connect a few nodes, see each result on the node, edit the final video without l
 
 [Install](#install) · [Use](#use) · [Nodes](#nodes) · [Models](#models) · [Settings](#settings) · [Data](#your-data) · [Development](#development) · [Changelog](CHANGELOG.en.md) · [Português](README.pt-BR.md)
 
-`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Rust core` · `v0.61.0`
+`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Rust core` · `v0.62.0`
 
 </div>
 
@@ -53,7 +53,7 @@ Every node has one output, typed inputs and a result shown on the node. Results 
 | **Text** | Text · AI text · Transcribe · Template · Join · Edit · Pick · Refine with AI · Extract · Count |
 | **Image** | Image (generate or **edit**, several references) · Resize · Filters · Text · Collage · Frame · Crop · Watermark · **Character sheet** · **Comic page** |
 | **Video** | Video (from text or image) · Cut · Join · Speed · Look · Slideshow · Reframe · Loop · Audio |
-| **Sound** | **Music · Lyrics · SFX** · Sound · Voice · Cut · Mix · Effects · Audio from video · Loop · Remove silence |
+| **Sound** | **Music · Lyrics · SFX · Dubbing · Transcript · Subtitles** · Sound · Voice · Cut · Mix · Effects · Audio from video · Loop · Remove silence |
 | **Input** | Media · Style Prompt · **Style Folder** · Color · Silence · URL · Random text · Date · Pattern |
 | **3D** | **3D model** (text or image → GLB/OBJ; viewer on the node) · **3D texture** (image or procedural pattern, with projection) · **3D skeleton** (automatic rig and skin) · **3D animation** (spin, bounce, sway, walk, wave…; plays in the viewer) |
 | **Output** | **Editor** (tracks, split/trim, fades, captions, MP4) · Final video · GIF · Audio · Image · Thumbnail · Gallery |

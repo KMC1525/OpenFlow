@@ -13,7 +13,7 @@ export const GROUPS = [   // espelha schema.PALETTE
   ['Texto', ['text', 'llm', 'transcribe', 'text_template', 'text_join', 'text_edit', 'text_pick', 'text_refine', 'text_extract', 'text_count']],
   ['Imagem', ['image', 'img_resize', 'img_filter', 'img_text', 'img_collage', 'img_frame', 'img_crop', 'img_watermark', 'char_sheet', 'comic_page']],
   ['Vídeo', ['video', 'vid_trim', 'vid_join', 'vid_speed', 'vid_look', 'vid_slideshow', 'vid_reframe', 'vid_loop', 'vid_audio']],
-  ['Som', ['music', 'lyrics', 'sfx', 'sound', 'voice', 'aud_trim', 'aud_mix', 'aud_fx', 'aud_from_video', 'aud_loop', 'aud_silence_cut']],
+  ['Som', ['music', 'lyrics', 'sfx', 'sound', 'voice', 'dub', 'transcript', 'sub', 'aud_trim', 'aud_mix', 'aud_fx', 'aud_from_video', 'aud_loop', 'aud_silence_cut']],
   ['Input', ['upload', 'style_prompt', 'style_folder', 'in_color', 'in_silence', 'in_url', 'in_random', 'in_vars', 'in_pattern']],
   ['3D', ['model3d', 'tex3d', 'rig3d', 'anim3d']],
   ['Output', ['editor', 'out_export', 'out_gif', 'out_audio', 'out_image', 'out_thumbnail', 'out_gallery']],
@@ -24,6 +24,9 @@ export const TYPE_HELP = {
   model3d: 'Cria um modelo 3D (GLB ou OBJ) a partir de um texto ou de uma imagem, com um modelo local do Hugging Face (Shap-E, TripoSR, Hunyuan3D…).',
   sound: 'Gera efeitos sonoros ou música (nó geral; para música e efeitos, prefira Música e SFX).',
   music: 'Gera uma música a partir do estilo que você descreve (gênero, clima, instrumentos), com ou sem letra. Ligue um nó Letra na entrada «Letra» para a música cantar.',
+  dub: 'Dubla um vídeo ou áudio em outro idioma: transcreve a fala, traduz com o modelo de texto e fala com o modelo de voz, encaixando cada trecho no tempo. Ligue um roteiro ou legendas para dublar o seu texto.',
+  transcript: 'Transcreve a fala de um vídeo ou áudio em texto: corrido, com marcas de tempo ou em parágrafos.',
+  sub: 'Gera legendas SRT ou VTT para qualquer reprodutor, a partir da fala de um vídeo ou áudio (ou de um texto), com tradução opcional.',
   lyrics: 'Escreve a letra de uma música (ou arruma a sua) com o modelo de texto: estrofes e refrões, no idioma e no gênero que você escolher. Ligue na entrada «Letra» do nó Música.',
   sfx: 'Gera efeitos sonoros curtos (passos, porta, chuva, laser…) a partir de uma descrição, com até 4 variações.',
   voice: 'Transforma texto em fala.', transcribe: 'Transforma áudio ou vídeo em texto.',
@@ -53,7 +56,7 @@ export const TYPE_HELP = {
 };
 export const OUT_COLOR = { text: 'var(--c-text)', image: 'var(--c-image)', video: 'var(--c-video)', audio: 'var(--c-audio)', style: 'var(--c-style)', media: 'var(--c-media)', model3d: 'var(--c-media)' };
 export const LABEL = {
-  model3d: 'Modelo 3D', text: 'Texto', llm: 'Texto IA', upload: 'Mídia', image: 'Imagem', video: 'Vídeo', sound: 'Som', music: 'Música', lyrics: 'Letra', sfx: 'SFX', voice: 'Voz', transcribe: 'Transcrever',
+  model3d: 'Modelo 3D', text: 'Texto', llm: 'Texto IA', upload: 'Mídia', image: 'Imagem', video: 'Vídeo', sound: 'Som', dub: 'Dublagem', transcript: 'Transcrição', sub: 'Legendas', music: 'Música', lyrics: 'Letra', sfx: 'SFX', voice: 'Voz', transcribe: 'Transcrever',
   style_prompt: 'Style Prompt', style_folder: 'Style Folder', editor: 'Editor',
   text_template: 'Modelo de texto', text_join: 'Juntar textos', text_edit: 'Editar texto', text_pick: 'Escolher trecho', text_refine: 'Refinar com IA',
   img_resize: 'Redimensionar', img_filter: 'Filtros e cor', img_text: 'Texto na imagem', img_collage: 'Colagem', img_frame: 'Quadro do vídeo',
@@ -65,9 +68,9 @@ export const LABEL = {
   text_extract: 'Extrair do texto', text_count: 'Contar texto', tex3d: 'Textura 3D', rig3d: 'Esqueleto 3D', anim3d: 'Animação 3D', img_crop: 'Recortar imagem', img_watermark: "Marca d'água", vid_reframe: 'Mudar a proporção', vid_loop: 'Repetir vídeo', vid_audio: 'Áudio no vídeo',
   aud_silence_cut: 'Tirar silêncios', in_pattern: 'Padrão e textura', out_thumbnail: 'Miniatura com título',
 };
-const CAP = { model3d: 'model3d', image: 'image', video: 'video', sound: 'sound', music: 'sound', sfx: 'sound', voice: 'voice', transcribe: 'stt' };
+const CAP = { model3d: 'model3d', image: 'image', video: 'video', sound: 'sound', music: 'sound', sfx: 'sound', voice: 'voice', dub: 'voice', transcript: 'stt', sub: 'stt', transcribe: 'stt' };
 const PORT_LABEL = { prompt: 'Prompt', refs: 'Referências', style: 'Estilo', image: 'Imagem inicial', text: 'Fala', audio: 'Áudio/vídeo', clips: 'Clipes', vars: 'Variáveis', texts: 'Textos', images: 'Imagens', video: 'Vídeo', audios: 'Áudios', items: 'Itens', captions: 'Legendas' };
-const NEW_PORT = { music: { prompt: 'Descrição', lyrics: 'Letra', style: 'Estilo' }, sfx: { prompt: 'Descrição' }, lyrics: { text: 'Tema', style: 'Estilo' }, model3d: { prompt: 'Prompt', image: 'Imagem', style: 'Estilo' }, char_sheet: { text: 'Descrição', style: 'Estilo' }, comic_page: { story: 'Roteiro', characters: 'Personagens', style: 'Estilo' }, img_watermark: { image: 'Imagem', logo: 'Marca' }, vid_audio: { video: 'Vídeo', audio: 'Áudio' }, out_thumbnail: { image: 'Imagem', text: 'Título' }, text_extract: { text: 'Texto' }, text_count: { text: 'Texto' }, tex3d: { model: 'Modelo 3D', image: 'Imagem' }, rig3d: { model: 'Modelo 3D' }, anim3d: { model: 'Modelo 3D' }, img_crop: { image: 'Imagem' }, vid_reframe: { video: 'Vídeo' }, vid_loop: { video: 'Vídeo' }, aud_silence_cut: { audio: 'Áudio' }, img_resize: { image: 'Imagem' }, img_filter: { image: 'Imagem' }, img_text: { image: 'Imagem', text: 'Texto' }, text_edit: { text: 'Texto' }, text_pick: { text: 'Texto' }, text_refine: { text: 'Texto' }, vid_slideshow: { audio: 'Áudio' }, aud_trim: { audio: 'Áudio' }, aud_fx: { audio: 'Áudio' }, aud_loop: { audio: 'Áudio' }, out_export: { audio: 'Áudio', video: 'Vídeo' }, out_audio: { audio: 'Áudio' }, out_image: { image: 'Imagem' } };
+const NEW_PORT = { dub: { media: 'Vídeo ou áudio', script: 'Roteiro' }, transcript: { media: 'Vídeo ou áudio' }, sub: { media: 'Vídeo ou áudio', text: 'Texto ou legendas' }, music: { prompt: 'Descrição', lyrics: 'Letra', style: 'Estilo' }, sfx: { prompt: 'Descrição' }, lyrics: { text: 'Tema', style: 'Estilo' }, model3d: { prompt: 'Prompt', image: 'Imagem', style: 'Estilo' }, char_sheet: { text: 'Descrição', style: 'Estilo' }, comic_page: { story: 'Roteiro', characters: 'Personagens', style: 'Estilo' }, img_watermark: { image: 'Imagem', logo: 'Marca' }, vid_audio: { video: 'Vídeo', audio: 'Áudio' }, out_thumbnail: { image: 'Imagem', text: 'Título' }, text_extract: { text: 'Texto' }, text_count: { text: 'Texto' }, tex3d: { model: 'Modelo 3D', image: 'Imagem' }, rig3d: { model: 'Modelo 3D' }, anim3d: { model: 'Modelo 3D' }, img_crop: { image: 'Imagem' }, vid_reframe: { video: 'Vídeo' }, vid_loop: { video: 'Vídeo' }, aud_silence_cut: { audio: 'Áudio' }, img_resize: { image: 'Imagem' }, img_filter: { image: 'Imagem' }, img_text: { image: 'Imagem', text: 'Texto' }, text_edit: { text: 'Texto' }, text_pick: { text: 'Texto' }, text_refine: { text: 'Texto' }, vid_slideshow: { audio: 'Áudio' }, aud_trim: { audio: 'Áudio' }, aud_fx: { audio: 'Áudio' }, aud_loop: { audio: 'Áudio' }, out_export: { audio: 'Áudio', video: 'Vídeo' }, out_audio: { audio: 'Áudio' }, out_image: { image: 'Imagem' } };
 export const portLabel = (nodeType, p) => (nodeType === 'llm' && p.id === 'prompt' ? t('Entrada') : t((NEW_PORT[nodeType] && NEW_PORT[nodeType][p.id]) || PORT_LABEL[p.id] || p.label));
 
 // ---------------------------------------------------------------------------------------------------- controles
@@ -337,6 +340,17 @@ function styleFolderBody(c, n) {
   ];
 }
 
+const LANG_NAMES = [['pt', 'Português'], ['en', 'Inglês'], ['es', 'Espanhol'], ['fr', 'Francês'], ['it', 'Italiano'], ['de', 'Alemão'], ['ja', 'Japonês'], ['ko', 'Coreano'], ['zh', 'Chinês'], ['ru', 'Russo']];
+const langOpts = () => LANG_NAMES.map(([v, l]) => [v, t(l)]);
+
+// Baixa um texto como arquivo (as legendas e a transcrição ficam no resultado do nó; o arquivo é gerado no navegador).
+export function downloadText(name, text, mime) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: mime || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+const fileSlug = (n, fallback) => (String(n.title || fallback).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase() || fallback);
+
 const BODY = {
   text: (c, n) => [ta(c, n, 'text', t('Escreva o texto… (digite @ para citar uma imagem, vídeo ou som do projeto)'), 4, true)],
   llm: (c, n) => [ta(c, n, 'instruction', t('O que fazer com o texto de entrada? Ex.: “Descreva a cena com detalhes visuais”.'), 3, true),
@@ -380,6 +394,26 @@ const BODY = {
     h('div', { class: 'r2' }, lab(t('Duração (s)'), txt(c, n, 'duration', '4', 'number')), lab(t('Variações'), select([1, 2, 3, 4].map((i) => [String(i), String(i)]), String(n.params.variations || 1), (v) => c.change(n, 'variations', Number(v))))),
     lab(t('Semente (0 = aleatória)'), txt(c, n, 'seed', '0', 'number')),
     ...providerBlock(c, n, 'sound')],
+  dub: (c, n) => [
+    h('div', { class: 'dim small' }, t('Sem «Roteiro» ligado, o OpenFlow transcreve a fala, traduz (modelo de texto) e dubla com o modelo de voz. Com um roteiro ou legendas ligados, dubla o seu texto como está.')),
+    h('div', { class: 'r2' }, lab(t('Dublar em'), sel(c, n, 'language', [['keep', t('Manter o idioma')], ...langOpts()])), lab(t('Idioma original'), sel(c, n, 'source_language', [['auto', t('Automático')], ...langOpts()]))),
+    h('div', { class: 'r2' }, lab(t('Voz'), txt(c, n, 'voice', t('padrão'))), lab(t('Velocidade'), txt(c, n, 'speed', '1', 'number'))),
+    lab(t('Áudio original'), sel(c, n, 'mix', [['replace', t('Trocar pela dublagem')], ['duck', t('Manter baixinho por baixo')]])),
+    n.params.mix === 'duck' ? lab(t('Volume do original (0 a 1)'), txt(c, n, 'original_volume', '0.15', 'number')) : null,
+    checkbox(t('Acelerar a fala que não cabe no tempo'), n.params.fit, (v) => c.change(n, 'fit', v, true)),
+    ...providerBlock(c, n, 'voice'),
+    h('div', { class: 'dim small' }, t('A transcrição usa o modelo padrão de Configuração → Mídia (Whisper local). Com a voz Demo o resultado é só um balbucio.'))],
+  transcript: (c, n) => [
+    h('div', { class: 'r2' }, lab(t('Idioma da fala'), sel(c, n, 'language', [['auto', t('Automático')], ...langOpts()])), lab(t('Formato'), sel(c, n, 'format', [['plain', t('Texto corrido')], ['timestamps', t('Com marcas de tempo')], ['paragraphs', t('Parágrafos')]]))),
+    ...providerBlock(c, n, 'stt')],
+  sub: (c, n) => [
+    h('div', { class: 'dim small' }, t('Ligue um vídeo ou áudio (a fala vira legenda) e/ou um texto: um texto com tempos (SRT/VTT) é reformatado; um texto simples é distribuído ao longo do arquivo.')),
+    h('div', { class: 'r2' }, lab(t('Formato'), sel(c, n, 'format', [['srt', 'SRT'], ['vtt', 'VTT (web)']])), lab(t('Idioma da fala'), sel(c, n, 'language', [['auto', t('Automático')], ...langOpts()]))),
+    lab(t('Traduzir para'), sel(c, n, 'translate_to', [['', t('Não traduzir')], ...langOpts()])),
+    h('div', { class: 'r2' }, lab(t('Caracteres por linha'), txt(c, n, 'max_chars', '42', 'number')), lab(t('Linhas por legenda'), sel(c, n, 'lines', [['1', '1'], ['2', '2'], ['3', '3']]))),
+    h('div', { class: 'r2' }, lab(t('Duração máxima (s)'), txt(c, n, 'max_seconds', '6', 'number')), lab(t('Adiantar/atrasar (s)'), txt(c, n, 'offset', '0', 'number'))),
+    lab(t('Duração do arquivo (s), se só há texto'), txt(c, n, 'duration', '0', 'number')),
+    ...providerBlock(c, n, 'stt')],
   voice: (c, n) => [
     ta(c, n, 'text', t('O que a voz vai dizer (ou ligue um nó de texto)…'), 3),
     h('div', { class: 'r2' }, lab(t('Voz'), txt(c, n, 'voice', t('padrão'))), lab(t('Velocidade'), txt(c, n, 'speed', '1', 'number'))),
@@ -614,6 +648,11 @@ export function nodeResult(c, n) {
   items.filter((a) => a.kind === 'model3d').forEach((a) => { box.append(modelViewer(c.url(a), viewerOpts()), h('a', { class: 'btn sm nodrag', href: c.url(a) + '?download=1' }, icon('download', 13), t('Baixar'))); });
   items.filter((a) => a.kind === 'audio').forEach((a) => box.append(h('audio', { src: c.url(a), controls: true, preload: 'metadata', class: 'nodrag' })));
   if (r.text && !['text', 'style_prompt'].includes(n.type) && !(st.state === 'error')) box.append(h('div', { class: 'rtxt nodrag' }, r.text));
+  if (r.text && st.state !== 'error' && (n.type === 'sub' || n.type === 'transcript')) {   // legendas e transcrição: baixar como arquivo (.srt/.vtt/.txt)
+    const ext = n.type === 'sub' ? (n.params.format === 'vtt' ? 'vtt' : 'srt') : 'txt';
+    box.append(h('button', { class: 'btn sm nodrag', type: 'button', dataset: { act: 'download-text' }, onclick: () => downloadText(fileSlug(n, n.type === 'sub' ? 'legendas' : 'transcricao') + '.' + ext, r.text.replace(/\s*$/, '\n'), ext === 'vtt' ? 'text/vtt;charset=utf-8' : ext === 'srt' ? 'application/x-subrip;charset=utf-8' : 'text/plain;charset=utf-8') },
+      icon('download', 13), t('Baixar (.{e})', { e: ext })));
+  }
   (st.warnings || []).forEach((w) => box.append(h('div', { class: 'wr' }, w)));
   if (items.length) box.append(h('div', { class: 'dim small', style: { marginTop: '6px' } }, items.map((a) => (a.provider ? t(c.providerLabel(a.provider)) : '') + (a.model ? ' · ' + a.model : '')).filter(Boolean)[0] || ''));
   return box.childNodes.length ? box : null;

@@ -2,6 +2,24 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.62.0] — 2026-11-16
+
+### Novo — Dublagem, Legendas e Transcrição: três nós no grupo Som
+Três nós novos, logo depois do nó **Voz** na paleta. Eles aceitam um vídeo ou áudio (do nó **Mídia** ou de qualquer nó que gere áudio/vídeo) e se encadeiam entre si.
+- **Transcrição (`transcript`):** transcreve a fala do vídeo ou áudio com o modelo de transcrição padrão do projeto (Whisper local) e entrega **texto**: corrido, **com marcas de tempo** (`[1:05] frase`) ou em **parágrafos** (uma pausa longa abre um novo). Idioma da fala automático ou à escolha; botão **Baixar (.txt)** no nó. Áudios longos são lidos em janelas de 30 s sem perder o tempo de cada trecho.
+- **Legendas (`sub`):** gera **SRT ou VTT** para qualquer reprodutor, a partir da fala do vídeo/áudio **ou de um texto**: um texto que já é legenda (SRT/VTT) é reformatado (troca de formato, adiantar/atrasar); um texto simples é **distribuído ao longo do arquivo** em proporção ao tamanho de cada frase (com a duração do arquivo ligado, ou a que você escrever no nó). Controles: caracteres por linha (20 a 80), linhas por legenda (1 a 3), duração máxima de cada legenda (as longas são divididas de modo que cada parte caiba nos dois limites), adiantar/atrasar em segundos e **tradução** opcional para outro idioma com o modelo de texto (10 idiomas). Botão **Baixar (.srt / .vtt)** no nó (o arquivo é gerado no navegador).
+- **Dublagem (`dub`):** dubla um vídeo ou áudio: **transcreve** a fala (ou usa o **roteiro/legendas ligados** na entrada «Roteiro», que são dublados como estão), **traduz** com o modelo de texto, **fala** cada trecho com o modelo de voz do nó (voz e velocidade ajustáveis), **encaixa** cada fala no tempo do trecho original (acelera até 1,6× o que não cabe; a fala nunca se sobrepõe: um trecho que não coube empurra o seguinte e o nó avisa) e **mistura**: troca o áudio original pela dublagem ou o mantém baixinho por baixo. Com vídeo, a imagem é mantida (copiada sem recodificar quando dá) e o áudio é trocado; com áudio, sai um MP3. O que foi dublado, com as marcas de tempo, fica no resultado do nó. Até 300 trechos por dublagem.
+- **Fluxo sem modelo de transcrição:** como a voz Demo funciona offline, um **roteiro (ou legendas SRT) ligado em «Roteiro»** dá uma dublagem completa (balbucio da demonstração) sem Whisper; o nó avisa que é uma voz de demonstração.
+- Os três entram no **cache** (mudar o roteiro, o modelo de transcrição ou o de texto gera de novo só o que depende), têm tradução em inglês e avisos claros: modelo de transcrição que não devolve tempos, texto sem tempos distribuído no arquivo, linhas que a tradução não devolveu (ficam no idioma original, com a contagem), falta de modelo de texto (não traduz e diz), voz de demonstração, trechos acelerados ou atrasados.
+- **Novo na API dos provedores de mídia:** `transcribe_segments` (a fala com tempo de cada trecho) e `timed_segments`; o Whisper local devolve os tempos, os outros provedores caem num bloco só.
+
+### Ainda não verificado
+- **Nenhum modelo de transcrição ou de voz de verdade foi usado.** Os testes usam um provedor de mentira com tempos conhecidos e o balbucio da demonstração; o ffmpeg é real. Que o Whisper local acerte as palavras e os **tempos** (e como se comporta em áudios longos, com música ou várias vozes) **não foi medido**; o `chunk_length_s=30` foi escolhido pela documentação do transformers, sem rodar o modelo.
+- A **qualidade da dublagem** depende do modelo de voz e do de texto configurados: a mistura, o encaixe no tempo e a troca do áudio são verificados, a naturalidade da voz, o sotaque e o ritmo da fala traduzida, não. A dublagem não separa as vozes dos efeitos e da música do original: com «Manter baixinho por baixo» eles continuam por baixo; com «Trocar pela dublagem» somem.
+- A tradução depende do modelo de texto (e de ele obedecer ao formato numerado); linhas que ele não devolver ficam no idioma original.
+- **Legendas não são «gravadas» no vídeo** (isso continua no Editor/Vídeo final); aqui o resultado é o arquivo de legenda. Não há troca de falante (diarização) nem estilos (ASS) — só SRT e VTT.
+- Os formatos foram conferidos por leitura de ida e volta no próprio OpenFlow (SRT e VTT), **não** carregados em reprodutores de verdade (VLC, navegadores, YouTube).
+
 ## [0.61.0] — 2026-11-16
 
 ### Novo — Música e SFX: três nós no grupo Som

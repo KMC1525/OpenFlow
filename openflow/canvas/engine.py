@@ -30,13 +30,14 @@ from . import mentions as mentions_mod
 from . import styles as styles_mod
 from . import upsample
 from . import nodes_ext
+from . import speech
 from .schema import EXT_TYPES, GENERATORS, NODE_TYPES, normalize_result, style_files
 
 RUNNABLE = GENERATORS + ("editor",) + EXT_TYPES
 IMAGE_DEFAULT_SECONDS = 3.0
 STYLE_IMAGES_MAX = 3
 KEEP_HISTORY = 24
-CAP_OF = {"image": "image", "video": "video", "sound": "sound", "music": "sound", "sfx": "sound", "voice": "voice", "transcribe": "stt", "model3d": "model3d"}
+CAP_OF = {"image": "image", "video": "video", "sound": "sound", "music": "sound", "sfx": "sound", "voice": "voice", "dub": "voice", "transcript": "stt", "sub": "stt", "transcribe": "stt", "model3d": "model3d"}
 
 
 def _wav_seconds(media: Any) -> float:
@@ -228,11 +229,11 @@ class CanvasEngine:
             return {"text": p["text"], "assets": []}
         if t == "upload":
             return {"text": "", "assets": [assets[i] for i in p["files"] if i in assets]}
-        if t in nodes_ext.TEXT_OUT or t in ("llm", "transcribe"):
+        if t in nodes_ext.TEXT_OUT or t in ("llm", "transcribe", "transcript", "sub"):
             return {"text": r["text"] if r["state"] == "done" else "", "assets": []}
         if t in EXT_TYPES:  # nós novos que entregam arquivos (a Galeria entrega também o texto que recebeu)
             return {"text": r["text"] if r["state"] == "done" and t == "out_gallery" else "", "assets": [assets[i] for i in r["assets"] if i in assets] if r["state"] == "done" else []}
-        if t in ("image", "video", "sound", "music", "sfx", "voice", "editor", "model3d"):
+        if t in ("image", "video", "sound", "music", "sfx", "voice", "dub", "editor", "model3d"):
             return {"text": "", "assets": [assets[i] for i in r["assets"] if i in assets] if r["state"] == "done" else []}
         return {"text": "", "assets": []}
 
@@ -423,7 +424,7 @@ class CanvasEngine:
     def node_hash(self, canvas: Dict[str, Any], node: Dict[str, Any]) -> str:
         t = node["type"]
         data: Dict[str, Any] = {"type": t, "params": node["params"]}
-        if t in ("image", "video", "sound", "music", "sfx", "voice", "llm", "transcribe", "editor", "model3d") or t in EXT_TYPES:
+        if t in ("image", "video", "sound", "music", "sfx", "voice", "dub", "transcript", "sub", "llm", "transcribe", "editor", "model3d") or t in EXT_TYPES:
             ports: Dict[str, Any] = {}
             for pid_, _label, _acc, _multi in NODE_TYPES[t]["ins"]:
                 if pid_ == "style":
@@ -447,6 +448,10 @@ class CanvasEngine:
                 data["provider"] = self.provider_for(node)
             except ProviderError:
                 data["provider"] = "?"
+        if t in ("transcript", "sub", "dub"):   # a fala vem do modelo de transcrição padrão do projeto (e a tradução, do modelo de texto): trocar um deles refaz o nó
+            data["stt"] = self.settings["active"].get("stt", "")
+            if t != "transcript":
+                data["llm"] = self.settings["active"].get("generation", "demo")
         if t in ("llm", "text_refine", "lyrics") or (t == "image" and upsample.wants(node["params"].get("model", ""))):
             data["llm"] = self.settings["active"].get("generation", "demo")   # o texto de saída (ou o prompt expandido do FLUX.3) depende do modelo de texto configurado
         if t in ("in_vars", "in_url", "out_gallery"):  # dependem de algo fora dos parâmetros: o resultado vale até o usuário pedir de novo
@@ -578,6 +583,8 @@ class CanvasEngine:
         t = node["type"]
         if t in EXT_TYPES:
             return nodes_ext.RUNNERS[t](self, canvas, node)
+        if t in speech.RUNNERS:
+            return speech.RUNNERS[t](self, canvas, node)
         if t == "editor":
             return self._editor(canvas, node)
         if t == "llm":
