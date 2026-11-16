@@ -20,9 +20,10 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 from array import array
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 ABI = 7   # versão da interface desta versão do OpenFlow; bibliotecas antigas (1 a 5) ainda servem (sem os recursos novos: CPU v0.28 e GPU v0.29): a 1 só para o áudio, a 2 também para modelos locais, a 3 para agentes/armazenamento — sem os recursos novos (análise de mídia e grafos, v0.17)
 SRC = Path(__file__).resolve().parent
@@ -585,12 +586,81 @@ def _lib2() -> Any:
     return lib if lib is not None and hasattr(lib, "flow_plan_llm") else None
 
 
+def _sysctl(name: str) -> str:
+    """`sysctl -n <nome>` (macOS); vazio se não dá."""
+    try:
+        return subprocess.run(["sysctl", "-n", name], capture_output=True, text=True, timeout=3).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def parse_vm_stat(text: str) -> int:
+    """Memória que o macOS devolve a quem pedir, em bytes, pela saída do `vm_stat`: páginas livres + inativas + especulativas + purgáveis, vezes o tamanho da página («page size of 16384 bytes» no Apple
+    Silicon, 4096 no Intel). 0 se não entendeu."""
+    import re
+
+    m = re.search(r"page size of (\d+) bytes", text)
+    size = int(m.group(1)) if m else 4096
+    pages = 0
+    for key in ("Pages free", "Pages inactive", "Pages speculative", "Pages purgeable"):
+        mm = re.search(rf"{key}:\s+(\d+)", text)
+        if mm:
+            pages += int(mm.group(1))
+    return pages * size
+
+
+_DARWIN_AVAIL: Dict[str, float] = {"t": 0.0, "v": 0.0}
+
+
+def darwin_mem_avail() -> int:
+    """RAM disponível no macOS (livre + inativa + especulativa + purgável, pelo `vm_stat`), guardada por 2 s; 0 se não dá para ler. O núcleo Rust só estima 60 % do total no macOS: com este valor o planejador de modelos e a
+    proteção do computador enxergam a memória de verdade."""
+    now = time.time()
+    if now - _DARWIN_AVAIL["t"] < 2.0:
+        return int(_DARWIN_AVAIL["v"])
+    v = 0
+    try:
+        v = parse_vm_stat(subprocess.run(["vm_stat"], capture_output=True, text=True, timeout=3).stdout)
+    except (OSError, subprocess.SubprocessError):
+        pass
+    _DARWIN_AVAIL.update(t=now, v=float(v))
+    return v
+
+
+def parse_darwin_features(text: str) -> List[str]:
+    """As extensões da CPU Intel do macOS (`machdep.cpu.features` + `leaf7_features`: «SSE4.2 AVX1.0 AVX2 FMA F16C AVX512F…») no mesmo vocabulário do núcleo Rust: sse4.2, avx, avx2, fma, f16c, avx512f/bw/vl."""
+    have = {t.upper() for t in text.split()}
+    table = (("sse4.2", "SSE4.2"), ("avx", "AVX1.0"), ("avx2", "AVX2"), ("fma", "FMA"), ("f16c", "F16C"), ("avx512f", "AVX512F"), ("avx512bw", "AVX512BW"), ("avx512vl", "AVX512VL"))
+    return [name for name, tok in table if tok in have]
+
+
+def _darwin_sys(logical: int) -> Tuple[int, List[str], int]:
+    """(núcleos físicos, extensões da CPU, RAM total) do macOS, sem o núcleo Rust. Apple Silicon não tem hyper-threading: lógicos = físicos (a conta «metade dos lógicos» do fallback genérico errava)."""
+    import platform
+
+    try:
+        phys = int(_sysctl("hw.physicalcpu") or 0)
+    except ValueError:
+        phys = 0
+    arm = platform.machine().lower() in ("arm64", "aarch64")
+    feats = ["neon"] if arm else parse_darwin_features(_sysctl("machdep.cpu.features") + " " + _sysctl("machdep.cpu.leaf7_features"))
+    try:
+        total = int(_sysctl("hw.memsize") or 0)
+    except ValueError:
+        total = 0
+    return (phys or (logical if arm else max(1, logical // 2 if logical >= 4 else logical))), feats, total
+
+
 def sys_info() -> Dict[str, Any]:
     """Núcleos lógicos/físicos, extensões da CPU e memória (total/disponível, respeitando o limite de contêiner)."""
     lib = _lib2()
     if lib is not None:
         r = _call_json(lib.flow_sys_info)
         if r:
+            if sys.platform == "darwin" and not r.get("ram_exact") and r.get("ram_total"):   # o núcleo estima 60 % no macOS (v0.60): usa a leitura do vm_stat
+                av = darwin_mem_avail()
+                if av > 0:
+                    r = dict(r, ram_avail=min(av, int(r["ram_total"])), ram_exact=True)
             return r
     logical = os.cpu_count() or 1
     phys, feats, total, avail = logical, [], 0, 0
@@ -619,6 +689,9 @@ def sys_info() -> Dict[str, Any]:
                 pass
     except (OSError, ValueError, IndexError):
         pass
+    if sys.platform == "darwin":   # macOS (v0.60): sem /proc nem /sys, o bloco acima não achou nada
+        phys, feats, total = _darwin_sys(logical)
+        avail = darwin_mem_avail() or int(total * 0.6)
     if not total and os.name == "nt":
         try:
             import ctypes

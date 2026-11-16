@@ -20,6 +20,8 @@
 # 'Continue' de propósito: no Windows PowerShell 5.1, com 'Stop' qualquer texto que um programa externo (python, pip, winget) escreva no stderr
 # — até com 2>$null — vira uma exceção (NativeCommandError). Os erros que importam são checados por $LASTEXITCODE e por -ErrorAction Stop.
 $ErrorActionPreference = 'Continue'
+# Windows PowerShell 5.1 em Windows 10 antigo / Server 2016 só liga o TLS 1.2 se pedirem: sem isto o download do GitHub falha com «Could not create SSL/TLS secure channel» (v0.60).
+try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch { }
 $Source = if ($env:OPENFLOW_SOURCE) { $env:OPENFLOW_SOURCE } else { 'https://github.com/KMC1525/OpenFlow/archive/refs/heads/main.zip' }
 $Extras = $env:OPENFLOW_EXTRAS
 $Root   = Join-Path $env:LOCALAPPDATA 'OpenFlow'

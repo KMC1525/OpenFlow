@@ -27,6 +27,16 @@ def _windows() -> bool:
     return os.name == "nt"
 
 
+def stdio_safe() -> None:
+    """O terminal nunca derruba o `flow` por causa de um caractere (v0.60): com a saída redirecionada (`flow doctor | clip`, `> arquivo`, agendador de tarefas) o Windows usa a página de código do sistema (cp1252/cp850),
+    que não tem ✓ ⚠ → … e o `print` quebrava com UnicodeEncodeError. Aqui o texto que a codificação não representa vira «?» em vez de um erro (stdout e stderr; o resto fica como está)."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="replace")   # type: ignore[union-attr]
+        except (AttributeError, OSError, ValueError):
+            pass   # fluxo trocado por um objeto sem `reconfigure` (testes, IDEs): já não é o do sistema
+
+
 def _auto_update(args: argparse.Namespace, argv) -> object:
     """Ao abrir o OpenFlow pelo comando `flow`: atualiza/instala tudo como o comando de instalação (Python, OpenFlow, bibliotecas, modelos pré-instalados).
     Roda quando há versão nova publicada e, mesmo sem ela, a cada OPENFLOW_UPDATE_EVERY horas (padrão 24; 0 = a cada abertura) — o instalador pula o que já está em dia.
@@ -560,6 +570,13 @@ def _managed_app_dir():
     return app if prefix == app / "venv" else None
 
 
+def powershell_script_bytes(script: bytes) -> bytes:
+    """O `install.ps1` baixado, pronto para `powershell -File` (v0.60): o Windows PowerShell 5.1 lê um arquivo SEM BOM como ANSI (cp1252). O instalador tem acentos, «—», «→», «✓»: em ANSI o «✓» (E2 9C 93) vira
+    «â œ “» — a aspa «“» fecha o texto no meio e o script nem começa (erro de sintaxe), fora os acentos trocados. Por isso o `flow update` o grava em UTF-8 COM BOM. (O arquivo publicado fica sem BOM de propósito:
+    `irm … | iex` pega o texto já decodificado e um BOM no começo o estragaria.)"""
+    return script if script.startswith(b"\xef\xbb\xbf") else b"\xef\xbb\xbf" + script
+
+
 def _update_with_installer(args: argparse.Namespace) -> int:
     """Roda o instalador oficial: ele atualiza o Python (e o pip/setuptools/wheel), o OpenFlow e as bibliotecas — o mesmo que o comando de instalação.
     Devolve o código de saída, ou -1 se não foi possível usar o instalador (sem internet, instalação manual…)."""
@@ -571,7 +588,7 @@ def _update_with_installer(args: argparse.Namespace) -> int:
         if not os.environ.get("OPENFLOW_INSTALLER"):   # Windows (.exe) e AppImage têm o próprio Python: atualizam o OpenFlow com o pip, sem esta mensagem
             print(_("Este OpenFlow não foi instalado pelo instalador oficial: o Python do sistema não é gerenciado por ele (atualize-o pelo gerenciador de pacotes do seu sistema)."))
         return -1
-    windows = os.name == "nt"
+    windows = _windows()
     name = "install.ps1" if windows else "install.sh"
     try:
         with urllib.request.urlopen(RAW + name, timeout=30) as resp:
@@ -589,7 +606,7 @@ def _update_with_installer(args: argparse.Namespace) -> int:
     elif getattr(args, "extras", ""):
         env["OPENFLOW_EXTRAS"] = args.extras
     with tempfile.NamedTemporaryFile("wb", suffix=os.path.splitext(name)[1], delete=False) as fh:
-        fh.write(script)
+        fh.write(powershell_script_bytes(script) if windows else script)
         path = fh.name
     if windows:
         # o instalador recria arquivos que este processo está usando: ele continua numa janela nova, depois que o flow.exe terminar
@@ -848,6 +865,7 @@ def _doctor(_args: argparse.Namespace) -> int:
 def main(argv=None) -> int:
     from .util import fix_default_certs
 
+    stdio_safe()
     fix_default_certs()   # macOS + Python do python.org: sem isto toda chamada HTTPS (atualização, modelos, Rust) falhava por falta de certificados
     parser = argparse.ArgumentParser(prog="flow", description=_("OpenFlow — criação criativa com IA em fluxos de nós (estilo ElevenLabs Flow): imagens, vídeos, sons e vozes, num app local, aberto e simples"))
     sub = parser.add_subparsers(dest="cmd")
