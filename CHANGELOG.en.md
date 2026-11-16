@@ -2,6 +2,22 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.65.0] — 2026-11-16
+
+### New — Search bar for sound, music and SFX models (Hugging Face)
+The Canvas model search bar got much better for **sound**, **voice** and **transcription**. Hugging Face's `text-to-audio` filter mixes everything — **video** models that also generate audio (LTX), «omni» assistants, codecs and text-to-speech voices next to the songs —, so the search now **classifies every result**:
+- **Topics:** a new «Topic» selector appears when you pick the type. **Sound:** Music · Sound effects (SFX) · Separate and enhance audio. **Voice:** Voice (text → speech) · Clone or swap the voice · Voice created from a description · **Dubbing** (speech → speech in another language). **Transcription:** Transcription and subtitles. Each topic queries the Hub by **its own tags** (`music`, `sound-effects`, `voice-conversion`, `voice-cloning`, `voice-design`, `speech-to-speech`, `source-separation`…), not only by name.
+- **No noise:** video models, «omni» assistants and codecs/vocoders are gone from the sound results; music and effects are told apart (Stable Audio, which does both, shows up in both); voices no longer show up among the songs.
+- **«Runs in OpenFlow» / «Does not run in OpenFlow yet» badge** on every result, with the reason on hover and when you open the model (e.g. «needs the repository's own code», «uses the diffusers library», «is in GGUF»). Today OpenFlow runs **MusicGen** (sounds and music), **Bark, MMS-TTS (VITS), Orpheus and CSM** (voice) and **Whisper** (transcription); the ones that run come **first**, then the most downloaded. A model OpenFlow does not run can still be opened, but the **«Use» button is blocked**, with the reason.
+- **Opens with the most downloaded:** when you pick sound, voice or transcription, the list appears **without typing anything**, for the chosen topic. Typing filters: the name of a family (`musicgen`, `whisper large`), an author (`stabilityai`) or **a language in Portuguese** — «voz em português» filters by the Hub's language tag; words that only name the topic («música», «efeitos sonoros», «dublagem») do not get in the way of the text search.
+- **Server:** `GET /api/media/hub/search?cap=sound|voice|stt&topic=…` (results with `topics`, `library` and `compat`) and `GET /api/media/hub/topics`. The other capabilities (image, video, 3D, text) work as before.
+
+### Not verified yet
+- The Hub query was **simulated** in the tests (and the real Hugging Face tags and results were checked separately, through the Hub tool, not through OpenFlow's HTTP client): the real network search, with OpenFlow's token and cache, was not exercised here. The classification by topic and the badge come from the **tags, library and name** the Hub reports: a repository with incomplete tags may land in the wrong topic or be left out.
+- **«Runs in OpenFlow» means «supported family»:** it does not mean that exact repository was downloaded and tested. The reverse also holds: a model marked «Does not run yet» may work if it is compatible with one of those families without saying so in its tags.
+- Sung music (ACE-Step, YuE), effects (Stable Audio, MOSS-SoundEffect), new voices (Kokoro, XTTS, OmniVoice…), voice conversion and speech-to-speech dubbing **show up in the search, but OpenFlow does not run those models yet**: the badge says so. Searching by language («voz em português» + «voz em inglês») asks for models that declare both.
+- It does not rank by relevance or quality: after the badge, the Hub's download order applies.
+
 ## [0.64.0] — 2026-11-16
 
 ### New — Voice style: «What the voice is like» on the Voice node

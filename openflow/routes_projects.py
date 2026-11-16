@@ -57,6 +57,7 @@ class ProjectRoutes:
         a("POST", r"/api/media/ltx2-components", self.r_ltx2_components)
         a("GET", r"/api/media/sd-native", self.r_sd_native_info)
         a("POST", r"/api/media/sd-native", self.r_sd_native)
+        a("GET", r"/api/media/hub/topics", self.r_hub_topics)
         a("GET", r"/api/media/hub/search", self.r_hub_search)
         a("POST", r"/api/media/hub/use", self.r_hub_use)
         a("GET", r"/api/media/local/state", self.r_local_state)
@@ -550,9 +551,15 @@ class ProjectRoutes:
     HUB_CAPS = ("image", "video", "sound", "voice", "stt", "text", "model3d")
     GGUF_CAP_KIND = {"image": "image", "video": "video", "text": "text"}   # só estes têm provedor GGUF no OpenFlow (sons e vozes usam o formato original)
 
+    def r_hub_topics(self, req) -> None:
+        """Os assuntos da busca de som (v0.65): por capacidade (som, voz, transcrição), [{id, label}], o primeiro é o padrão."""
+        from . import soundsearch
+
+        req.json({"topics": {cap: [{"id": t, "label": label} for t, label in items] for cap, items in soundsearch.TOPICS.items()}})
+
     def r_hub_search(self, req) -> None:
         """Busca modelos no Hugging Face por capacidade. `format=gguf` (várias quantizações por arquivo) ou `format=original` (fp32/fp16/bf16 e versões comprimidas da comunidade)."""
-        from . import hf
+        from . import hf, soundsearch
 
         q = text(req.query.get("q", [""])[0], "", 120)
         cap = text(req.query.get("cap", ["image"])[0], "image", 12)
@@ -564,13 +571,16 @@ class ProjectRoutes:
         try:
             if fmt == "gguf":
                 found = [dict(r, cap=cap, format="gguf") for r in hf.search(q or "gguf", self._hf_token(), kind=self.GGUF_CAP_KIND[cap])]
+            elif cap in soundsearch.TOPICS:   # v0.65: som, voz e transcrição pesquisam por assunto (música, efeitos, dublagem…) e vêm com o selo «roda no OpenFlow»
+                topic = soundsearch.check_topic(cap, text(req.query.get("topic", [""])[0], "", 12))
+                found = hf.search_sound(q, self._hf_token(), cap, topic)
             else:
                 found = hf.search_original(q, self._hf_token(), cap)
         except ProviderError as exc:
             raise HttpError(502, str(exc))
         except Exception as exc:  # noqa: BLE001 — sem rede / Hugging Face fora do ar
             raise HttpError(502, f"Não foi possível pesquisar no Hugging Face: {exc}")
-        req.json({"results": found, "format": fmt, "cap": cap})
+        req.json({"results": found, "format": fmt, "cap": cap, "topic": soundsearch.check_topic(cap, text(req.query.get("topic", [""])[0], "", 12)) if cap in soundsearch.TOPICS else ""})
 
     def r_hub_use(self, req) -> None:
         """Passa a usar um modelo baixado: vira o padrão da capacidade em Configuração → Mídia e, se vier `canvas` + `node`, também o modelo desse nó."""
