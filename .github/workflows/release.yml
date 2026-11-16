@@ -38,7 +38,7 @@ jobs:
           - { os: ubuntu-22.04, tag: linux-x86_64, lib: libopenflow_core.so, ext: so }
           - { os: ubuntu-22.04-arm, tag: linux-aarch64, lib: libopenflow_core.so, ext: so, optional: true }
           - { os: macos-latest, tag: macos-aarch64, lib: libopenflow_core.dylib, ext: dylib }
-          - { os: macos-latest, tag: macos-x86_64, lib: libopenflow_core.dylib, ext: dylib, target: x86_64-apple-darwin }
+          - { os: macos-latest, tag: macos-x86_64, lib: libopenflow_core.dylib, ext: dylib, target: x86_64-apple-darwin, optional: true }
           - { os: windows-latest, tag: windows-x86_64, lib: openflow_core.dll, ext: dll }
     steps:
       - uses: actions/checkout@v4
@@ -65,7 +65,9 @@ jobs:
 
   publish:
     needs: [meta, core]
-    if: ${{ always() && needs.core.result == 'success' }}
+    # Os runners macOS às vezes ficam em fila e o GitHub cancela o job após 15 min (aconteceu nas versões 0.52 e 0.53): um núcleo OPCIONAL que faltou não trava a release.
+    # Os obrigatórios (Linux x86_64, Windows e macOS ARM) são conferidos abaixo; o que faltar vai avisado nas notas, e o instalador compila essa plataforma na máquina.
+    if: ${{ always() && needs.meta.result == 'success' && needs.core.result != 'skipped' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -74,6 +76,15 @@ jobs:
       - name: Juntar os arquivos e calcular o SHA-256
         run: |
           mkdir release && cp artifacts/* release/
+          for need in linux-x86_64.so windows-x86_64.dll macos-aarch64.dylib; do
+            [ -f "release/flow-core-$need" ] || { echo "::error::falta o núcleo obrigatório flow-core-$need"; exit 1; }
+          done
+          MISSING=""
+          for opt in linux-aarch64.so macos-x86_64.dylib; do
+            [ -f "release/flow-core-$opt" ] || MISSING="$MISSING flow-core-$opt"
+          done
+          echo "$MISSING" > missing.txt
+          echo "Núcleos que faltam (opcionais):${MISSING:- nenhum}"
           cp install.sh install.ps1 release/
           (cd release && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt)
       - name: Publicar
@@ -86,7 +97,9 @@ jobs:
           v = sys.argv[1]
           s = open("CHANGELOG.en.md", encoding="utf-8").read()
           m = re.search(r"^## \[%s\][^\n]*\n(.*?)(?=^## \[|\Z)" % re.escape(v), s, re.S | re.M)
-          print((m.group(1).strip() if m else "OpenFlow " + v) + "\n\nInstall / update (Linux, macOS): `curl -fsSL https://raw.githubusercontent.com/KMC1525/OpenFlow/main/install.sh | sh` · (Windows PowerShell): `irm https://raw.githubusercontent.com/KMC1525/OpenFlow/main/install.ps1 | iex` — then run `flow`.")
+          miss = open("missing.txt").read().split()
+          note = ("\n\n> Prebuilt core not available in this release for: " + ", ".join(x.replace("flow-core-", "") for x in miss) + ". The installer / `flow native setup` builds it on that machine (or re-run the release workflow later to add it).") if miss else ""
+          print((m.group(1).strip() if m else "OpenFlow " + v) + note + "\n\nInstall / update (Linux, macOS): `curl -fsSL https://raw.githubusercontent.com/KMC1525/OpenFlow/main/install.sh | sh` · (Windows PowerShell): `irm https://raw.githubusercontent.com/KMC1525/OpenFlow/main/install.ps1 | iex` — then run `flow`.")
           PY
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release edit "$TAG" --title "OpenFlow $TAG" --notes-file notes.md --latest
