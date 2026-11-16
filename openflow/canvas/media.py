@@ -247,6 +247,15 @@ class MediaProvider:
     def sound(self, prompt: str, *, kind: str = "sfx", duration: int = 5, model: str = "", extra: Optional[Dict[str, Any]] = None, seed: int = 0) -> Media:
         raise self._no("sound")
 
+    def music(self, prompt: str, *, lyrics: str = "", instrumental: bool = False, bpm: int = 0, duration: int = 30, model: str = "", extra: Optional[Dict[str, Any]] = None, seed: int = 0) -> Media:
+        """Uma música (v0.61). Padrão: o pedido vira texto («120 BPM», «instrumental») e vai para `sound(kind="music")`; só os provedores que cantam (`sings_lyrics`) fazem algo com a `lyrics`."""
+        hints = [h for h in (f"{int(bpm)} BPM" if bpm else "", "instrumental, no vocals" if instrumental else "") if h]
+        return self.sound(prompt + (", " + ", ".join(hints) if hints else ""), kind="music", duration=duration, model=model, extra=extra, seed=seed)
+
+    def sings_lyrics(self, model: str = "") -> bool:
+        """O modelo canta a letra? (A engine avisa quando não: a música sai só com o estilo.)"""
+        return False
+
     def voice(self, text: str, *, voice: str = "", speed: float = 1.0, model: str = "", extra: Optional[Dict[str, Any]] = None, instructions: str = "") -> Media:
         raise self._no("voice")
 
@@ -289,6 +298,12 @@ class DemoMedia(MediaProvider):
     def sound(self, prompt, *, kind="sfx", duration=5, model="", extra=None, seed=0):
         data = proc.music(prompt, float(duration), seed) if kind == "music" else proc.sound_fx(prompt, float(duration), seed)
         return Media(data, "audio/wav", {"note": "demo"})
+
+    def music(self, prompt, *, lyrics="", instrumental=False, bpm=0, duration=30, model="", extra=None, seed=0):
+        return Media(proc.music(prompt, float(duration), seed, lyrics="" if instrumental else lyrics, bpm=int(bpm or 0)), "audio/wav", {"note": "demo"})
+
+    def sings_lyrics(self, model=""):
+        return True   # a demonstração «canta» a letra num balbucio rítmico (não é canto de verdade)
 
     def voice(self, text, *, voice="", speed=1.0, model="", extra=None, instructions=""):
         return Media(proc.babble(text, speed, proc.seed_of(voice)), "audio/wav", {"note": "demo"})

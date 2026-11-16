@@ -13,7 +13,7 @@ export const GROUPS = [   // espelha schema.PALETTE
   ['Texto', ['text', 'llm', 'transcribe', 'text_template', 'text_join', 'text_edit', 'text_pick', 'text_refine', 'text_extract', 'text_count']],
   ['Imagem', ['image', 'img_resize', 'img_filter', 'img_text', 'img_collage', 'img_frame', 'img_crop', 'img_watermark', 'char_sheet', 'comic_page']],
   ['Vídeo', ['video', 'vid_trim', 'vid_join', 'vid_speed', 'vid_look', 'vid_slideshow', 'vid_reframe', 'vid_loop', 'vid_audio']],
-  ['Som', ['sound', 'voice', 'aud_trim', 'aud_mix', 'aud_fx', 'aud_from_video', 'aud_loop', 'aud_silence_cut']],
+  ['Som', ['music', 'lyrics', 'sfx', 'sound', 'voice', 'aud_trim', 'aud_mix', 'aud_fx', 'aud_from_video', 'aud_loop', 'aud_silence_cut']],
   ['Input', ['upload', 'style_prompt', 'style_folder', 'in_color', 'in_silence', 'in_url', 'in_random', 'in_vars', 'in_pattern']],
   ['3D', ['model3d', 'tex3d', 'rig3d', 'anim3d']],
   ['Output', ['editor', 'out_export', 'out_gif', 'out_audio', 'out_image', 'out_thumbnail', 'out_gallery']],
@@ -22,7 +22,11 @@ export const TYPE_HELP = {
   text: 'Um texto que você escreve (prompt, roteiro, fala).', llm: 'Reescreve ou cria texto com o modelo de IA configurado.',
   upload: 'Seus arquivos de imagem, vídeo ou áudio.', image: 'Gera ou edita imagens.', video: 'Gera vídeos (de texto ou a partir de uma imagem).',
   model3d: 'Cria um modelo 3D (GLB ou OBJ) a partir de um texto ou de uma imagem, com um modelo local do Hugging Face (Shap-E, TripoSR, Hunyuan3D…).',
-  sound: 'Gera efeitos sonoros ou música.', voice: 'Transforma texto em fala.', transcribe: 'Transforma áudio ou vídeo em texto.',
+  sound: 'Gera efeitos sonoros ou música (nó geral; para música e efeitos, prefira Música e SFX).',
+  music: 'Gera uma música a partir do estilo que você descreve (gênero, clima, instrumentos), com ou sem letra. Ligue um nó Letra na entrada «Letra» para a música cantar.',
+  lyrics: 'Escreve a letra de uma música (ou arruma a sua) com o modelo de texto: estrofes e refrões, no idioma e no gênero que você escolher. Ligue na entrada «Letra» do nó Música.',
+  sfx: 'Gera efeitos sonoros curtos (passos, porta, chuva, laser…) a partir de uma descrição, com até 4 variações.',
+  voice: 'Transforma texto em fala.', transcribe: 'Transforma áudio ou vídeo em texto.',
   style_prompt: 'Um prompt de sistema de estilo que vale para o projeto todo.', style_folder: 'Imagens, vídeos e áudios de referência de estilo para o projeto todo, organizados em pastas e subpastas.',
   editor: 'Editor de vídeo: monta tudo numa linha do tempo e exporta um MP4.',
   text_template: 'Monta um texto a partir de um modelo, usando {1}, {2}… para os textos ligados.', text_join: 'Junta vários textos em um só (com separador, numeração, prefixo e sufixo).',
@@ -49,7 +53,7 @@ export const TYPE_HELP = {
 };
 export const OUT_COLOR = { text: 'var(--c-text)', image: 'var(--c-image)', video: 'var(--c-video)', audio: 'var(--c-audio)', style: 'var(--c-style)', media: 'var(--c-media)', model3d: 'var(--c-media)' };
 export const LABEL = {
-  model3d: 'Modelo 3D', text: 'Texto', llm: 'Texto IA', upload: 'Mídia', image: 'Imagem', video: 'Vídeo', sound: 'Som', voice: 'Voz', transcribe: 'Transcrever',
+  model3d: 'Modelo 3D', text: 'Texto', llm: 'Texto IA', upload: 'Mídia', image: 'Imagem', video: 'Vídeo', sound: 'Som', music: 'Música', lyrics: 'Letra', sfx: 'SFX', voice: 'Voz', transcribe: 'Transcrever',
   style_prompt: 'Style Prompt', style_folder: 'Style Folder', editor: 'Editor',
   text_template: 'Modelo de texto', text_join: 'Juntar textos', text_edit: 'Editar texto', text_pick: 'Escolher trecho', text_refine: 'Refinar com IA',
   img_resize: 'Redimensionar', img_filter: 'Filtros e cor', img_text: 'Texto na imagem', img_collage: 'Colagem', img_frame: 'Quadro do vídeo',
@@ -61,9 +65,9 @@ export const LABEL = {
   text_extract: 'Extrair do texto', text_count: 'Contar texto', tex3d: 'Textura 3D', rig3d: 'Esqueleto 3D', anim3d: 'Animação 3D', img_crop: 'Recortar imagem', img_watermark: "Marca d'água", vid_reframe: 'Mudar a proporção', vid_loop: 'Repetir vídeo', vid_audio: 'Áudio no vídeo',
   aud_silence_cut: 'Tirar silêncios', in_pattern: 'Padrão e textura', out_thumbnail: 'Miniatura com título',
 };
-const CAP = { model3d: 'model3d', image: 'image', video: 'video', sound: 'sound', voice: 'voice', transcribe: 'stt' };
+const CAP = { model3d: 'model3d', image: 'image', video: 'video', sound: 'sound', music: 'sound', sfx: 'sound', voice: 'voice', transcribe: 'stt' };
 const PORT_LABEL = { prompt: 'Prompt', refs: 'Referências', style: 'Estilo', image: 'Imagem inicial', text: 'Fala', audio: 'Áudio/vídeo', clips: 'Clipes', vars: 'Variáveis', texts: 'Textos', images: 'Imagens', video: 'Vídeo', audios: 'Áudios', items: 'Itens', captions: 'Legendas' };
-const NEW_PORT = { model3d: { prompt: 'Prompt', image: 'Imagem', style: 'Estilo' }, char_sheet: { text: 'Descrição', style: 'Estilo' }, comic_page: { story: 'Roteiro', characters: 'Personagens', style: 'Estilo' }, img_watermark: { image: 'Imagem', logo: 'Marca' }, vid_audio: { video: 'Vídeo', audio: 'Áudio' }, out_thumbnail: { image: 'Imagem', text: 'Título' }, text_extract: { text: 'Texto' }, text_count: { text: 'Texto' }, tex3d: { model: 'Modelo 3D', image: 'Imagem' }, rig3d: { model: 'Modelo 3D' }, anim3d: { model: 'Modelo 3D' }, img_crop: { image: 'Imagem' }, vid_reframe: { video: 'Vídeo' }, vid_loop: { video: 'Vídeo' }, aud_silence_cut: { audio: 'Áudio' }, img_resize: { image: 'Imagem' }, img_filter: { image: 'Imagem' }, img_text: { image: 'Imagem', text: 'Texto' }, text_edit: { text: 'Texto' }, text_pick: { text: 'Texto' }, text_refine: { text: 'Texto' }, vid_slideshow: { audio: 'Áudio' }, aud_trim: { audio: 'Áudio' }, aud_fx: { audio: 'Áudio' }, aud_loop: { audio: 'Áudio' }, out_export: { audio: 'Áudio', video: 'Vídeo' }, out_audio: { audio: 'Áudio' }, out_image: { image: 'Imagem' } };
+const NEW_PORT = { music: { prompt: 'Descrição', lyrics: 'Letra', style: 'Estilo' }, sfx: { prompt: 'Descrição' }, lyrics: { text: 'Tema', style: 'Estilo' }, model3d: { prompt: 'Prompt', image: 'Imagem', style: 'Estilo' }, char_sheet: { text: 'Descrição', style: 'Estilo' }, comic_page: { story: 'Roteiro', characters: 'Personagens', style: 'Estilo' }, img_watermark: { image: 'Imagem', logo: 'Marca' }, vid_audio: { video: 'Vídeo', audio: 'Áudio' }, out_thumbnail: { image: 'Imagem', text: 'Título' }, text_extract: { text: 'Texto' }, text_count: { text: 'Texto' }, tex3d: { model: 'Modelo 3D', image: 'Imagem' }, rig3d: { model: 'Modelo 3D' }, anim3d: { model: 'Modelo 3D' }, img_crop: { image: 'Imagem' }, vid_reframe: { video: 'Vídeo' }, vid_loop: { video: 'Vídeo' }, aud_silence_cut: { audio: 'Áudio' }, img_resize: { image: 'Imagem' }, img_filter: { image: 'Imagem' }, img_text: { image: 'Imagem', text: 'Texto' }, text_edit: { text: 'Texto' }, text_pick: { text: 'Texto' }, text_refine: { text: 'Texto' }, vid_slideshow: { audio: 'Áudio' }, aud_trim: { audio: 'Áudio' }, aud_fx: { audio: 'Áudio' }, aud_loop: { audio: 'Áudio' }, out_export: { audio: 'Áudio', video: 'Vídeo' }, out_audio: { audio: 'Áudio' }, out_image: { image: 'Imagem' } };
 export const portLabel = (nodeType, p) => (nodeType === 'llm' && p.id === 'prompt' ? t('Entrada') : t((NEW_PORT[nodeType] && NEW_PORT[nodeType][p.id]) || PORT_LABEL[p.id] || p.label));
 
 // ---------------------------------------------------------------------------------------------------- controles
@@ -360,6 +364,22 @@ const BODY = {
     ta(c, n, 'prompt', n.params.kind === 'music' ? t('Estilo da música: calma, piano, noturna…') : t('Ex.: chuva forte com trovões'), 2),
     lab(t('Duração (s)'), txt(c, n, 'duration', '5', 'number')),
     ...providerBlock(c, n, 'sound')],
+  music: (c, n) => [
+    ta(c, n, 'prompt', promptHint(c, n, t('Estilo da música: rock energético, piano calmo e noturno, lo-fi para estudar…')), 2, true),
+    linkedPrompt(c, n),
+    ta(c, n, 'lyrics', t('Letra (opcional): escreva aqui ou ligue um nó Letra. Marque as partes com [Verse 1], [Chorus]…'), 4),
+    checkbox(t('Instrumental (sem voz)'), n.params.instrumental, (v) => c.change(n, 'instrumental', v, true)),
+    h('div', { class: 'r2' }, lab(t('Duração (s)'), txt(c, n, 'duration', '30', 'number')), lab(t('Andamento (BPM, 0 = automático)'), txt(c, n, 'bpm', '0', 'number'))),
+    lab(t('Semente (0 = aleatória)'), txt(c, n, 'seed', '0', 'number')),
+    ...providerBlock(c, n, 'sound'),
+    h('div', { class: 'dim small' }, t('Só alguns modelos cantam a letra; com os outros a música sai só com o estilo (o nó avisa). Os modelos locais geram trechos curtos de cada vez.')),
+    checkbox(t('Ignorar estilos globais'), n.params.ignore_global_styles, (v) => c.change(n, 'ignore_global_styles', v, true))],
+  sfx: (c, n) => [
+    ta(c, n, 'prompt', promptHint(c, n, t('Ex.: passos lentos em cascalho · porta de metal rangendo · laser curto')), 2, true),
+    linkedPrompt(c, n),
+    h('div', { class: 'r2' }, lab(t('Duração (s)'), txt(c, n, 'duration', '4', 'number')), lab(t('Variações'), select([1, 2, 3, 4].map((i) => [String(i), String(i)]), String(n.params.variations || 1), (v) => c.change(n, 'variations', Number(v))))),
+    lab(t('Semente (0 = aleatória)'), txt(c, n, 'seed', '0', 'number')),
+    ...providerBlock(c, n, 'sound')],
   voice: (c, n) => [
     ta(c, n, 'text', t('O que a voz vai dizer (ou ligue um nó de texto)…'), 3),
     h('div', { class: 'r2' }, lab(t('Voz'), txt(c, n, 'voice', t('padrão'))), lab(t('Velocidade'), txt(c, n, 'speed', '1', 'number'))),
@@ -404,6 +424,12 @@ const FORMS = {
   text_join: [['sel', 'sep', 'Separador', [['paragraph', 'Parágrafo'], ['line', 'Linha'], ['space', 'Espaço'], ['comma', 'Vírgula'], ['dash', 'Traço'], ['custom', 'Personalizado']]], ['txt', 'custom', 'Separador personalizado', ' | '], ['chk', 'numbering', 'Numerar os textos'], ['txt', 'prefix', 'Antes', ''], ['txt', 'suffix', 'Depois', '']],
   text_edit: [['sel', 'op', 'O que fazer', [['trim', 'Limpar espaços'], ['upper', 'MAIÚSCULAS'], ['lower', 'minúsculas'], ['title', 'Cada Palavra Maiúscula'], ['dedupe', 'Tirar linhas repetidas'], ['sort', 'Ordenar linhas'], ['reverse', 'Inverter linhas'], ['number', 'Numerar linhas'], ['no_empty', 'Tirar linhas vazias'], ['replace', 'Trocar palavra']]], ['txt', 'find', 'Procurar', ''], ['txt', 'replace', 'Trocar por', '']],
   text_pick: [['sel', 'mode', 'Pegar', [['lines', 'Linhas'], ['sentences', 'Frases'], ['paragraphs', 'Parágrafos'], ['words', 'Palavras']]], ['num', 'index', 'A partir do nº (0 = tudo)'], ['num', 'count', 'Quantos'], ['chk', 'random', 'Sortear'], ['num', 'seed', 'Semente (0 = aleatória)']],
+  lyrics: [['sel', 'mode', 'O que fazer', [['write', 'Escrever a letra (IA)'], ['manual', 'Arrumar a minha letra']]], ['ta', 'theme', 'Tema ou ideia da música (ou ligue um texto)', 'Ex.: saudade do mar, uma viagem de madrugada…', 3],
+    ['ta', 'text', 'Sua letra (só em «Arrumar a minha letra»)', 'Cole ou escreva a letra aqui…', 4],
+    ['sel', 'language', 'Idioma', [['pt', 'Português'], ['en', 'English'], ['es', 'Español'], ['fr', 'Français'], ['it', 'Italiano'], ['de', 'Deutsch']]], ['txt', 'genre', 'Gênero (opcional)', 'Ex.: pop, sertanejo, rock, rap…'], ['txt', 'mood', 'Clima (opcional)', 'Ex.: nostálgico, animado, sombrio…'],
+    ['sel', 'structure', 'Estrutura', [['song', 'Música completa (versos, refrão e ponte)'], ['short', 'Curta (verso e refrão)'], ['hook', 'Só o refrão'], ['rap', 'Rap (versos longos e refrão)']]], ['sel', 'rhyme', 'Rimas', [['aabb', 'Em pares (AABB)'], ['abab', 'Alternadas (ABAB)'], ['free', 'Livres']]],
+    ['chk', 'tags', 'Marcar as partes: [Verse 1], [Chorus]…'], ['ta', 'instruction', 'Instrução extra (opcional)', 'Ex.: sem palavrões, com um refrão curto e fácil de cantar', 2],
+    ['hint', 'Usa o modelo de texto ativo em Configuração → Provedores; sem IA, monta uma letra de exemplo com as palavras do tema.']],
   text_refine: [['sel', 'mode', 'Modo', [['improve', 'Melhorar prompt'], ['translate', 'Traduzir'], ['summarize', 'Resumir'], ['expand', 'Expandir'], ['fix', 'Corrigir'], ['scenes', 'Dividir em cenas'], ['captions', 'Fazer legendas']]], ['txt', 'language', 'Idioma (para traduzir)', 'inglês'], ['ta', 'instruction', 'Instrução extra (opcional)', '', 2], ['hint', 'Usa o modelo de texto ativo em Configuração → Provedores; sem IA, faz uma versão simples.']],
   img_resize: [['num', 'width', 'Largura (0 = automática)'], ['num', 'height', 'Altura (0 = automática)'], ['sel', 'mode', 'Encaixe', [['fit', 'Encaixar'], ['cover', 'Preencher e cortar'], ['stretch', 'Esticar'], ['pad', 'Encaixar com borda']]], ['sel', 'rotate', 'Girar', [[0, 'Não girar'], [90, '90°'], [180, '180°'], [270, '270°']]], ['sel', 'flip', 'Espelhar', [['none', 'Não'], ['h', 'Horizontal'], ['v', 'Vertical'], ['both', 'Os dois']]], ['color', 'bg', 'Cor da borda'], ['sel', 'format', 'Formato', [['png', 'PNG'], ['jpg', 'JPG']]]],
   img_filter: [['sel', 'preset', 'Filtro', FILTERS], ['range', 'brightness', 'Brilho', -1, 1, 0.05], ['range', 'contrast', 'Contraste', 0, 3, 0.05], ['range', 'saturation', 'Saturação', 0, 3, 0.05]],

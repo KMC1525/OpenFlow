@@ -36,7 +36,21 @@ RUNNABLE = GENERATORS + ("editor",) + EXT_TYPES
 IMAGE_DEFAULT_SECONDS = 3.0
 STYLE_IMAGES_MAX = 3
 KEEP_HISTORY = 24
-CAP_OF = {"image": "image", "video": "video", "sound": "sound", "voice": "voice", "transcribe": "stt", "model3d": "model3d"}
+CAP_OF = {"image": "image", "video": "video", "sound": "sound", "music": "sound", "sfx": "sound", "voice": "voice", "transcribe": "stt", "model3d": "model3d"}
+
+
+def _wav_seconds(media: Any) -> float:
+    """Duração (s) de um WAV gerado; 0 se não é WAV ou não dá para ler (então nada é comparado)."""
+    try:
+        if getattr(media, "mime", "") not in ("audio/wav", "audio/x-wav", "audio/wave"):
+            return 0.0
+        import io
+        import wave
+
+        with wave.open(io.BytesIO(media.data), "rb") as w:
+            return w.getnframes() / float(w.getframerate() or 1)
+    except Exception:  # noqa: BLE001
+        return 0.0
 
 
 def _sig(obj: Any) -> str:
@@ -218,7 +232,7 @@ class CanvasEngine:
             return {"text": r["text"] if r["state"] == "done" else "", "assets": []}
         if t in EXT_TYPES:  # nós novos que entregam arquivos (a Galeria entrega também o texto que recebeu)
             return {"text": r["text"] if r["state"] == "done" and t == "out_gallery" else "", "assets": [assets[i] for i in r["assets"] if i in assets] if r["state"] == "done" else []}
-        if t in ("image", "video", "sound", "voice", "editor", "model3d"):
+        if t in ("image", "video", "sound", "music", "sfx", "voice", "editor", "model3d"):
             return {"text": "", "assets": [assets[i] for i in r["assets"] if i in assets] if r["state"] == "done" else []}
         return {"text": "", "assets": []}
 
@@ -409,7 +423,7 @@ class CanvasEngine:
     def node_hash(self, canvas: Dict[str, Any], node: Dict[str, Any]) -> str:
         t = node["type"]
         data: Dict[str, Any] = {"type": t, "params": node["params"]}
-        if t in ("image", "video", "sound", "voice", "llm", "transcribe", "editor", "model3d") or t in EXT_TYPES:
+        if t in ("image", "video", "sound", "music", "sfx", "voice", "llm", "transcribe", "editor", "model3d") or t in EXT_TYPES:
             ports: Dict[str, Any] = {}
             for pid_, _label, _acc, _multi in NODE_TYPES[t]["ins"]:
                 if pid_ == "style":
@@ -425,7 +439,7 @@ class CanvasEngine:
         if t in ("image", "video"):   # as imagens citadas com @ no prompt entram no hash: citar outra (ou trocar o arquivo) deixa o nó desatualizado
             txt = "\n\n".join(x for x in (self.inputs(canvas, node, "prompt")["text"], node["params"].get("prompt", "").strip()) if x)   # o @ vale também no texto de um nó Texto ligado
             data["mentions"] = mentions_mod.ids_in(canvas, txt)
-        if t in ("image", "video", "sound", "voice", "llm", "text_refine", "model3d"):
+        if t in ("image", "video", "sound", "music", "voice", "llm", "text_refine", "lyrics", "model3d"):
             data["style"] = self.styles_for(canvas, node, need_digest=False).signature()
             data["style_ids"] = self.style_ids(canvas, node)
         if t in CAP_OF:
@@ -433,7 +447,7 @@ class CanvasEngine:
                 data["provider"] = self.provider_for(node)
             except ProviderError:
                 data["provider"] = "?"
-        if t in ("llm", "text_refine") or (t == "image" and upsample.wants(node["params"].get("model", ""))):
+        if t in ("llm", "text_refine", "lyrics") or (t == "image" and upsample.wants(node["params"].get("model", ""))):
             data["llm"] = self.settings["active"].get("generation", "demo")   # o texto de saída (ou o prompt expandido do FLUX.3) depende do modelo de texto configurado
         if t in ("in_vars", "in_url", "out_gallery"):  # dependem de algo fora dos parâmetros: o resultado vale até o usuário pedir de novo
             data["fixed"] = True
@@ -597,6 +611,29 @@ class CanvasEngine:
         m = iprov.image(f"{prompt}, a single object, centered, full view, plain white background, soft even lighting", size="1024x1024", count=1, seed=seed, model=imodel)[0]
         return m.data, m.mime
 
+    def _music(self, canvas: Dict[str, Any], node: Dict[str, Any], prov: Any, pid: str, model: str, style: Any, seed: int, warnings: List[str]) -> Dict[str, Any]:
+        """Nó Música (v0.61): o estilo vem do texto ligado em «Descrição» e do campo do nó; a letra, da porta «Letra» (ex.: um nó Letra) e do campo do nó."""
+        p = node["params"]
+        desc = "\n\n".join(x for x in (self.inputs(canvas, node, "prompt")["text"], p["prompt"].strip()) if x)
+        lyrics = "\n\n".join(x for x in (self.inputs(canvas, node, "lyrics")["text"], p["lyrics"].strip()) if x)[:8000]
+        if p["instrumental"] and lyrics:
+            warnings.append("Instrumental está ligado: a letra foi ignorada.")
+            lyrics = ""
+        if not desc and not lyrics:
+            raise ValueError(self._no_prompt(canvas, node, "O nó Música precisa de uma descrição do estilo (ex.: \"piano calmo, noturno\", \"rock energético\") ou de uma letra."))
+        stx = style.render(desc or lyrics[:200])
+        prompt = (desc or "music") + (f"\n\nStyle: {stx}" if stx else "")
+        use_model = p["model"] or model
+        if lyrics and not prov.sings_lyrics(use_model):
+            warnings.append(f"{prov.label} ({use_model or 'modelo padrão'}) não canta letras: a música saiu só com o estilo e a letra não foi usada. Escolha um modelo que cante (nos nós, em «Modelo»).")
+            lyrics = ""
+        self._check()
+        m = prov.music(prompt, lyrics=lyrics, instrumental=p["instrumental"], bpm=p["bpm"], duration=p["duration"], model=p["model"], extra=p["extra"], seed=seed)
+        got = _wav_seconds(m)
+        if got and got < p["duration"] * 0.8:
+            warnings.append(f"O modelo gerou {got:.0f} s dos {p['duration']} s pedidos (os modelos locais geram um trecho curto de cada vez: junte trechos com «Repetir áudio» ou no Editor).")
+        return {"assets": [self._save(node, m, "audio", self._title(node, "Música"), prompt + (("\n\nLyrics:\n" + lyrics) if lyrics else ""), pid, model)], "text": "", "warnings": warnings}
+
     def _generate(self, canvas: Dict[str, Any], node: Dict[str, Any], forced: bool) -> Dict[str, Any]:
         t, p = node["type"], node["params"]
         style = self.styles_for(canvas, node)
@@ -688,6 +725,21 @@ class CanvasEngine:
             prompt = (prompt + (f"\n\nStyle: {style.render(prompt)}" if style.text else "")) if p["kind"] == "music" else prompt
             m = prov.sound(prompt, kind=p["kind"], duration=p["duration"], model=p["model"], extra=p["extra"], seed=seed)
             return {"assets": [self._save(node, m, "audio", self._title(node, "Música" if p["kind"] == "music" else "Som"), prompt, pid, model)], "text": "", "warnings": warnings}
+        if t == "music":
+            return self._music(canvas, node, prov, pid, model, style, seed, warnings)
+        if t == "sfx":
+            desc = "\n\n".join(x for x in (self.inputs(canvas, node, "prompt")["text"], p["prompt"].strip()) if x)
+            if not desc:
+                raise ValueError(self._no_prompt(canvas, node, "O nó SFX precisa de uma descrição do efeito (ex.: \"passos em cascalho\", \"porta de metal rangendo\")."))
+            for i in range(p["variations"]):
+                self._check()
+                m = prov.sound(desc, kind="sfx", duration=p["duration"], model=p["model"], extra=p["extra"], seed=(seed + i) if seed else i)
+                ids.append(self._save(node, m, "audio", f"{self._title(node, 'SFX')} {i + 1}" if p["variations"] > 1 else self._title(node, "SFX"), desc, pid, model))
+                if i == 0:
+                    got = _wav_seconds(m)
+                    if got and got < p["duration"] * 0.8:
+                        warnings.append(f"O modelo gerou {got:.0f} s dos {p['duration']} s pedidos.")
+            return {"assets": ids, "text": "", "warnings": warnings}
         if t == "model3d":
             base = "\n\n".join(x for x in (self.inputs(canvas, node, "prompt")["text"], p["prompt"].strip()) if x)
             img = next(iter(self.image_inputs(canvas, node, "image")), None)

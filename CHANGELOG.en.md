@@ -2,6 +2,23 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.61.0] — 2026-11-16
+
+### New — Music and SFX: three nodes in the Sound group
+Three new nodes at the start of the palette's **Sound** group (the old **Sound** node stays, for whoever already uses it):
+- **Music:** generates a song from the style you describe (genre, mood, instruments) — in the node's field and/or in a text connected to «Description». Controls: **lyrics** (optional; write them in the node or connect a Lyrics node to the «Lyrics» input), **instrumental** (no vocals), **duration** (5 to 240 s), **tempo in BPM** (0 = automatic), seed and the model picker (as in the other media nodes). The generated song keeps the lyrics it used next to the file.
+- **Lyrics:** writes the lyrics of a song with the active **text model** (Settings → Providers) from a theme (the node's field and/or a connected text). It picks the **language** (Portuguese, English, Spanish, French, Italian, German), **genre**, **mood**, **structure** (full song with verses, chorus and bridge; short; chorus only; rap), **rhymes** (in pairs, alternating, free) and whether the parts come marked with `[Verse 1]`, `[Chorus]`… (the format music models read). In **Tidy my lyrics** mode it uses no AI: it cleans your lyrics and standardizes the marks («Refrão:», «(verso 2)» → `[Chorus]`, `[Verse 2]`). With no text model configured (Demo provider), it builds an **example** lyric from the words of the theme, and says so.
+- **SFX:** generates short sound effects (footsteps, door, rain, laser…) from a description, with 1 to 4 **variations** at once (each with a different seed), 1 to 30 s long.
+- All three take part in the flow **cache** (changing the lyrics or the theme regenerates only what depends on it), show up in the **Editor** and the **Library** like any audio, and have English translations.
+- **Honest warnings when running:** if the model does not sing lyrics, the song comes out with the style only and the node **warns** (the lyrics are not sent to the model as if they were style); if the model returns less than the requested duration (local models generate a short piece at a time), the node says how many seconds came out; with **Instrumental** on, the lyrics are ignored and that is said too.
+- **Demo (offline):** the demo music gains tempo by BPM and, with lyrics, a **rhythmic babble** on top (not real singing) — it serves to test the whole Text → Lyrics → Music flow with no model at all.
+
+### Not verified yet
+- **No real music model was used.** The tests use the Demo provider and fake providers. The local sound model OpenFlow offers (MusicGen) **does not sing lyrics**: with it, the song comes out with the style only and the node warns. Real sung music (for example ACE-Step or YuE) is **not integrated in this version**: the «Lyrics» port, the warning and the interface are ready for a provider that sings, but none has been plugged in yet.
+- Local models generate up to 30 s at a time; longer durations get the warning above (join pieces with «Loop audio» or in the Editor).
+- MusicGen is a **music** model: used for SFX it only works approximately (there is no dedicated sound-effects model yet).
+- The lyrics written by the text model depend on the configured model (quality, language, respect for the structure): the cleaning and the format are verified, the quality of the lyrics is not.
+
 ## [0.60.0] — 2026-11-16
 
 ### Fixed — `flow` in the Windows and macOS terminals

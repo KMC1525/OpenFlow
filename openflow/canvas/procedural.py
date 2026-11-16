@@ -278,11 +278,21 @@ MOODS = [
 SCALE = {"major": [0, 2, 4, 5, 7, 9, 11], "minor": [0, 2, 3, 5, 7, 8, 10], "dorian": [0, 2, 3, 5, 7, 9, 10], "phrygian": [0, 1, 3, 5, 7, 8, 10], "pentatonic": [0, 2, 4, 7, 9]}
 
 
-def music(prompt: str, duration: float = 20.0, seed: int = 0) -> bytes:
-    """Música generativa (acordes, baixo e melodia) cujo clima segue as palavras do prompt."""
+LYRIC_TAG = re.compile(r"^\s*[\[(][^\])]{1,40}[\])]\s*$")   # «[Verse 1]», «[Chorus]», «(Refrão)»: marcas de seção, não são cantadas
+
+
+def sung_text(lyrics: str) -> str:
+    """A letra sem as marcas de seção, uma linha por verso (é o que o balbucio da demonstração «canta»)."""
+    return "\n".join(x.strip() for x in (lyrics or "").splitlines() if x.strip() and not LYRIC_TAG.match(x))
+
+
+def music(prompt: str, duration: float = 20.0, seed: int = 0, lyrics: str = "", bpm: int = 0) -> bytes:
+    """Música generativa (acordes, baixo e melodia) cujo clima segue as palavras do prompt. `bpm` (40–220) manda no andamento; com `lyrics`, um balbucio rítmico (a «voz» da demonstração) acompanha,
+    esticado ou acelerado para caber na duração."""
     rnd = random.Random(seed_of("mus", prompt, seed))
     low = prompt.lower()
-    scale_name, bpm, density = next((m for words, m in MOODS if any(w in low for w in words)), ("major", 90, 1.0))
+    scale_name, bpm_mood, density = next((m for words, m in MOODS if any(w in low for w in words)), ("major", 90, 1.0))
+    bpm = int(bpm) if 40 <= int(bpm or 0) <= 220 else bpm_mood
     sc = SCALE[scale_name]
     root = 48 + rnd.randrange(0, 7)
     beat = 60.0 / bpm
@@ -305,6 +315,14 @@ def music(prompt: str, duration: float = 20.0, seed: int = 0) -> bytes:
                 native.mix_add(out, native.tone(hz(note(deg, 2)), beat * 0.9, "triangle", 0.12, None, SR), int((t + s * beat / 2) * SR))
         t += beat * 4
         bar += 1
+    sung = sung_text(lyrics)
+    if sung:   # a «voz»: o balbucio da letra, de baixo da música, começando depois de um compasso e sem passar do fim
+        voice = _babble_samples(sung, 1.0, seed_of("mus-voice", prompt, seed))
+        room = max(1, total - int(beat * 4 * SR) - int(0.5 * SR))
+        speed = min(3.0, max(1.0, len(voice) / room))   # mais longa que a música: fala mais rápido (até 3×); mais curta, termina antes
+        if speed > 1.0:
+            voice = _babble_samples(sung, speed, seed_of("mus-voice", prompt, seed))
+        native.mix_add(out, [v * 0.45 for v in voice[:room]], int(beat * 4 * SR))
     native.fade_out(out, int(min(1.5, duration / 4) * SR))
     return wav_bytes(out)
 
@@ -315,6 +333,10 @@ VOWELS = {"a": (800, 1200), "e": (500, 1800), "i": (320, 2300), "o": (500, 900),
 
 def babble(text: str, speed: float = 1.0, seed: int = 0) -> bytes:
     """Voz de DEMONSTRAÇÃO: um balbucio que acompanha o ritmo do texto (não é fala real; use um provedor de voz para isso)."""
+    return wav_bytes(_babble_samples(text, speed, seed))
+
+
+def _babble_samples(text: str, speed: float = 1.0, seed: int = 0) -> List[float]:
     rnd = random.Random(seed_of("voice", text, seed))
     base = 150 + (seed_of("pitch", text[:12], seed) % 90)
     sylls = max(1.0, speed)
@@ -346,7 +368,7 @@ def babble(text: str, speed: float = 1.0, seed: int = 0) -> bytes:
             out += [0.0] * int(SR * 0.14 / sylls)
         elif ch.isspace():
             out += [0.0] * int(SR * 0.05 / sylls)
-    return wav_bytes(out or [0.0] * int(SR * 0.3))
+    return out or [0.0] * int(SR * 0.3)
 
 
 # --------------------------------------------------------------------------- vídeo (ffmpeg)

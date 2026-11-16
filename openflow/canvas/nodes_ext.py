@@ -20,6 +20,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from ..providers import ProviderError, build_provider
 from ..util import num, text
+from . import lyrics as lyr
 from . import model3d_ops as ops3d
 from .render import GRADES, _esc_path, _run, _tempo, find_font, has_audio, render_timeline, still_path
 
@@ -58,6 +59,7 @@ SPECS: Dict[str, Dict[str, Any]] = {
     "vid_loop": {"label": "Repetir vídeo", "icon": "refresh", "out": "video", "group": "Vídeo", "ins": [("video", "Vídeo", VID, False)]},
     "vid_audio": {"label": "Áudio no vídeo", "icon": "audio", "out": "video", "group": "Vídeo", "ins": [("video", "Vídeo", VID, False), ("audio", "Áudio", ["audio"], True)]},
     # ---- Som
+    "lyrics": {"label": "Letra", "icon": "type", "out": "text", "group": "Som", "ins": [("text", "Tema", ["text"], True), ("style", "Estilo", ["style"], True)]},
     "aud_trim": {"label": "Cortar áudio", "icon": "audio", "out": "audio", "group": "Som", "ins": [("audio", "Áudio", AUD, False)]},
     "aud_mix": {"label": "Misturar áudios", "icon": "audio", "out": "audio", "group": "Som", "ins": [("audios", "Áudios", AUD, True)]},
     "aud_fx": {"label": "Efeitos de áudio", "icon": "audio", "out": "audio", "group": "Som", "ins": [("audio", "Áudio", AUD, False)]},
@@ -138,6 +140,10 @@ def normalize(t: str, p: Dict[str, Any]) -> Dict[str, Any]:
     if t == "text_refine":
         return {"mode": _pick(p.get("mode"), REFINE_MODES, "improve"), "language": text(p.get("language"), "inglês", 30), "instruction": text(p.get("instruction"), "", 1000),
                 "provider": text(p.get("provider"), "", 40)}
+    if t == "lyrics":
+        return {"mode": _pick(p.get("mode"), ("write", "manual"), "write"), "theme": text(p.get("theme"), "", 2000), "text": text(p.get("text"), "", 8000), "language": _pick(p.get("language"), tuple(lyr.LANGS), "pt"),
+                "genre": text(p.get("genre"), "", 80), "mood": text(p.get("mood"), "", 80), "structure": _pick(p.get("structure"), tuple(lyr.STRUCTS), "song"), "rhyme": _pick(p.get("rhyme"), tuple(lyr.RHYMES), "aabb"),
+                "tags": p.get("tags", True) is not False, "instruction": text(p.get("instruction"), "", 600), "seed": int(n("seed", 0, 0, 2 ** 31)), "provider": text(p.get("provider"), "", 40)}
     if t == "text_extract":
         return {"what": _pick(p.get("what"), EXTRACT_WHAT, "links"), "pattern": text(p.get("pattern"), "", 200), "joiner": _pick(p.get("joiner"), ("line", "comma", "space"), "line"), "limit": int(n("limit", 0, 0, 999))}
     if t == "text_count":
@@ -496,6 +502,34 @@ def run_text_refine(eng, canvas, node):
               + (f"\n\nEstilo do projeto: {style.render(src + ' ' + instruction)}" if style.text else ""))
     eng._check()
     out = eng.text_chat(provider, [{"role": "user", "content": f"{instruction}\n\nTexto de entrada:\n{src}"}], system, 0.5, 1500)
+    return {"assets": [], "text": out, "warnings": warnings}
+
+
+def run_lyrics(eng, canvas, node):
+    """Nó Letra (v0.61): escreve a letra de uma música com o modelo de texto (ou arruma a que você escreveu) e a entrega como texto, com as marcas «[Verse 1]», «[Chorus]»… para a porta «Letra» do nó Música."""
+    p = node["params"]
+    src = "\n".join(_texts(eng, canvas, node, "text"))
+    warnings: List[str] = []
+    if p["mode"] == "manual":
+        raw = "\n\n".join(x for x in (p["text"].strip(), src.strip()) if x)
+        if not raw:
+            raise ValueError(eng._no_prompt(canvas, node, "Escreva a letra no nó (ou ligue um texto) para o modo «Arrumar a minha letra»."))
+        return {"assets": [], "text": lyr.tidy(raw, p["tags"]), "warnings": warnings}
+    theme = "\n".join(x for x in (p["theme"].strip(), src.strip()) if x)
+    if not theme:
+        raise ValueError(eng._no_prompt(canvas, node, "O nó Letra precisa de um tema (ex.: \"saudade do mar\") ou de um texto ligado."))
+    pid = p["provider"] or eng.settings["active"].get("generation", "demo")
+    if pid == "demo":
+        warnings.append("Sem IA de texto configurada: a letra é um exemplo montado com as palavras do tema (em Configuração → Provedores você liga um modelo de texto para letras de verdade).")
+        return {"assets": [], "text": lyr.tidy(lyr.demo(theme, p["language"], p["structure"], p["seed"]), p["tags"]), "warnings": warnings}
+    provider = build_provider(eng.settings, pid, eng.store.models_dir)
+    style = eng.styles_for(canvas, node)
+    system = lyr.system_prompt(p, style.render(theme) if style.text else "")
+    ask = f"Theme / idea of the song:\n{theme}" + (f"\n\nExtra instruction: {p['instruction']}" if p["instruction"].strip() else "")
+    eng._check()
+    out = lyr.tidy(eng.text_chat(provider, [{"role": "user", "content": ask}], system, 0.85, 1800), p["tags"])
+    if not out:
+        raise ValueError("O modelo de texto não devolveu a letra. Tente de novo (ou mude o tema).")
     return {"assets": [], "text": out, "warnings": warnings}
 
 

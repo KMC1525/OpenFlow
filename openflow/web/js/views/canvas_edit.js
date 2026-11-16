@@ -9,7 +9,7 @@ import { GROUPS, LABEL, OUT_COLOR, TYPE_HELP, compatible, findFolder, nodeBody, 
 
 const uid = (p) => p + Math.random().toString(36).slice(2, 12);
 const deep = (o) => JSON.parse(JSON.stringify(o));
-const RUNNABLE = ['llm', 'image', 'video', 'sound', 'voice', 'transcribe', 'editor'];
+const RUNNABLE = ['llm', 'image', 'video', 'sound', 'music', 'sfx', 'lyrics', 'voice', 'transcribe', 'editor'];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 // Editor de um canvas: nós ligados por conexões, pan/zoom, arquivos do projeto, execução com acompanhamento ao vivo.
