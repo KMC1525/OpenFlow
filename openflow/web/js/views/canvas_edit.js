@@ -3,6 +3,7 @@ import { t } from '../i18n.js';
 import { go, state } from '../main.js';
 import { confirmDialog, debounce, fill, h, icon, popover, toast } from '../ui.js';
 import { modelSearchBar } from './canvas_hub.js';
+import { downloadsIndicator } from '../canvas_downloads.js';
 import { modelViewer } from '../model_viewer.js';
 import { GROUPS, LABEL, OUT_COLOR, TYPE_HELP, compatible, findFolder, nodeBody, nodeResult, portLabel } from '../canvas_nodes.js';
 
@@ -71,9 +72,10 @@ export default async function render(root, ctx, cid) {
   const assetsBtn = h('button', { class: 'btn', onclick: () => { S.assetsOpen = !S.assetsOpen; localStorage.setItem('openflow.cv.assets', S.assetsOpen ? '1' : '0'); paintAssets(); } }, icon('image', 14), h('span', null, t('Arquivos')));
   // barra de pesquisa de modelos (Hugging Face) no topo: procura, escolhe a quantização, baixa e usa no nó selecionado
   const hub = modelSearchBar({ cid, selected: () => nodeById(S.sel) || null, onUsed: (res, n) => { if (n) { n.params.provider = res.provider; if (res.cap !== 'text') n.params.model = res.model; refreshNode(n.id); } api('/api/media/providers').then((p) => { prov.providers = p.providers; }).catch(() => {}); } });
+  const dl = downloadsIndicator();   // downloads de modelos em andamento, ao lado da barra de pesquisa
   const top = h('div', { class: 'cv-top' },
     h('button', { class: 'btn ghost icon sm cv-back', title: t('Voltar aos projetos'), 'aria-label': t('Voltar aos projetos'), onclick: async () => { await save(); location.hash = '#/projects'; } }, icon('chev', 16)),
-    nameInput, savedLbl, hub.el, h('span', { class: 'grow' }),
+    nameInput, savedLbl, hub.el, dl.el, h('span', { class: 'grow' }),
     h('button', { class: 'btn ghost', title: t('Provedores de mídia'), onclick: () => c.openConfig() }, icon('config', 14), t('Provedores')),
     assetsBtn,
     h('a', { class: 'btn', href: `/api/projects/${cid}/download`, title: t('Baixa o projeto e todos os arquivos (.zip)') }, icon('download', 14), t('Baixar')),

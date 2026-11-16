@@ -2,6 +2,17 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.43.0] — 2026-11-16
+
+### New — follow model downloads inside the Canvas
+- A **downloads** button sits right next to the model search bar at the top of the editor: it shows how many downloads are running (a counter and an overall progress bar) and, when clicked, opens a panel with **each download**: name, repository, percentage, bytes downloaded, speed and time left, the current step's note, a **Cancel** button, and the session's **recent** ones (finished, cancelled and failed, with the reason).
+- It refreshes by itself (every 1 s with a download or the panel open; every 4 s when idle) and immediately when you press Download in the search bar. It closes with Esc or by clicking outside; on phones the panel takes the screen width.
+- It uses the same data as the Library's Downloads tab (`/api/library/downloads`): model downloads, support files (VAE, text encoder), recommended models and the sd-cli library.
+
+### Not verified yet
+- Tested with simulated downloads API responses (the environment has no network to download real models); the list itself comes from an endpoint that already existed and is covered by the Library tests.
+- The panel shows the downloads of **this server session**: restarting OpenFlow clears the recent list (as in the Library).
+
 ## [0.42.0] — 2026-11-16
 
 ### Changed — searching and downloading models is now only through the Canvas search bar

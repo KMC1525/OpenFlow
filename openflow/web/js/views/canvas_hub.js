@@ -52,6 +52,7 @@ export function modelSearchBar(c) {
   }
 
   function progressRow(slot, label, jid, done) {
+    window.dispatchEvent(new CustomEvent('flow:downloads'));   // o indicador ao lado da barra passa a acompanhar este download
     const bar = h('i'), txt = h('span', { class: 'small muted' }, '0%');
     fill(slot, h('div', { class: 'hub-prog' }, h('div', { class: 'row', style: { gap: '8px', marginBottom: '6px' } }, h('span', { class: 'mono small' }, label), h('span', { class: 'grow' }), txt, h('button', { class: 'btn sm', type: 'button', onclick: () => api('/api/jobs/' + jid + '/cancel', { method: 'POST' }).catch(() => {}) }, t('Cancelar'))), h('div', { class: 'bar' }, bar)));
     events('/api/jobs/' + jid + '/events', (ev) => {
