@@ -28,9 +28,11 @@ export function modelSearchBar(c) {
   const openPanel = () => { panel.classList.remove('hidden'); paint(); };
   input.addEventListener('focus', () => { if (panel.classList.contains('hidden')) openPanel(); });   // ao clicar na barra já aparecem os recomendados
   // outras partes do app (avisos dos nós) pedem uma busca aqui: «flow:hub» { q, cap, fmt }
-  window.addEventListener('flow:hub', (e) => { if (!root.isConnected) return; const d = (e && e.detail) || {}; if (d.cap && CAPS.some(([v]) => v === d.cap)) { st.cap = d.cap; capSel.value = d.cap; } if (d.fmt) st.fmt = d.fmt; st.fmt = st.cap === 'text' ? 'gguf' : BOTH_CAPS.includes(st.cap) ? st.fmt : 'original'; syncFmt(); input.focus(); if (d.q) { input.value = d.q; st.q = d.q; search(); } else openPanel(); });
+  const onHubEvent = (e) => { if (!root.isConnected) return; const d = (e && e.detail) || {}; if (d.cap && CAPS.some(([v]) => v === d.cap)) { st.cap = d.cap; capSel.value = d.cap; } if (d.fmt) st.fmt = d.fmt; st.fmt = st.cap === 'text' ? 'gguf' : BOTH_CAPS.includes(st.cap) ? st.fmt : 'original'; syncFmt(); input.focus(); if (d.q) { input.value = d.q; st.q = d.q; search(); } else openPanel(); };
+  window.addEventListener('flow:hub', onHubEvent);
   const close = () => panel.classList.add('hidden');
-  document.addEventListener('pointerdown', (e) => { if (!root.isConnected) return; if (!root.contains(e.target)) close(); });
+  const onHubDown = (e) => { if (root.isConnected && !root.contains(e.target)) close(); };
+  document.addEventListener('pointerdown', onHubDown);
 
   let searchSeq = 0;   // só a resposta mais recente vale (uma busca lenta e antiga não apaga a nova)
   async function search() {
@@ -156,5 +158,6 @@ export function modelSearchBar(c) {
           return h('div', { class: 'hub-item' }, row, slot);
         }) : h('div', { class: 'muted small', style: { padding: '12px' } }, st.results ? t('Nada encontrado. Tente outro nome.') : ''));
   }
-  return { el: root, search: (q) => { input.value = q; st.q = q; search(); } };
+  const dispose = () => { window.removeEventListener('flow:hub', onHubEvent); document.removeEventListener('pointerdown', onHubDown); };   // o Canvas chama ao fechar
+  return { el: root, dispose, search: (q) => { input.value = q; st.q = q; search(); } };
 }

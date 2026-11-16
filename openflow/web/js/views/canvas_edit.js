@@ -63,7 +63,7 @@ export default async function render(root, ctx, cid) {
       S.cv.stale = r.stale || []; S.saveState = 'saved'; paintSaved(); paintStale();
     } catch (e) { S.saveState = 'err'; paintSaved(e.message); }
   }
-  const onLeave = () => { if (S.saveState === 'dirty') save(); };
+  const onLeave = () => { if (S.saveState === 'dirty') save(); hub.dispose(); dl.stop(); };   // solta os ouvintes globais e a consulta de downloads
 
   // ---------------------------------------------------------------------------------------------- estrutura
   const nameInput = h('input', { class: 'nm', value: cv.name, title: t('Nome do projeto'), 'aria-label': t('Nome do projeto'), onchange: async () => { try { await api(`/api/projects/${cid}/meta`, { method: 'POST', body: { name: nameInput.value } }); S.cv.name = nameInput.value; } catch (e) { toast(e.message, 'err'); } } });
@@ -217,6 +217,8 @@ export default async function render(root, ctx, cid) {
   const paintHint = () => hint.classList.toggle('hidden', S.cv.nodes.length > 0);
 
   function addNode(type, x, y, params) {
+    const max = (meta.limits && meta.limits.nodes) || 200;   // acima do limite o servidor descartaria o nó ao salvar (ele sumiria ao reabrir)
+    if (S.cv.nodes.length >= max) { toast(t('Limite de {n} nós por projeto: apague algum nó ou crie outro projeto.', { n: max }), 'err'); return null; }
     const n = { id: uid('n_'), type, x: Math.round(x), y: Math.round(y), w: ['editor', 'image', 'video'].includes(type) ? 300 : 280, title: '', params: Object.assign(deep(meta.defaults[type]), params || {}), result: deep(meta.default_result) };
     S.cv.nodes.push(n); addToDom(n); select(n.id, ''); paintHint(); dirty();
     return n;
@@ -233,7 +235,7 @@ export default async function render(root, ctx, cid) {
     const item = (label, ic, fn, cls) => h('div', { class: 'opt ' + (cls || ''), onclick: () => { pop.close(); fn(); } }, icon(ic, 15), label);
     const pop = popover(anchor, h('div', null,
       RUNNABLE.includes(n.type) ? item(t('Gerar de novo'), 'refresh', () => run([n.id], true)) : null,
-      item(t('Duplicar'), 'copy', () => { const d = addNode(n.type, n.x + 40, n.y + 40, deep(n.params)); d.title = n.title; refreshNode(d.id); }),
+      item(t('Duplicar'), 'copy', () => { const d = addNode(n.type, n.x + 40, n.y + 40, deep(n.params)); if (!d) return; d.title = n.title; refreshNode(d.id); }),
       item(t('Apagar nó'), 'trash', () => removeNode(n.id), 'danger')));
   }
 
@@ -321,7 +323,7 @@ export default async function render(root, ctx, cid) {
     if (!added.length) return;
     if (target && folderId && target.type === 'style_folder' && findFolder(target.params.folders, folderId)) { findFolder(target.params.folders, folderId).files.push(...added); c.change(target, 'folders', target.params.folders, true); }
     else if (target) c.change(target, 'files', [...target.params.files, ...added], true);
-    else { const n = addNode('upload', pos.x, pos.y, { files: added }); refreshNode(n.id); }
+    else { const n = addNode('upload', pos.x, pos.y, { files: added }); if (n) refreshNode(n.id); }
     paintAssets();
   }
   surface.addEventListener('dragover', (e) => { if ([...e.dataTransfer.types].some((x) => x === 'Files' || x.startsWith('text/flow'))) { e.preventDefault(); surface.classList.add('drop'); } });
@@ -332,7 +334,7 @@ export default async function render(root, ctx, cid) {
     if (!type && !aid && !libItem && !e.dataTransfer.files.length) return;
     e.preventDefault();
     if (type && types[type]) return void addNode(type, p.x - 140, p.y - 20);
-    if (aid) { const n = addNode('upload', p.x - 140, p.y - 20, { files: [aid] }); return void refreshNode(n.id); }
+    if (aid) { const n = addNode('upload', p.x - 140, p.y - 20, { files: [aid] }); return void (n && refreshNode(n.id)); }
     if (libItem) return void addFromLibrary(libItem, { x: p.x - 140, y: p.y - 20 });
     const nd = e.target.closest('.cv-node'), tn = nd && nodeById(nd.dataset.id);
     const fe = e.target.closest && e.target.closest('.sf-folder');   // soltou em cima de uma pasta do Style Folder: entra nela
@@ -351,7 +353,8 @@ export default async function render(root, ctx, cid) {
       let a = (S.cv.assets || []).find((x) => x.id === d.asset);
       if (!a) { a = await api(`/api/projects/${cid}/assets/import`, { method: 'POST', body: { project: d.project, asset: d.asset } }); S.cv.assets.push(a); }
       const n = addNode('upload', pos.x, pos.y, { files: [a.id] });
-      refreshNode(n.id); paintAssets();
+      if (n) refreshNode(n.id);
+      paintAssets();
     } catch (e) { toast(e.message, 'err'); }
   }
   let libSeq = 0;

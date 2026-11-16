@@ -94,6 +94,12 @@ class BrowserTests(unittest.TestCase):
     def test_21_downloads_are_followed_next_to_the_canvas_search_bar(self):
         self.run_script("downloads_v043_ui.js")
 
+    def test_22_leaving_the_canvas_releases_global_listeners_and_polling(self):
+        self.run_script("leaks_v047_ui.js")
+
+    def test_23_the_node_limit_warns_instead_of_losing_the_new_node(self):
+        self.run_script("limits_v047_ui.js")
+
     def test_19_the_ai_flow_generator_and_the_team_picker_are_gone(self):
         self.run_script("no_flow_ai_ui.js")
 
