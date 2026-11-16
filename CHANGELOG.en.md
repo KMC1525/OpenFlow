@@ -2,6 +2,21 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.47.0] — 2026-11-16
+
+### Fixed — general sweep 4
+- **New node vanishes when saving at the limit:** a project accepts up to 200 nodes, but the editor let you create the 201st, which the server dropped on save (it disappeared when reopened). The editor now warns “Limit of 200 nodes per project…” and does not create it; deleting a node frees the room (the limit comes from the server).
+- **Settings with the wrong type:** a provider's model or context window, and the media model names, with the wrong type (coming from settings import, the API or hand editing) were stored as they were and broke model loading; now only text (model) and an integer ≥ 0 (context, up to 4,194,304) count, the rest is discarded.
+- **Invalid GLB:** a file that merely started with “glTF” entered the project as a 3D model; now the header and JSON are checked and the upload is refused with “That file is not a valid GLB 3D model”.
+- **Leak when opening and closing the Canvas:** the model search bar and the downloads indicator left global listeners (`flow:hub`, `flow:downloads`, `pointerdown`, `Escape`) and a polling timer behind on every visit; they now release when leaving the Canvas, and outside it there is no downloads polling.
+
+### Tested
+- All 54 node types run with valid inputs (`tests/test_all_nodes_v038.py` and the sweep); the odd-input matrix (images, videos and audio) still has no unexpected failures; fuzz of 1,600 API requests, node parameters and odd texts in the sheet and comic nodes; huge bodies and nested JSON are refused; 400 chained nodes run in ~4 s and the second “Run all” uses the cache in ~10 ms.
+
+### Not verified yet
+- The 600-connections-per-project limit also drops the excess silently on save; the editor does not warn yet (hard to reach with 200 nodes).
+- Real local models and the “Transcribe” node (the Whisper library is missing here) still did not run in this environment.
+
 ## [0.46.0] — 2026-11-16
 
 ### Changed — a shorter, more objective README

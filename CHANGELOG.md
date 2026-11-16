@@ -2,6 +2,21 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.47.0] — 2026-11-16
+
+### Corrigido — varredura geral 4
+- **Nó novo some ao salvar no limite:** o projeto aceita até 200 nós, mas o editor deixava criar o 201º, que o servidor descartava ao salvar (ele sumia ao reabrir). Agora o editor avisa «Limite de 200 nós por projeto…» e não cria; apagar um nó libera o espaço (o limite vem do servidor).
+- **Configurações com tipo errado:** o modelo ou a janela de contexto de um provedor, e os nomes de modelo de mídia, com tipo errado (vindos da importação de configurações, da API ou de edição à mão) eram gravados como estavam e quebravam a carga do modelo; agora só valem texto (modelo) e inteiro ≥ 0 (contexto, até 4.194.304), o resto é descartado.
+- **GLB inválido:** um arquivo que só começava com «glTF» entrava no projeto como modelo 3D; agora o cabeçalho e o JSON são conferidos e o envio recusa com «Esse arquivo não é um modelo 3D GLB válido».
+- **Vazamento ao abrir e fechar o Canvas:** a barra de pesquisa de modelos e o indicador de downloads deixavam ouvintes globais (`flow:hub`, `flow:downloads`, `pointerdown`, `Escape`) e um temporizador de consulta para trás a cada visita; agora se soltam ao sair do Canvas, e fora dele não há consulta de downloads.
+
+### Testado
+- Os 54 tipos de nó rodam com entradas válidas (`tests/test_all_nodes_v038.py` e a varredura); a matriz de entradas estranhas (imagens, vídeos e áudios) segue sem falhas inesperadas; fuzz de 1.600 requisições na API, de parâmetros de nós e de textos estranhos nos nós de ficha e quadrinhos; corpos gigantes e JSON aninhado são recusados; 400 nós em cadeia rodam em ~4 s e o segundo «Executar tudo» usa o cache em ~10 ms.
+
+### Ainda não verificado
+- O limite de 600 ligações por projeto também descarta o excedente em silêncio ao salvar; o editor ainda não avisa (é difícil chegar lá com 200 nós).
+- Modelos locais reais e o nó «Transcrever» (falta a biblioteca do Whisper aqui) seguem sem execução neste ambiente.
+
 ## [0.46.0] — 2026-11-16
 
 ### Mudou — README menor e mais objetivo

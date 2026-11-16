@@ -44,12 +44,23 @@ LOCAL_TEXT = ("demo", "local_hf")                   # e de texto
 _AUTO = ("", "auto")
 
 
+def _provider_fields(v: dict) -> dict:
+    """Do provedor de texto só valem o modelo (texto) e a janela de contexto (inteiro ≥ 0): outro tipo, vindo da API ou de edição à mão, é descartado (v0.47)."""
+    out: dict = {}
+    if isinstance(v.get("model"), str):
+        out["model"] = v["model"].strip()[:300]
+    n = v.get("n_ctx")
+    if isinstance(n, (int, float)) and not isinstance(n, bool) and n >= 0:
+        out["n_ctx"] = int(min(n, 4194304))
+    return out
+
+
 def local_only(settings: dict) -> dict:
     """v0.35 (sem nuvem): configurações antigas com provedores de nuvem ou servidores (OpenAI, Claude, Gemini, OpenRouter, Ollama, LM Studio…) voltam ao padrão local: os provedores e chaves de API que
     não existem mais são ignorados (e saem do arquivo na próxima gravação) e os padrões apontam para o Demo ou o modelo local."""
     s = settings
     prov = s.get("providers") if isinstance(s.get("providers"), dict) else {}
-    s["providers"] = {k: {f: v[f] for f in ("model", "n_ctx") if f in v} for k, v in prov.items() if k in LOCAL_TEXT and isinstance(v, dict)}   # v0.44: do provedor só valem o modelo e a janela de contexto (chave de API, endereço e «vision» eram da nuvem)
+    s["providers"] = {k: _provider_fields(v) for k, v in prov.items() if k in LOCAL_TEXT and isinstance(v, dict)}   # v0.44: do provedor só valem o modelo e a janela de contexto (chave de API, endereço e «vision» eram da nuvem)
     for k in ("voice", "generation"):   # seções antigas (voz em servidor; temperatura/tokens/«content» do Chat do ASTA): ninguém mais lê
         s.pop(k, None)
     act = s.get("active") if isinstance(s.get("active"), dict) else {}
@@ -57,7 +68,8 @@ def local_only(settings: dict) -> dict:
     media = s.get("media") if isinstance(s.get("media"), dict) else {}
     ma = media.get("active") if isinstance(media.get("active"), dict) else {}
     media["active"] = {c: (v if v in LOCAL_MEDIA else ("local_hf" if c == "stt" else "demo")) for c, v in ma.items()}
-    media["models"] = {k: v for k, v in (media.get("models") or {}).items() if k in LOCAL_MEDIA}
+    models = media.get("models") if isinstance(media.get("models"), dict) else {}
+    media["models"] = {k: {c: m.strip()[:300] for c, m in v.items() if isinstance(c, str) and isinstance(m, str) and m.strip()} for k, v in models.items() if k in LOCAL_MEDIA and isinstance(v, dict)}   # v0.47: «cap → nome do modelo» só com textos (um valor de outro tipo, vindo da API ou de edição à mão, quebrava a carga do modelo)
     media.pop("urls", None)
     s["media"] = media
     return s

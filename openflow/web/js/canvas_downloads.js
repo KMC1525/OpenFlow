@@ -12,7 +12,11 @@ export function downloadsIndicator() {
     icon('download', 15), badge, h('span', { class: 'cv-dl-bar', 'aria-hidden': 'true' }, mini));
   const panel = h('div', { class: 'cv-dl-panel hidden', id: 'cv-dl-panel', role: 'dialog', 'aria-label': t('Downloads de modelos'), 'aria-live': 'polite' });
   const root = h('div', { class: 'cv-dl', id: 'cv-dl' }, btn, panel);
-  let timer = 0, alive = true;
+  let timer = 0, alive = true, seen = false, waits = 0;
+  // ouvintes globais que se soltam sozinhos quando o painel sai da tela (o Canvas fecha): sem isso cada visita deixava ouvintes e um temporizador para trás
+  const bound = [];
+  const bind = (target, type, fn) => { const wrap = (e) => { if (root.isConnected) seen = true; else if (seen) { stop(); return; } fn(e); }; bound.push([target, type, wrap]); target.addEventListener(type, wrap); };
+  const stop = () => { alive = false; clearTimeout(timer); for (const [tg, ty, fn] of bound.splice(0)) tg.removeEventListener(ty, fn); };   // `stop` solta tudo: temporizador e ouvintes globais (o Canvas chama ao fechar)
 
   const row = (d) => {
     const pc = d.total ? Math.min(1, d.done / d.total) : 0, run = d.status === 'running';
@@ -43,7 +47,9 @@ export function downloadsIndicator() {
 
   async function tick() {
     clearTimeout(timer);
-    if (!alive || !root.isConnected) { if (!root.isConnected && alive) timer = setTimeout(tick, 1500); return; }
+    if (!alive) return;
+    if (!root.isConnected) { if (seen || ++waits > 40) return stop(); timer = setTimeout(tick, 300); return; }   // ainda não entrou na tela (o primeiro tick roda antes de o painel ser colocado): espera um pouco
+    seen = true;
     let running = 0;
     try { const r = await api('/api/library/downloads'); st.list = r.downloads || []; running = r.running || 0; st.ok = true; } catch (e) { st.ok = false; }
     paint();
@@ -55,9 +61,9 @@ export function downloadsIndicator() {
     btn.setAttribute('aria-expanded', st.open ? 'true' : 'false');
     if (st.open) { paint(); tick(); }
   }
-  document.addEventListener('pointerdown', (e) => { if (st.open && root.isConnected && !root.contains(e.target)) toggle(false); });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && st.open) toggle(false); });
-  window.addEventListener('flow:downloads', (e) => { if (!root.isConnected) return; if (e && e.detail && e.detail.open) toggle(true); else tick(); });   // o painel de busca avisa quando um download começa
+  bind(document, 'pointerdown', (e) => { if (st.open && !root.contains(e.target)) toggle(false); });
+  bind(document, 'keydown', (e) => { if (e.key === 'Escape' && st.open) toggle(false); });
+  bind(window, 'flow:downloads', (e) => { if (e && e.detail && e.detail.open) toggle(true); else tick(); });   // o painel de busca avisa quando um download começa
   tick();
-  return { el: root, refresh: tick, open: () => toggle(true), stop: () => { alive = false; clearTimeout(timer); } };
+  return { el: root, refresh: tick, open: () => toggle(true), stop };
 }

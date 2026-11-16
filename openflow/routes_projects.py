@@ -11,8 +11,9 @@ from typing import Any, Dict
 
 from .canvas.engine import CanvasEngine
 from . import archives
+from .canvas import mesh3d
 from .canvas.media import MEDIA_PRESETS, MIME_EXT, build_media, describe_media_presets, sniff_mime
-from .canvas.schema import ASPECTS, CAPS, NODE_TYPES, SIZES, TEMPLATES, VIDEO_RESOLUTIONS, describe_types, find_folder, normalize_params, normalize_result
+from .canvas.schema import ASPECTS, CAPS, MAX_EDGES, MAX_NODES, NODE_TYPES, SIZES, TEMPLATES, VIDEO_RESOLUTIONS, describe_types, find_folder, normalize_params, normalize_result
 from .jobs import HttpError, Job
 from .providers import ProviderError
 from .hf import REPO_RE
@@ -75,7 +76,7 @@ class ProjectRoutes:
 
     def r_templates(self, req) -> None:
         req.json({"templates": TEMPLATES, "types": describe_types(), "caps": list(CAPS), "sizes": list(SIZES), "aspects": list(ASPECTS), "resolutions": list(VIDEO_RESOLUTIONS),
-                  "defaults": {k: normalize_params(k, {}) for k in NODE_TYPES}, "default_result": normalize_result({})})
+                  "defaults": {k: normalize_params(k, {}) for k in NODE_TYPES}, "default_result": normalize_result({}), "limits": {"nodes": MAX_NODES, "edges": MAX_EDGES}})
 
     def r_list(self, req) -> None:
         """Todos os projetos. `?q=` pesquisa no nome, na descrição e nos textos dos nós; `?sort=updated|created|name|files`."""
@@ -209,6 +210,11 @@ class ProjectRoutes:
             return self._asset_upload_archive(req, cid, name, data)
         mime = sniff_mime(data)  # o tipo vem do conteúdo, nunca do nome nem do Content-Type enviado
         kind = mime.split("/")[0] if mime.split("/")[0] in ("image", "audio", "video") else ("model3d" if mime == "model/gltf-binary" else "")
+        if kind == "model3d":   # um GLB só entra se o cabeçalho e o JSON conferem (v0.47): um arquivo que só começa com «glTF» não vira modelo
+            try:
+                mesh3d.glb_info(data)
+            except (ValueError, KeyError, IndexError, TypeError):
+                raise HttpError(400, "Esse arquivo não é um modelo 3D GLB válido.")
         if not data or not kind:
             raise HttpError(400, "Envie uma imagem, um vídeo ou um áudio válido (PNG, JPG, WebP, GIF, MP4, WebM, MP3, WAV, OGG, FLAC, M4A…).")
         file_ext = MIME_EXT.get(mime, "bin")

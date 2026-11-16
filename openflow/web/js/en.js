@@ -241,6 +241,7 @@ export default {
   'Texto → Imagem': 'Text → Image',
   'Cena completa (imagem, voz e Editor)': 'Full scene (image, voice and Editor)',
   'Som e música': 'Sound and music',
+  'Limite de {n} nós por projeto: apague algum nó ou crie outro projeto.': 'Limit of {n} nodes per project: delete a node or create another project.',
   'Memória para os modelos': 'Memory for the models',
   '{b} depois do sistema · ≈ {g} GB/s · até {n} threads úteis': '{b} left after the system · ≈ {g} GB/s · up to {n} useful threads',
   'classe de 16 GB: o OpenFlow descarrega o outro modelo e limita o contexto para caber': '16 GB class: OpenFlow unloads the other model and limits the context to fit',
