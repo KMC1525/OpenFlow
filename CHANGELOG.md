@@ -2,6 +2,23 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.63.0] — 2026-11-16
+
+### Novo — Vozes customizadas na Dublagem: um nó Voz para cada personagem
+A **Dublagem** ganhou a entrada **«Vozes»**: ligue nela **um ou vários nós Voz** e cada personagem passa a falar com a sua voz.
+- **Cada nó Voz é um perfil de voz:** vale o **modelo**, a **voz**, a **velocidade**, os ajustes extras e o **Style Prompt** ligado a ele. O **título do nó é o nome do personagem** (sem título, vale o nome da voz; e sempre «Voz 1», «Voz 2»… pela ordem das conexões). Cada nó pode usar um **modelo/provedor diferente**. Com vozes ligadas, elas valem **no lugar** da voz do próprio nó Dublagem; sem nenhuma, tudo funciona como antes.
+- **Quem fala cada trecho — «Como escolher a voz de cada fala»:**
+  - **Pelas marcas** (padrão): no roteiro (texto simples ou SRT/VTT ligados em «Roteiro»), marque a fala com `Maria: fala`, `[Maria] fala` ou `(Maria) fala`. Maiúsculas e acentos não importam («joão» = «João»). A marca vale **até a próxima** (um roteiro com a marca só na primeira frase de cada fala segue com o mesmo personagem); antes da primeira marca, fala o primeiro nó Voz. A marca sai do texto: não é lida em voz alta.
+  - **Alternar entre as vozes:** as falas alternam, uma de cada vez (um diálogo de duas pessoas sem marcas).
+- **Só nomes de nós Voz ligados viram marca:** «(rindo)», «[Música]» ou «Atenção: o trem chega» continuam sendo texto falado. Um «Nome:» que **não** tem voz ligada mas se **repete** em duas falas ou mais é tratado como um personagem sem voz: a marca sai do texto, a fala continua com a voz anterior e o nó **avisa** quais personagens estão sem voz.
+- **Avisos:** vozes ligadas mas nenhuma marca no roteiro (usou só a primeira voz e diz como corrigir); a lista de **vozes usadas** com a contagem de falas de cada uma; um nó ligado em «Vozes» que não é um nó Voz (ignorado, com o nome dele). O resultado do nó mostra «Maria: …», «João: …» com as marcas de tempo.
+- **O nó Voz ligado à Dublagem não precisa de texto nem de rodar:** sem texto, ele só define a voz (não é mais erro «precisa de um texto» — essa mensagem continua para um nó Voz solto); a Dublagem **não espera** por ele nem deixa de rodar se ele falhar (se ele tem texto e gera um áudio de exemplo, isso é à parte). O **cache** da Dublagem segue os **ajustes** das vozes (voz, velocidade, modelo, estilo e nome do personagem) e não o áudio de exemplo: trocar a voz de um personagem refaz a dublagem; refazer o áudio de exemplo, não.
+
+### Ainda não verificado
+- **Nenhum modelo de voz de verdade foi usado**: os testes usam provedores de mentira que anotam o que foi pedido a cada voz, e o ffmpeg real. Que um modelo de voz de verdade soe como o personagem que você imagina não foi medido. Os modelos de voz que o OpenFlow oferece têm vozes fixas ou poucas (o campo «Voz» do nó é o nome que o modelo entende); **clonar a voz de uma pessoa a partir de uma amostra não está nesta versão**.
+- A escolha da voz depende de **marcas no roteiro**: quando a fala vem da transcrição de um vídeo (sem marcas), o OpenFlow **não distingue quem está falando** (não há separação de falantes), então tudo sai com a primeira voz — use «Alternar entre as vozes» num diálogo de duas pessoas ou passe a transcrição por um nó de texto, marque os personagens e ligue em «Roteiro».
+- A marca «Nome:» só é reconhecida no **começo** da fala/cue; uma fala dividida pelo OpenFlow (muito longa) continua com o mesmo personagem.
+
 ## [0.62.0] — 2026-11-16
 
 ### Novo — Dublagem, Legendas e Transcrição: três nós no grupo Som

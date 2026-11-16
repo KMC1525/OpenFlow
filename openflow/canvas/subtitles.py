@@ -229,3 +229,56 @@ def segments_from_chunks(chunks: List[Dict[str, Any]], total: float = 0.0) -> Li
         if text:
             out.append(seg(a, max(b, a + 0.05), text))
     return out
+
+
+# ----------------------------------------------------------------------------- personagens (v0.63)
+def norm_name(s: str) -> str:
+    """O nome de um personagem para comparar: sem acentos, sem maiúsculas, só letras e números separados por um espaço («João  Silva» = «joao silva»)."""
+    import unicodedata
+
+    base = unicodedata.normalize("NFD", str(s or "")).encode("ascii", "ignore").decode("ascii").casefold()
+    return " ".join(re.findall(r"[a-z0-9]+", base))
+
+
+_LABEL_KNOWN = r"(?:\[\s*(?P<b>[^\]\n]{1,30}?)\s*\]|\(\s*(?P<p>[^)\n]{1,30}?)\s*\)|(?P<c>[^\W\d_][^:\n\[\]()]{0,28}?)\s*:)"
+_LABEL_RE = re.compile(r"^\s*(?:[-–—]\s*)?" + _LABEL_KNOWN + r"\s*(?P<rest>.*)$", re.S)
+_COLON_RE = re.compile(r"^\s*(?:[-–—]\s*)?(?P<c>[^\W\d_][\w .'’-]{0,24}?)\s*:\s+(?P<rest>\S.*)$", re.S)
+
+
+def assign_speakers(segs: List[Seg], names: List[List[str]], mode: str = "labels") -> "tuple[List[tuple[int, str]], List[str]]":
+    """Quem fala cada trecho (v0.63): devolve, para cada segmento, (índice do locutor, texto sem a marca) e os avisos.
+
+    `names[i]` são os apelidos do locutor `i` (o nome do nó Voz e o nome da voz). Uma marca vale no começo do texto, em três formas: «Maria: fala», «[Maria] fala» e «(Maria) fala» — só quando o nome é de um locutor
+    conhecido (assim «[Música]» ou «(rindo)» continuam como texto). A marca vale até a próxima (um roteiro sem marca em cada frase segue com o mesmo locutor); antes da primeira marca, vale o primeiro locutor.
+    `mode="alternate"`: as falas alternam entre os locutores, uma de cada vez (um diálogo de duas pessoas sem marcas); as marcas conhecidas saem do texto do mesmo jeito. Um «Nome:» desconhecido que se repete
+    em dois ou mais trechos é tratado como marca de um personagem sem voz ligada: sai do texto (não é lido em voz alta) e o aviso diz qual."""
+    table = {norm_name(a): i for i, al in enumerate(names) for a in al if norm_name(a)}
+    unknown: Dict[str, int] = {}
+    for s in segs:
+        m = _COLON_RE.match(s["text"])
+        if m and norm_name(m.group("c")) not in table and norm_name(m.group("c")):
+            unknown[norm_name(m.group("c"))] = unknown.get(norm_name(m.group("c")), 0) + 1
+    repeated = {k for k, n in unknown.items() if n >= 2}
+    out: List["tuple[int, str]"] = []
+    current, matched, stripped_unknown = 0, 0, []
+    for i, s in enumerate(segs):
+        text = s["text"]
+        m = _LABEL_RE.match(text)
+        label = (m.group("b") or m.group("p") or m.group("c")) if m else None
+        key = norm_name(label or "")
+        if m and key in table and m.group("rest").strip():
+            current, text = table[key], m.group("rest").strip()
+            matched += 1
+        else:
+            mc = _COLON_RE.match(text)
+            if mc and norm_name(mc.group("c")) in repeated:
+                text = mc.group("rest").strip()
+                if mc.group("c").strip() not in stripped_unknown:
+                    stripped_unknown.append(mc.group("c").strip())
+        out.append(((i % len(names)) if mode == "alternate" and names else current, text))
+    warns: List[str] = []
+    if stripped_unknown:
+        warns.append("Personagens sem voz ligada: " + ", ".join(f"«{n}»" for n in stripped_unknown[:6]) + ". As falas deles saíram com a voz do trecho anterior (ligue um nó Voz com esse nome para dar uma voz a cada um).")
+    if len(names) > 1 and mode == "labels" and not matched:
+        warns.append(f"Há {len(names)} vozes ligadas, mas nenhuma fala tem marca de personagem («Nome: fala»): usei só a primeira voz. Marque as falas com o nome do nó Voz ou escolha «Alternar entre as vozes».")
+    return out, warns

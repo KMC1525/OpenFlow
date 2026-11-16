@@ -230,7 +230,7 @@ class SchemaTests(unittest.TestCase):
     def test_palette_and_ports(self):
         group = dict(schema.PALETTE)["Som"]
         self.assertEqual(group[4:8], ["voice", "dub", "transcript", "sub"])
-        self.assertEqual([p[0] for p in schema.NODE_TYPES["dub"]["ins"]], ["media", "script"])
+        self.assertEqual([p[0] for p in schema.NODE_TYPES["dub"]["ins"]], ["media", "script", "voices"])   # v0.63: +«Vozes» (nós Voz, um por personagem)
         self.assertEqual([p[0] for p in schema.NODE_TYPES["sub"]["ins"]], ["media", "text"])
         self.assertEqual((schema.NODE_TYPES["transcript"]["out"], schema.NODE_TYPES["sub"]["out"], schema.NODE_TYPES["dub"]["out"]), ("text", "text", "media"))
         for t in ("dub", "transcript", "sub"):

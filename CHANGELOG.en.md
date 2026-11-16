@@ -2,6 +2,23 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.63.0] — 2026-11-16
+
+### New — Custom voices in Dubbing: a Voice node for each character
+The **Dubbing** node got a **«Voices»** input: connect **one or several Voice nodes** to it and each character speaks with their own voice.
+- **Each Voice node is a voice profile:** its **model**, **voice**, **speed**, extra settings and the **Style Prompt** connected to it all count. The **node's title is the character's name** (with no title, the voice name is used; and always «Voz 1», «Voz 2»… by connection order). Each node can use a **different model/provider**. With voices connected, they replace the voice of the Dubbing node itself; with none, everything works as before.
+- **Who speaks each piece — «How to pick the voice of each line»:**
+  - **By the marks** (default): in the script (plain text or SRT/VTT connected to «Script»), mark the line with `Maria: line`, `[Maria] line` or `(Maria) line`. Case and accents do not matter («joão» = «João»). The mark holds **until the next one** (a script with the mark only on the first sentence of each speech keeps the same character); before the first mark, the first Voice node speaks. The mark is removed from the text: it is not read aloud.
+  - **Alternate between the voices:** lines alternate, one at a time (a two-person dialogue with no marks).
+- **Only names of connected Voice nodes become marks:** «(laughing)», «[Music]» or «Attention: the train arrives» stay as spoken text. A «Name:» that has **no** voice connected but **repeats** in two or more lines is treated as a character with no voice: the mark is removed from the text, the line keeps the previous voice and the node **warns** which characters have no voice.
+- **Warnings:** voices connected but no marks in the script (it used only the first voice and says how to fix it); the list of **voices used** with each one's line count; a node connected to «Voices» that is not a Voice node (ignored, with its name). The node's result shows «Maria: …», «João: …» with timestamps.
+- **A Voice node connected to Dubbing needs no text and does not have to run:** with no text it only defines the voice (it is no longer a «needs a text» error — that message stays for a loose Voice node); Dubbing **does not wait** for it nor stops running if it fails (if it has text and generates a sample audio, that is separate). The Dubbing **cache** follows the voices' **settings** (voice, speed, model, style and character name) and not the sample audio: changing a character's voice redoes the dub; regenerating the sample audio does not.
+
+### Not verified yet
+- **No real voice model was used**: the tests use fake providers that record what each voice was asked, and the real ffmpeg. That a real voice model sounds like the character you imagine was not measured. The voice models OpenFlow offers have fixed or few voices (the node's «Voice» field is the name the model understands); **cloning a person's voice from a sample is not in this version**.
+- Voice choice depends on **marks in the script**: when the speech comes from transcribing a video (no marks), OpenFlow **does not tell who is speaking** (there is no speaker separation), so everything comes out in the first voice — use «Alternate between the voices» in a two-person dialogue, or pass the transcript through a text node, mark the characters and connect it to «Script».
+- The «Name:» mark is only recognized at the **start** of the line/cue; a line OpenFlow splits (too long) keeps the same character.
+
 ## [0.62.0] — 2026-11-16
 
 ### New — Dubbing, Subtitles and Transcript: three nodes in the Sound group
