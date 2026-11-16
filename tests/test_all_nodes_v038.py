@@ -82,7 +82,7 @@ class EveryNodeTests(unittest.TestCase):
             res = n["result"]
             ran += 1
             if res["state"] != "done":
-                if t == "transcribe" and "bibliotecas opcionais" in res["error"]:
+                if t in ("transcribe", "transcript") and "bibliotecas opcionais" in res["error"]:   # v0.62: «Transcrição» também precisa do modelo de transcrição (Whisper local); Legendas e Dublagem aqui recebem um texto e rodam sem ele
                     continue
                 problems.append((t, res["state"], res["error"][:140]))
                 continue
