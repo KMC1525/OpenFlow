@@ -41,9 +41,12 @@ class MultiGpuTests(unittest.TestCase):
 
     def test_llama_split_is_proportional_to_free_memory(self):
         self.use(gpus(10, 30))
+        perf.CURRENT["memory"] = {"gpu_reserve_mb": 0}   # v0.59: a divisão é pela memória USÁVEL (livre menos a folga de cada placa); sem folga, é a livre
         sp = perf.llama_split()
         self.assertEqual(sp["tensor_split"], [0.25, 0.75])
         self.assertEqual(sp["main_gpu"], 1)
+        perf.CURRENT["memory"] = {}   # folga padrão (512 MB por placa): (10-0,5) : (30-0,5)
+        self.assertEqual(perf.llama_split()["tensor_split"], [0.2436, 0.7564])
 
     def test_llama_split_with_one_chosen_gpu_keeps_the_model_on_it(self):
         self.use(gpus(10, 30, 8), [2])
