@@ -1572,7 +1572,7 @@ class GGUFMedia(MediaProvider):
         fam = support.family_of(path.name)
         if not fam:
             return {}
-        found = support.find_companions(path.parent, path, fam)
+        found = support.required_found(support.find_companions(path.parent, path, fam), fam)   # o que a família marca como opcional (mmproj) não impede de carregar
         if any(v is None for v in found.values()):
             return {}
         return {"load": {"diffusion_model_path": "@model", **found, **fam.get("options", {})}, "run": support.run_for(fam, path.name)}   # `options`: memória e atenção como na documentação da stable-diffusion.cpp
@@ -1585,7 +1585,16 @@ class GGUFMedia(MediaProvider):
         if not base and not (extra or {}).get("load"):
             base = self._auto_load(path)   # famílias conhecidas (Qwen-Image, FLUX): acha o VAE e o codificador de texto ao lado do modelo
         extra = {**base.get("run", {}), **(extra or {})}
-        load = {**base.get("load", {}), **(extra.pop("load", None) or {})}
+        user_load = extra.pop("load", None) or {}
+        load = {**base.get("load", {}), **user_load}
+        fam_img = support.family_of(path.name)
+        if not refs and fam_img and fam_img.get("edit_needs"):   # só gerar com texto: o projetor de visão (≈ 1,2 GB) não é carregado — ele só serve para ler imagens de referência
+            load = {k: v for k, v in load.items() if k not in fam_img["edit_needs"] or k in user_load}
+        if refs:   # editar (ou usar imagens de referência): a stable-diffusion.cpp exige, no Qwen-Image 2.1, o projetor de visão do Qwen3-VL — sem ele o sd-cli falha com «requires Qwen3-VL vision weights» (v0.55)
+            need = [m for m in support.missing_for_edit(path.parent, path.name) if not load.get(m["key"])]
+            if need:
+                raise ProviderError(f"Para editar imagens, o {support.family_of(path.name)['label']} precisa de arquivos que ainda não estão aqui: {', '.join(m['label'] for m in need)} (≈ {round(sum(m['approx'] for m in need), 1)} GB). "
+                                    f"Use o botão «Baixar os arquivos de apoio» no nó, ou ponha-os na pasta {path.parent}. Gerar só com texto continua funcionando sem eles. [[flow-support:{path.name}]]")
         if path.name in _SD_LITE:   # este modelo já falhou com flash attention/offload nesta máquina: começa sem eles (não recarrega duas vezes a cada imagem)
             load = {k: v for k, v in load.items() if k not in _SD_LITE_KEYS}
         if _lib_unsupported(path.name) or _lib_never_knows(path.name):   # já se sabe que a biblioteca não o reconhece

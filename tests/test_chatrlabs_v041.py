@@ -43,7 +43,8 @@ class FamilyTests(unittest.TestCase):
         plan = support.plan(Path(tempfile.mkdtemp()), "qwen-image-2.1-step90000-Q4_K_M.gguf", "image", REPO, TREE)
         self.assertEqual(plan["family"], "qwen-image-2.1")
         got = {(i["role"], i["repo"], i["file"]) for i in plan["items"]}
-        self.assertEqual(got, {("vae", "unsloth/Qwen-Image-2.1-FP8", "vae/qwen_image_2.1_vae_bf16.safetensors"), ("text_encoder", "unsloth/Qwen3-VL-8B-Instruct-GGUF", "Qwen3-VL-8B-Instruct-UD-Q4_K_XL.gguf")})
+        self.assertEqual(got, {("vae", "unsloth/Qwen-Image-2.1-FP8", "vae/qwen_image_2.1_vae_bf16.safetensors"), ("text_encoder", "unsloth/Qwen3-VL-8B-Instruct-GGUF", "Qwen3-VL-8B-Instruct-UD-Q4_K_XL.gguf"),
+                       ("mmproj", "unsloth/Qwen3-VL-8B-Instruct-GGUF", "mmproj-F16.gguf")})   # v0.55: o projetor de visão, para editar com imagem de referência
 
 
 class CatalogTests(unittest.TestCase):
