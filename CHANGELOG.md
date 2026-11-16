@@ -2,6 +2,17 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.40.0] — 2026-11-16
+
+### Removido — agentes, multi-agentes e níveis de esforço (Low … Omni) do ASTA
+- Saíram a **mesa de agentes** (1 a 32 agentes em paralelo, notas privadas, revisão entre pares e Sintetizador — `team.py`), os **níveis de esforço** Low · Medium · High · Extra · Mega · Max · Ultra · Omni (`efforts.py`) e o «tempo de pensamento» pedido ao modelo (`providers/thinking.py`), junto da rota `GET /api/team`, do seletor de equipe da barra do canvas, do cartão «Equipe de agentes» em Configurações → Projeto, do campo `team` no pedido de execução e dos textos, estilos e testes deles.
+- Os nós de texto com IA («Texto IA», «Refinar com IA») e a descrição de estilo agora fazem **uma única chamada** ao modelo, com o tamanho de resposta fixo do nó (sem multiplicador de esforço).
+- Configurações antigas com `agents`/`effort` continuam carregando (as chaves são ignoradas).
+
+### Ainda não verificado
+- Mantive o **planejador do núcleo Rust** (`plan_agents`): hoje só serve para decidir quantos modelos de texto locais podem ficar carregados na memória ao mesmo tempo e para a fila com prioridade do modelo embutido; a ABI do núcleo e o Rust não foram mexidos (não recompilei nada). Se quiser, ele também sai numa versão própria.
+- `Cancelled` e a fila de prioridade (`scheduler.py`) ficam: são do cancelamento e da fila do modelo local, não dos agentes.
+
 ## [0.39.0] — 2026-11-15
 
 ### Removido (por enquanto) — «Gerar fluxo com IA»

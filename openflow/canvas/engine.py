@@ -19,7 +19,6 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from .. import attachments as att
 from .. import native
-from .. import team as teamlib
 from ..util import Cancelled
 from ..providers import ProviderError, build_provider
 from ..util import now_iso
@@ -136,9 +135,8 @@ def M_difference(a: bytes, b: bytes) -> Any:
 
 
 class CanvasEngine:
-    def __init__(self, store: Any, cid: str, emit: Optional[Callable[[dict], None]] = None, cancelled: Callable[[], bool] = lambda: False, team: Optional[Dict[str, Any]] = None):
+    def __init__(self, store: Any, cid: str, emit: Optional[Callable[[dict], None]] = None, cancelled: Callable[[], bool] = lambda: False):
         self.store = store
-        self.team_req = team or {}
         self.cs = store.projects
         self.cid = cid
         self.settings = store.get_settings()
@@ -157,20 +155,9 @@ class CanvasEngine:
         if self.cancelled():
             raise Cancelled()
 
-    def team_chat(self, provider: Any, pid: str, messages: List[Dict[str, Any]], system: str, temperature: float, max_tokens: int) -> str:
-        """Uma chamada de texto da IA com a equipe do Canvas (`settings.canvas`: 1/2/4/8/12/16/20/24/28/32 agentes e esforço Low … Omni): o esforço pede o pensamento ao modelo e dá mais espaço à resposta;
-        com 4+ agentes, cada um escreve notas privadas (em paralelo) que o redator final usa. Com 1 agente e esforço High é a chamada de sempre."""
-        team = teamlib.from_config(self.settings.get("canvas"), self.team_req)
-        teamlib.apply_thinking(provider, team, pid)
-        notes = ""
-        if team.multi:
-            kept, provider.thinking = provider.thinking, "off"
-            try:
-                notes = teamlib.team_notes(provider, messages, team, cancelled=self.cancelled, note=lambda m: self.emit({"type": "note", "node": self._cur, "message": m}))
-            finally:
-                provider.thinking = kept
-            self._check()
-        return str(provider.chat(messages, system=system + teamlib.notes_block(notes), temperature=temperature, max_tokens=int(max_tokens * team.tokens_mult))).strip()
+    def text_chat(self, provider: Any, messages: List[Dict[str, Any]], system: str, temperature: float, max_tokens: int) -> str:
+        """Uma chamada de texto da IA (nós «Texto IA», «Refinar com IA» e a descrição de estilo): uma só chamada, sem equipe de agentes nem níveis de esforço."""
+        return str(provider.chat(messages, system=system, temperature=temperature, max_tokens=int(max_tokens))).strip()
 
     def canvas(self) -> Dict[str, Any]:
         """O canvas atual. Só relê o arquivo quando alguém gravou depois da última leitura (fluxos grandes lidos nó a nó faziam centenas de leituras iguais)."""
@@ -391,7 +378,7 @@ class CanvasEngine:
                                 content += [{"type": "text", "text": "Imagem de estilo geral:"}, {"type": "image", **img}]
                                 sent += 1
                 self._check()
-                ai_text = self.team_chat(provider, pid, [{"role": "user", "content": content}], STYLE_SYSTEM, 0.3, 1200)
+                ai_text = self.text_chat(provider, [{"role": "user", "content": content}], STYLE_SYSTEM, 0.3, 1200)
         except (ProviderError, ValueError) as exc:
             self.emit({"type": "note", "node": node["id"], "message": f"Não foi possível descrever o estilo com a IA ({exc}); usando as informações básicas dos arquivos."})
         parsed = styles_mod.parse(ai_text) if ai_text else {"general": "", "common": "", "consistency": "", "notes": "", "entities": []}
@@ -791,7 +778,7 @@ class CanvasEngine:
         system = LLM_SYSTEM + (f"\n\nEstilo do projeto (siga-o): {sty}" if sty else "")
         user = (p["instruction"].strip() + ("\n\n" if p["instruction"].strip() and source else "") + (f"Texto de entrada:\n{source}" if source else "")).strip()
         self._check()
-        out = self.team_chat(provider, pid, [{"role": "user", "content": user}], system, p["temperature"], 1500)
+        out = self.text_chat(provider, [{"role": "user", "content": user}], system, p["temperature"], 1500)
         return {"assets": [], "text": out}
 
     # ------------------------------------------------------------------ Editor

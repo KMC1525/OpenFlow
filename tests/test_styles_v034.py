@@ -151,11 +151,11 @@ class EngineTests(unittest.TestCase):
         class Prov:
             vision = True
 
-        def fake_chat(provider, pid, messages, system, temp, max_tokens):
+        def fake_chat(provider, messages, system, temp, max_tokens):
             sent["content"], sent["system"] = messages[0]["content"], system
             return "ESTILO GERAL: aquarela com luz dourada\nPERSONAGEM — Maria: ruiva de olhos verdes\nCONSISTÊNCIA: a capa de Maria é sempre azul"   # esqueceu o João e a floresta
 
-        with mock.patch("openflow.canvas.engine.build_provider", return_value=Prov()), mock.patch.object(CanvasEngine, "team_chat", side_effect=fake_chat):
+        with mock.patch("openflow.canvas.engine.build_provider", return_value=Prov()), mock.patch.object(CanvasEngine, "text_chat", side_effect=fake_chat):
             digest = eng.folder_digest(canvas, canvas["nodes"][0], force=True)
         parsed = S.parse(digest)
         by = {e["name"]: e["desc"] for e in parsed["entities"]}

@@ -30,14 +30,13 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
         "temperature": 0.8,
         "max_tokens": 6000,
         "content": "free",  # free (SFW e NSFW, sem filtros do OpenFlow) | sfw
-        "agents": 1, "effort": "high",  # equipe: 1/2/4/8/12/16/20/24/28/32 agentes em paralelo · esforço Low … Omni (ver team.py)
     },
     "media": {
         # provedor padrão de cada capacidade (cada nó pode escolher outro)
         "active": {"image": "demo", "video": "demo", "sound": "demo", "voice": "demo", "stt": "local_hf", "model3d": "demo"},   # transcrição: o Whisper local (precisa de openflow[media])
         "models": {},  # {"local_hf": {"image": "stabilityai/sd-turbo"}} — modelo por provedor e capacidade
     },
-    "canvas": {"template": "text_image", "agents": 1, "effort": "high"},  # equipe dos nós de texto (IA)
+    "canvas": {"template": "text_image"},
     "performance": {"mode": "auto", "idle_unload_min": 10, "device": "auto", "gpus": [], "cpu_pin": True},  # auto | light | balanced | max — veja perf.py
     "server": {"max_upload_mb": 200},
     "storage": {"models_dir": "", "files_dir": ""},   # v0.33: onde guardar os modelos e os arquivos dos projetos ("" = a pasta padrão do OpenFlow; um disco externo, outro disco…)
@@ -93,18 +92,6 @@ def conform(defaults: Any, value: Any) -> Any:
     if isinstance(providers, dict):
         out["providers"] = {k: v for k, v in providers.items() if isinstance(v, dict)}
     return out
-
-
-def _normalize_teams(settings: dict) -> None:
-    """Equipe de cada seção (agentes 1/4 a 32 e esforço Low … Omni): valor fora da lista (edição manual, API) vira o valor aceito mais próximo."""
-    from . import team
-
-    for key in team.SECTIONS:
-        sec = settings.get(key)
-        if not isinstance(sec, dict):
-            continue
-        sec["agents"] = team.normalize_agents(sec.get("agents"))
-        sec["effort"] = team.normalize_effort(sec.get("effort"), team.DEFAULT_EFFORT)
 
 
 # Caminhos (dentro de settings) que contêm segredos e nunca são enviados ao navegador.
@@ -198,7 +185,6 @@ class Store:
         saved = read_json(self.settings_path, {}) or {}
         merged = conform(DEFAULT_SETTINGS, deep_merge(copy.deepcopy(DEFAULT_SETTINGS), saved if isinstance(saved, dict) else {}))
         local_only(merged)
-        _normalize_teams(merged)
         merged["ui"] = normalize_ui(merged.get("ui"))  # valor inválido (API/edição manual) volta ao padrão em vez de quebrar a interface
         return merged
 

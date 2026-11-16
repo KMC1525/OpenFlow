@@ -6,7 +6,6 @@ import { ui } from '../prefs.js';
 import { PREC_HINT } from '../model_labels.js';
 import { checkbox, confirmDialog, field, fmtBytes, h, icon, select, seg, toast } from '../ui.js';
 import { SETTINGS_TABS } from '../labels.js';
-import { AGENT_COUNTS, teamFields } from '../team_ui.js';
 
 // Configurações do OpenFlow: IA de texto, provedores de mídia (imagem, vídeo, som e voz), voz, projetos, aparência e desempenho.
 // Modelos locais (download, VAE, codificadores de texto e mmproj) ficam na tela «Modelos».
@@ -21,10 +20,6 @@ export default async function render(root, ctx) {
   root.replaceChildren(h('div', { class: 'page narrow cfg' }, h('div', { class: 'page-h' }, h('div', null, h('h1', null, t('Configurações')), h('p', null, t('Modelos de IA, provedores de mídia, aparência e desempenho: configure uma vez e use em todos os projetos.')))), tabs, body));
   paintTabs(); await paintBody();
 }
-
-const teamCard = (cfg, id, note, o = {}) => h('div', { class: 'card', id: id + '-card', style: { marginBottom: '16px' } }, h('h3', null, o.title || t('Equipe de agentes')),
-  h('p', { class: 'muted small', style: { marginTop: 0 } }, note || t('Os mesmos 8 níveis de esforço do Code (Low a Omni) e até 32 agentes trabalhando em paralelo em cada etapa, com um Sintetizador que junta o melhor de todos (a partir de 20, os agentes também revisam os rascunhos uns dos outros). Mais agentes e mais esforço = respostas melhores, mas mais tempo e mais chamadas à IA.')),
-  teamFields(cfg, Object.assign({ id }, o)));
 
 const cfgCard = (title, ...kids) => h('div', { class: 'card', style: { marginBottom: '16px' } }, title ? h('h3', null, title) : null, ...kids);
 
@@ -143,11 +138,10 @@ async function appearance() {
 async function projectTab() {
   let tpls = [];
   try { tpls = (await api('/api/project-templates')).templates || []; } catch (e) { /* sem a lista, só o padrão */ }
-  const cv = JSON.parse(JSON.stringify(state.settings.canvas || { template: 'text_image', agents: 1, effort: 'high' }));
+  const cv = JSON.parse(JSON.stringify(state.settings.canvas || { template: 'text_image' }));
   const opts = (tpls.length ? tpls : [{ id: 'text_image', label: 'Texto → Imagem' }]).map((x) => [x.id, t(x.label)]);
   return h('div', null,
     cfgCard(t('Novos projetos'), field(t('Modelo inicial'), select(opts, cv.template, (v) => { cv.template = v; }), t('O modelo que vem marcado ao criar um projeto novo. Os provedores de imagem, vídeo, som e voz ficam em Mídia.'))),
-    teamCard(cv, 'cv', t('Vale para os nós de texto com IA (Texto IA, Refinar texto e a descrição de estilo): o esforço pede o raciocínio ao modelo e, com 4 ou mais agentes, cada um escreve notas que o redator final usa.')),
     saveRow(() => saveSettings({ canvas: cv })));
 }
 

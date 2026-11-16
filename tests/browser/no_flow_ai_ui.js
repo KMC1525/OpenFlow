@@ -1,4 +1,4 @@
-// v0.39 — o «Gerar fluxo com IA» saiu: não há caixa de prompt no canvas, a API não tem a rota, e a equipe (esforço e agentes dos nós de texto com IA) continua na barra do topo e vai junto da execução.
+// v0.39/v0.40 — o «Gerar fluxo com IA» saiu: não há caixa de prompt no canvas, a API não tem a rota, e (v0.40) também não há seletor de equipe/esforço na barra do topo.
 const { run, until } = require('./_common.js');
 run('no_flow_ai', async ({ api, open, check }) => {
   const page = await open({ width: 1500, height: 900 });
@@ -6,7 +6,7 @@ run('no_flow_ai', async ({ api, open, check }) => {
   await page.evaluate((id) => { location.hash = '#/project/' + id; }, cv.id); await page.waitForSelector('.cv-pal .it', { timeout: 15000 }); await page.waitForTimeout(500);
   check('sem-caixa-de-prompt', (await page.locator('#cv-dock, #cv-dock-text, #cv-dock-go').count()) === 0);
   check('sem-texto-gerar-fluxo', !/Gerar fluxo|Generate flow/i.test(await page.locator('.cv-root').innerText()));
-  check('equipe-continua-na-barra-do-topo', (await page.locator('.cv-top #cv-team, .cv-top .team-pick').count()) >= 1);
+  check('sem-seletor-de-equipe-nem-esforco', (await page.locator('.cv-top .team-pick, #cv-team, .team-sel').count()) === 0 && !/Low|Omni|agent/i.test(await page.locator('.cv-top').innerText()));
   const top = await page.locator('.cv-top').boundingBox();
   const run_ = await page.locator('.cv-top .btn.primary').boundingBox();
   check('barra-do-topo-cabe-na-tela', top.width <= 1500 && run_.x + run_.width <= 1500 + 1);

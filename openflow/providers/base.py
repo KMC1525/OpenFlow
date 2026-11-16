@@ -51,8 +51,6 @@ class Provider:
     id = "provider"
     label = "Provedor"
     vision = False
-    #: tempo de pensamento pedido pelo Chat (off|slow|medium|high|xhigh|ultra); só vale onde `thinking.support()` diz que há suporte
-    thinking = "off"
 
     def __init__(self, cfg: Dict[str, Any]):
         self.cfg = cfg
