@@ -262,6 +262,15 @@ class MediaProvider:
     def transcribe(self, data: bytes, filename: str, mime: str, *, language: str = "", model: str = "") -> str:
         raise self._no("stt")
 
+    def transcribe_segments(self, data: bytes, filename: str, mime: str, *, language: str = "", model: str = "", duration: float = 0.0) -> List[Dict[str, Any]]:
+        """A fala com TEMPO (v0.62): [{"start", "end", "text"}…]. Padrão: usa `transcribe` e devolve tudo num único trecho do começo ao fim (`timed_segments` é falso: quem precisa de tempos avisa)."""
+        text = self.transcribe(data, filename, mime, language=language, model=model)
+        return [{"start": 0.0, "end": float(duration or 0.0), "text": text.strip()}] if text.strip() else []
+
+    def timed_segments(self, model: str = "") -> bool:
+        """`transcribe_segments` devolve o tempo de cada trecho (e não um bloco só)?"""
+        return False
+
     def model3d(self, prompt: str, *, image: Optional[Ref] = None, model: str = "", seed: int = 0, fmt: str = "glb", extra: Optional[Dict[str, Any]] = None) -> Media:
         """Um modelo 3D (GLB ou OBJ) a partir de um texto e/ou de uma imagem."""
         raise self._no("model3d")
@@ -998,7 +1007,7 @@ class LocalHFMedia(MediaProvider):
         res = pipe(text, **(extra or {}))
         return Media(_wav_from_array(res["audio"], res["sampling_rate"]), "audio/wav")
 
-    def transcribe(self, data, filename, mime, *, language="", model=""):
+    def _asr(self, data, filename, mime, language, model, long_audio=False):
         model = self._pick("stt", model, "openai/whisper-small")
         (tf,) = _local_import("transformers")
         ready = self._ready(model)
@@ -1007,10 +1016,25 @@ class LocalHFMedia(MediaProvider):
             p = Path(tmp) / ("audio." + (MIME_EXT.get(mime, "") or (filename.rsplit(".", 1)[-1] if "." in filename else "wav")))
             p.write_bytes(data)
             kw: Dict[str, Any] = {"return_timestamps": True}
+            if long_audio:
+                kw["chunk_length_s"] = 30   # áudio mais longo que 30 s: o Whisper o lê em janelas (os tempos de cada trecho continuam corretos)
             if language and language != "auto":
                 kw["generate_kwargs"] = {"language": language.split("-")[0]}
-            res = pipe(str(p), **kw)
-        return str(res.get("text", "")).strip()
+            return pipe(str(p), **kw)
+
+    def transcribe(self, data, filename, mime, *, language="", model=""):
+        return str(self._asr(data, filename, mime, language, model).get("text", "")).strip()
+
+    def transcribe_segments(self, data, filename, mime, *, language="", model="", duration=0.0):
+        from . import subtitles as sub
+
+        res = self._asr(data, filename, mime, language, model, long_audio=True)
+        segs = sub.segments_from_chunks(res.get("chunks") or [], float(duration or 0.0))
+        text = str(res.get("text", "")).strip()
+        return segs or ([sub.seg(0.0, float(duration or 3.0), text)] if text else [])
+
+    def timed_segments(self, model=""):
+        return True
 
     def video(self, prompt, *, duration=5, aspect="16:9", image=None, model="", extra=None, seed=0, long_side=0):
         """Vídeo local exige GPU com bastante memória. Os quadros viram MP4 pelo ffmpeg."""

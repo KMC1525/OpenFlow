@@ -8,7 +8,7 @@ Ligue alguns nós, veja cada resultado no próprio nó e edite o vídeo final se
 
 [Instalar](#instalar) · [Usar](#usar) · [Nós](#nós) · [Modelos](#modelos) · [Configurações](#configurações) · [Seus dados](#seus-dados) · [Desenvolvimento](#desenvolvimento) · [Changelog](CHANGELOG.md) · [English](README.md)
 
-`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Núcleo Rust` · `v0.61.0`
+`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Núcleo Rust` · `v0.62.0`
 
 </div>
 
@@ -53,7 +53,7 @@ Cada nó tem uma saída, entradas tipadas e um resultado visível nele. Os resul
 | **Texto** | Texto · Texto IA · Transcrever · Modelo · Juntar · Editar · Escolher trecho · Refinar com IA · Extrair · Contar |
 | **Imagem** | Imagem (gerar ou **editar**, várias referências) · Redimensionar · Filtros · Texto · Colagem · Quadro · Recortar · Marca d'água · **Ficha de personagem** · **Página de quadrinhos** |
 | **Vídeo** | Vídeo (de texto ou imagem) · Cortar · Juntar · Velocidade · Visual · Imagens em vídeo · Proporção · Repetir · Áudio |
-| **Som** | **Música · Letra · SFX** · Som · Voz · Cortar · Misturar · Efeitos · Áudio do vídeo · Repetir · Tirar silêncios |
+| **Som** | **Música · Letra · SFX · Dublagem · Transcrição · Legendas** · Som · Voz · Cortar · Misturar · Efeitos · Áudio do vídeo · Repetir · Tirar silêncios |
 | **Input** | Mídia · Style Prompt · **Style Folder** · Cor · Silêncio · Link · Sorteio de texto · Data · Padrão |
 | **3D** | **Modelo 3D** (texto ou imagem → GLB/OBJ; visualizador no nó) · **Textura 3D** (imagem ou padrão pronto, com projeção) · **Esqueleto 3D** (esqueleto e pele automáticos) · **Animação 3D** (girar, pular, ondular, andar, acenar…; toca no visualizador) |
 | **Output** | **Editor** (trilhas, dividir/cortar, fades, legendas, MP4) · Vídeo final · GIF · Áudio · Imagem · Miniatura · Galeria |

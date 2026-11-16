@@ -32,6 +32,9 @@ NODE_TYPES: Dict[str, Dict[str, Any]] = {
     "sound": {"label": "Som", "icon": "audio", "out": "audio", "ins": [("prompt", "Prompt", ["text"], True), ("style", "Estilo", ["style"], True)]},
     "music": {"label": "Música", "icon": "audio", "out": "audio", "ins": [("prompt", "Descrição", ["text"], True), ("lyrics", "Letra", ["text"], True), ("style", "Estilo", ["style"], True)]},
     "sfx": {"label": "SFX", "icon": "audio", "out": "audio", "ins": [("prompt", "Descrição", ["text"], True)]},
+    "dub": {"label": "Dublagem", "icon": "mic", "out": "media", "ins": [("media", "Vídeo ou áudio", ["video", "audio"], False), ("script", "Roteiro", ["text"], True)]},
+    "transcript": {"label": "Transcrição", "icon": "doc", "out": "text", "ins": [("media", "Vídeo ou áudio", ["video", "audio"], False)]},
+    "sub": {"label": "Legendas", "icon": "doc", "out": "text", "ins": [("media", "Vídeo ou áudio", ["video", "audio"], False), ("text", "Texto ou legendas", ["text"], True)]},
     "voice": {"label": "Voz", "icon": "mic", "out": "audio", "ins": [("text", "Fala", ["text"], True), ("style", "Estilo", ["style"], True)]},
     "model3d": {"label": "Modelo 3D", "icon": "cube", "out": "model3d", "ins": [("prompt", "Prompt", ["text"], True), ("image", "Imagem", ["image", "video"], False), ("style", "Estilo", ["style"], True)]},
     "transcribe": {"label": "Transcrever", "icon": "doc", "out": "text", "ins": [("audio", "Áudio/vídeo", ["audio", "video"], False)]},
@@ -41,13 +44,13 @@ NODE_TYPES: Dict[str, Dict[str, Any]] = {
 }
 for _k, _v in nodes_ext.SPECS.items():  # v0.11: 5 nós novos por tipo (nodes_ext.py)
     NODE_TYPES[_k] = {"label": _v["label"], "icon": _v["icon"], "out": _v["out"], "ins": _v["ins"]}
-GENERATORS = ("llm", "image", "video", "sound", "music", "sfx", "voice", "transcribe", "model3d")  # nós que chamam um modelo
+GENERATORS = ("llm", "image", "video", "sound", "music", "sfx", "voice", "dub", "transcript", "sub", "transcribe", "model3d")  # nós que chamam um modelo
 EXT_TYPES = tuple(nodes_ext.SPECS)  # nós novos: rodam ffmpeg/Python (só «Refinar com IA» usa o modelo de texto)
 # ordem e grupos da paleta: Texto, Imagem, Vídeo, Som, Input, Output
 PALETTE = [("Texto", ["text", "llm", "transcribe", "text_template", "text_join", "text_edit", "text_pick", "text_refine", "text_extract", "text_count"]),
            ("Imagem", ["image", "img_resize", "img_filter", "img_text", "img_collage", "img_frame", "img_crop", "img_watermark", "char_sheet", "comic_page"]),
            ("Vídeo", ["video", "vid_trim", "vid_join", "vid_speed", "vid_look", "vid_slideshow", "vid_reframe", "vid_loop", "vid_audio"]),
-           ("Som", ["music", "lyrics", "sfx", "sound", "voice", "aud_trim", "aud_mix", "aud_fx", "aud_from_video", "aud_loop", "aud_silence_cut"]),
+           ("Som", ["music", "lyrics", "sfx", "sound", "voice", "dub", "transcript", "sub", "aud_trim", "aud_mix", "aud_fx", "aud_from_video", "aud_loop", "aud_silence_cut"]),
            ("Input", ["upload", "style_prompt", "style_folder", "in_color", "in_silence", "in_url", "in_random", "in_vars", "in_pattern"]),
            ("3D", ["model3d", "tex3d", "rig3d", "anim3d"]),
            ("Output", ["editor", "out_export", "out_gif", "out_audio", "out_image", "out_thumbnail", "out_gallery"])]
@@ -211,6 +214,26 @@ def _resolution(v: Any) -> int:
     return n if n in VIDEO_RESOLUTIONS else 0
 
 
+SPEECH_LANGS = ("pt", "en", "es", "fr", "it", "de", "ja", "ko", "zh", "ru")   # idiomas oferecidos nos nós Transcrição, Legendas e Dublagem (v0.62)
+
+
+def _lang(v: Any, first: str, extra: Tuple[str, ...] = ()) -> str:
+    return v if v in SPEECH_LANGS or v in extra else first
+
+
+def _speech_params(ntype: str, p: Dict[str, Any], prov: str, model: str) -> Dict[str, Any]:
+    """Parâmetros dos nós de fala (v0.62): Transcrição, Legendas e Dublagem."""
+    if ntype == "transcript":
+        return {"language": _lang(p.get("language"), "auto", ("auto",)), "format": p.get("format") if p.get("format") in ("plain", "timestamps", "paragraphs") else "plain", "provider": prov, "model": model}
+    if ntype == "sub":
+        return {"format": "vtt" if p.get("format") == "vtt" else "srt", "language": _lang(p.get("language"), "auto", ("auto",)), "translate_to": _lang(p.get("translate_to"), "", ("",)), "max_chars": int(num(p.get("max_chars"), 42, 20, 80)),
+                "lines": int(num(p.get("lines"), 2, 1, 3)), "max_seconds": round(num(p.get("max_seconds"), 6, 1, 15), 1), "offset": round(num(p.get("offset"), 0, -30, 30), 2), "duration": int(num(p.get("duration"), 0, 0, 36000)),
+                "provider": prov, "model": model}
+    return {"language": _lang(p.get("language"), "en", ("keep",)), "source_language": _lang(p.get("source_language"), "auto", ("auto",)), "voice": text(p.get("voice"), "", 80), "speed": round(num(p.get("speed"), 1, 0.5, 2), 2),
+            "mix": "duck" if p.get("mix") == "duck" else "replace", "original_volume": round(num(p.get("original_volume"), 0.15, 0, 1), 2), "fit": p.get("fit", True) is not False, "provider": prov, "model": model,
+            "extra": _json_dict(p.get("extra"))}
+
+
 def normalize_params(ntype: str, p: Any) -> Dict[str, Any]:
     p = p if isinstance(p, dict) else {}
     prov = text(p.get("provider"), "", 40)
@@ -240,6 +263,8 @@ def normalize_params(ntype: str, p: Any) -> Dict[str, Any]:
     if ntype == "sfx":
         return {"prompt": text(p.get("prompt"), "", 2000), "duration": int(num(p.get("duration"), 4, 1, 30)), "variations": int(num(p.get("variations"), 1, 1, 4)), "seed": int(num(p.get("seed"), 0, 0, 2 ** 31)),
                 "provider": prov, "model": model, "extra": _json_dict(p.get("extra"))}
+    if ntype in ("transcript", "sub", "dub"):
+        return _speech_params(ntype, p, prov, model)
     if ntype == "voice":
         return {"text": text(p.get("text"), "", 8000), "voice": text(p.get("voice"), "", 80), "speed": round(num(p.get("speed"), 1, 0.5, 2), 2), "provider": prov, "model": model,
                 "extra": _json_dict(p.get("extra")), "ignore_global_styles": bool(p.get("ignore_global_styles"))}
