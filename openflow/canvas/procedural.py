@@ -331,15 +331,19 @@ _BABBLE_MAX = 3000   # caracteres falados (o balbucio é gerado em Python puro: 
 VOWELS = {"a": (800, 1200), "e": (500, 1800), "i": (320, 2300), "o": (500, 900), "u": (330, 800)}
 
 
-def babble(text: str, speed: float = 1.0, seed: int = 0) -> bytes:
-    """Voz de DEMONSTRAÇÃO: um balbucio que acompanha o ritmo do texto (não é fala real; use um provedor de voz para isso)."""
-    return wav_bytes(_babble_samples(text, speed, seed))
+def babble(text: str, speed: float = 1.0, seed: int = 0, style: str = "") -> bytes:
+    """Voz de DEMONSTRAÇÃO: um balbucio que acompanha o ritmo do texto (não é fala real; use um provedor de voz para isso). `style` (v0.64): a descrição da voz — «grave», «feminina», «rápida», «calma»,
+    «sussurrando»… — muda o tom, o ritmo e o volume do balbucio (só isso: o demo não imita sotaque, idade nem emoção)."""
+    return wav_bytes(_babble_samples(text, speed, seed, style))
 
 
-def _babble_samples(text: str, speed: float = 1.0, seed: int = 0) -> List[float]:
+def _babble_samples(text: str, speed: float = 1.0, seed: int = 0, style: str = "") -> List[float]:
+    from . import voicestyle
+
+    tr = voicestyle.traits(style) if style else {"pitch": 1.0, "rate": 1.0, "gain": 1.0}
     rnd = random.Random(seed_of("voice", text, seed))
-    base = 150 + (seed_of("pitch", text[:12], seed) % 90)
-    sylls = max(1.0, speed)
+    base = (150 + (seed_of("pitch", text[:12], seed) % 90)) * tr["pitch"]
+    sylls = max(1.0, speed) * tr["rate"]
     out: List[float] = []
     for ch in text.lower()[:_BABBLE_MAX]:
         if ch in VOWELS or ch in "áàâãéêíóôõúü":
@@ -368,6 +372,8 @@ def _babble_samples(text: str, speed: float = 1.0, seed: int = 0) -> List[float]
             out += [0.0] * int(SR * 0.14 / sylls)
         elif ch.isspace():
             out += [0.0] * int(SR * 0.05 / sylls)
+    if tr["gain"] != 1.0:
+        out = [v * tr["gain"] for v in out]
     return out or [0.0] * int(SR * 0.3)
 
 

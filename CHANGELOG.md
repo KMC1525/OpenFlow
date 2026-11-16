@@ -2,6 +2,21 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.64.0] — 2026-11-16
+
+### Novo — Estilo de voz: «Como é a voz» no nó Voz
+No nó **Voz**, logo **abaixo do texto que será falado**, há uma caixa nova: **«Como é a voz (opcional)»** — descreva a voz com palavras livres (*«grave e calma, de narrador»*, *«feminina, jovem e animada»*, *«sussurrando»*). A mesma caixa existe na **Dublagem**, para a voz do próprio nó. Em vozes ligadas à Dublagem (v0.63), cada nó Voz leva a descrição do seu personagem.
+- **Como vai ao modelo:** a descrição segue no pedido de estilo da voz (`instructions` da API dos provedores) **antes** do Style Prompt do projeto, se houver. Ela entra no **cache**: mudar a descrição refaz o nó Voz, e, numa Dublagem, a descrição de cada voz ligada refaz a dublagem.
+- **Voz de demonstração (offline):** a descrição muda o **tom** (grave, masculina, velha → mais baixo; aguda, feminina, criança → mais alto), o **ritmo** (rápida, animada → mais rápida; lenta, calma → mais lenta) e o **volume** (sussurrando, suave → mais baixo), em português e em inglês, sem se importar com acentos ou maiúsculas. Sem palavras que ela reconheça, a voz sai **idêntica** à da versão anterior (conferido byte a byte).
+- **Orpheus (local):** a descrição só vale pelo **gênero** (feminina/masculina): com o campo «Voz» **vazio**, o OpenFlow escolhe uma das vozes do modelo que combina (feminina → `tara`, masculina → `leo`); a voz escrita no campo «Voz» sempre vence.
+- **Avisos, em vez de ignorar em silêncio:** um modelo que **não lê** a descrição (hoje, todos os outros modelos de voz locais) diz isso no resultado do nó — «… não lê a descrição da voz: ela foi ignorada (a voz vem do campo «Voz»)». Na Dublagem, o mesmo aviso aparece uma vez por modelo, só para as vozes que têm descrição.
+
+### Ainda não verificado
+- **Nenhum modelo de voz de verdade leu a descrição.** Os modelos de voz que o OpenFlow oferece hoje (Bark, MMS-TTS, Orpheus, CSM) **não têm** um campo de descrição de voz: só a voz de demonstração e a escolha de voz do Orpheus por gênero fazem algo com ela; os outros avisam que a ignoraram. Modelos feitos para isso (que aceitam «descreva a voz») e provedores com `instructions` **não estão integrados**; a caixa e o caminho até o provedor já estão prontos para eles.
+- Quais vozes do Orpheus são femininas (`tara`, `leah`, `jess`, `mia`, `zoe`) e masculinas (`leo`, `dan`, `zac`) vem da documentação do modelo e **não foi conferido ouvindo o modelo**; a escolha automática não leu o resultado.
+- Na demonstração a descrição é só uma lista de palavras (tom, ritmo, volume): ela **não imita sotaque, idade nem emoção**, e «mais alto/gritando» não existe (o volume da demonstração já sai no máximo).
+- A **velocidade** do campo «Velocidade» continua sem efeito nos modelos de voz locais (só a voz de demonstração a usa) — isso já era assim e não mudou nesta versão.
+
 ## [0.63.0] — 2026-11-16
 
 ### Novo — Vozes customizadas na Dublagem: um nó Voz para cada personagem

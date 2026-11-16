@@ -2,6 +2,21 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.64.0] — 2026-11-16
+
+### New — Voice style: «What the voice is like» on the Voice node
+On the **Voice** node, right **below the text that will be spoken**, there is a new box: **«What the voice is like (optional)»** — describe the voice in free words (*«deep and calm, like a narrator»*, *«female, young and upbeat»*, *«whispering»*). The same box exists on **Dubbing**, for the node's own voice. For voices connected to Dubbing (v0.63), each Voice node carries its character's description.
+- **How it reaches the model:** the description goes in the voice's style request (`instructions` of the provider API) **before** the project's Style Prompt, if any. It takes part in the **cache**: changing the description redoes the Voice node, and, in a Dubbing, the description of each connected voice redoes the dub.
+- **Demo voice (offline):** the description changes the **pitch** (deep, male, old → lower; high, female, child → higher), the **pace** (fast, upbeat → faster; slow, calm → slower) and the **volume** (whispering, soft → quieter), in Portuguese and English, ignoring accents and case. With no words it recognizes, the voice comes out **identical** to the previous version (checked byte by byte).
+- **Orpheus (local):** the description only counts for the **gender** (female/male): with the «Voice» field **empty**, OpenFlow picks one of the model's voices that fits (female → `tara`, male → `leo`); a voice typed in the «Voice» field always wins.
+- **Warnings, instead of silently ignoring:** a model that **does not read** the description (today, all the other local voice models) says so in the node's result — «… does not read the voice description: it was ignored (the voice comes from the node's «Voice» field)». In Dubbing, the same warning shows once per model, only for voices that have a description.
+
+### Not verified yet
+- **No real voice model read the description.** The voice models OpenFlow offers today (Bark, MMS-TTS, Orpheus, CSM) **have no** voice-description field: only the demo voice and the Orpheus gender-based voice pick do anything with it; the others warn that they ignored it. Models built for this (that accept «describe the voice») and providers with `instructions` **are not integrated**; the box and the path to the provider are ready for them.
+- Which Orpheus voices are female (`tara`, `leah`, `jess`, `mia`, `zoe`) and male (`leo`, `dan`, `zac`) comes from the model's documentation and **was not checked by listening to the model**; the automatic pick did not read the result.
+- In the demo the description is just a list of words (pitch, pace, volume): it **does not imitate accent, age or emotion**, and «louder/shouting» does not exist (the demo's volume already comes out at maximum).
+- The «Speed» field still has no effect on local voice models (only the demo voice uses it) — this was already so and did not change in this version.
+
 ## [0.63.0] — 2026-11-16
 
 ### New — Custom voices in Dubbing: a Voice node for each character

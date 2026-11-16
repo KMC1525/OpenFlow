@@ -31,6 +31,7 @@ from . import styles as styles_mod
 from . import upsample
 from . import nodes_ext
 from . import speech
+from . import voicestyle
 from .schema import EXT_TYPES, GENERATORS, NODE_TYPES, normalize_result, style_files
 
 RUNNABLE = GENERATORS + ("editor",) + EXT_TYPES
@@ -774,7 +775,11 @@ class CanvasEngine:
                 if self._feeds_dub(canvas, node):   # v0.63: ligado à Dublagem, o nó Voz sem texto só define a voz: não há o que gerar (e não é erro)
                     return {"assets": [], "text": "", "warnings": ["Este nó Voz só define a voz da Dublagem a que está ligado (sem texto, ele não gera áudio)."]}
                 raise ValueError("O nó Voz precisa de um texto para falar.")
-            m = prov.voice(speech, voice=p["voice"], speed=p["speed"], model=p["model"], extra=p["extra"], instructions=style.render(speech))
+            if p["voice_style"].strip():   # v0.64: «Como é a voz»: o modelo que não a lê por inteiro avisa (em vez de ignorar em silêncio)
+                note = prov.voice_style_note(p["model"] or model)
+                if note:
+                    warnings.append(note)
+            m = prov.voice(speech, voice=p["voice"], speed=p["speed"], model=p["model"], extra=p["extra"], instructions=voicestyle.compose(p["voice_style"], style.render(speech)))
             return {"assets": [self._save(node, m, "audio", self._title(node, "Voz"), speech, pid, model)], "text": "", "warnings": warnings}
         raise ValueError(f"Tipo de nó sem gerador: {t}")
 

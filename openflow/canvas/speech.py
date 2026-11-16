@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from ..providers import ProviderError, build_provider
 from . import subtitles as sub
+from . import voicestyle
 from .media import MIME_EXT, build_media, media_config, pick_provider
 from .nodes_ext import _aud_args, _ff, _file_duration, _need_ffmpeg, _save_file
 
@@ -266,7 +267,7 @@ def voice_profiles(eng: Any, canvas: Dict[str, Any], node: Dict[str, Any], warni
         n = len(out) + 1
         aliases = [a for a in (title, str(vp.get("voice") or "").strip(), f"Voz {n}") if a]
         out.append({"id": vn["id"], "name": aliases[0], "aliases": aliases, "pid": pid, "model": vp.get("model") or media_config(eng.settings, pid)["models"].get("voice", ""), "model_override": vp.get("model", ""),
-                    "voice": vp.get("voice", ""), "speed": vp.get("speed", 1.0), "extra": vp.get("extra") or {}, "style": eng.styles_for(canvas, vn), "node": vn})
+                    "voice": vp.get("voice", ""), "voice_style": str(vp.get("voice_style") or ""), "speed": vp.get("speed", 1.0), "extra": vp.get("extra") or {}, "style": eng.styles_for(canvas, vn), "node": vn})
     return out
 
 
@@ -281,7 +282,7 @@ def profile_signature(eng: Any, canvas: Dict[str, Any], node: Dict[str, Any]) ->
             continue
         vp = vn["params"]
         pid = pick_provider(eng.settings, "voice", vp.get("provider", ""))
-        sig.append([vn["id"], vn.get("title", ""), pid, vp.get("model") or media_config(eng.settings, pid)["models"].get("voice", ""), vp.get("voice", ""), vp.get("speed", 1.0),
+        sig.append([vn["id"], vn.get("title", ""), pid, vp.get("model") or media_config(eng.settings, pid)["models"].get("voice", ""), vp.get("voice", ""), vp.get("voice_style", ""), vp.get("speed", 1.0),
                     json.dumps(vp.get("extra") or {}, sort_keys=True), eng.styles_for(canvas, vn, need_digest=False).signature(), eng.style_ids(canvas, vn)])
     return sig
 
@@ -325,7 +326,7 @@ def run_dub(eng: Any, canvas: Dict[str, Any], node: Dict[str, Any]) -> Dict[str,
         warnings += extra_warn
     else:
         _prov, own_pid, _model = eng._provider(node)
-        profiles = [{"name": "", "aliases": [], "pid": own_pid, "model_override": p["model"], "voice": p["voice"], "speed": p["speed"], "extra": p["extra"], "style": None, "prov": _prov}]
+        profiles = [{"name": "", "aliases": [], "pid": own_pid, "model": _model, "model_override": p["model"], "voice": p["voice"], "voice_style": p["voice_style"], "speed": p["speed"], "extra": p["extra"], "style": None, "prov": _prov}]
         who = [(0, s["text"]) for s in segs]
     clips: List[Tuple[Dict[str, Any], Any]] = []
     spoken: List[Dict[str, Any]] = []
@@ -336,12 +337,19 @@ def run_dub(eng: Any, canvas: Dict[str, Any], node: Dict[str, Any]) -> Dict[str,
         eng.ctl.note(f"Dublando {i + 1} de {len(segs)}…")
         v = profiles[vi]
         prov = v.get("prov") or built.setdefault(v["pid"], build_media(eng.settings, v["pid"], eng.ctl, eng.store.models_dir))
-        instructions = v["style"].render(line) if v.get("style") is not None else ""
+        instructions = voicestyle.compose(v.get("voice_style", ""), v["style"].render(line) if v.get("style") is not None else "")
         clips.append((s, prov.voice(line[:MAX_SPEECH], voice=v["voice"], speed=v["speed"], model=v["model_override"], extra=v["extra"], instructions=instructions)))
         spoken.append(sub.seg(s["start"], s["end"], (v["name"] + ": " if len(profiles) > 1 and v["name"] else "") + line))
         counts[vi] += 1
     if len(profiles) > 1:
         warnings.append("Vozes usadas: " + ", ".join(f"{v['name']} ({n} fala{'s' if n != 1 else ''})" for v, n in zip(profiles, counts) if n) + ".")
+    noted: List[str] = []
+    for v, n in zip(profiles, counts):   # «Como é a voz» (v0.64): o modelo que não a lê por inteiro avisa
+        if n and str(v.get("voice_style") or "").strip():
+            note = (v.get("prov") or built.get(v["pid"])).voice_style_note(v.get("model_override") or v.get("model") or "")
+            if note and note not in noted:
+                noted.append(note)
+    warnings += noted
     if any(v["pid"] == "demo" for v, n in zip(profiles, counts) if n):
         warnings.append("Voz de demonstração: um balbucio no ritmo do texto, não fala de verdade. Escolha um modelo de voz em Configuração → Mídia para uma dublagem real.")
     track, fitted, late = place(eng, clips, duration, p["fit"], warnings)

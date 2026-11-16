@@ -259,6 +259,10 @@ class MediaProvider:
     def voice(self, text: str, *, voice: str = "", speed: float = 1.0, model: str = "", extra: Optional[Dict[str, Any]] = None, instructions: str = "") -> Media:
         raise self._no("voice")
 
+    def voice_style_note(self, model: str = "") -> str:
+        """O que dizer ao usuário quando ele descreve a voz («Como é a voz») e este modelo não a lê por inteiro; vazio = a descrição vale (v0.64). O padrão: o modelo ignora a descrição."""
+        return f"{self.label}{' (' + model + ')' if model else ''} não lê a descrição da voz: ela foi ignorada (a voz vem do campo «Voz» do nó)."
+
     def transcribe(self, data: bytes, filename: str, mime: str, *, language: str = "", model: str = "") -> str:
         raise self._no("stt")
 
@@ -315,7 +319,10 @@ class DemoMedia(MediaProvider):
         return True   # a demonstração «canta» a letra num balbucio rítmico (não é canto de verdade)
 
     def voice(self, text, *, voice="", speed=1.0, model="", extra=None, instructions=""):
-        return Media(proc.babble(text, speed, proc.seed_of(voice)), "audio/wav", {"note": "demo"})
+        return Media(proc.babble(text, speed, proc.seed_of(voice), instructions), "audio/wav", {"note": "demo"})
+
+    def voice_style_note(self, model=""):
+        return ""   # a demonstração lê a descrição: muda o tom, o ritmo e o volume do balbucio
 
     def model3d(self, prompt, *, image=None, model="", seed=0, fmt="glb", extra=None):
         mix = proc.seed_of(len(image[0])) if image else 0   # com imagem, o resultado muda (não reconstrói de verdade)
@@ -914,7 +921,7 @@ class LocalHFMedia(MediaProvider):
         res = pipe(prompt, forward_params={"do_sample": True, "max_new_tokens": int(max(1, min(30, duration)) * 50), **(extra or {})})
         return Media(_wav_from_array(res["audio"], res["sampling_rate"]), "audio/wav")
 
-    def _voice_orpheus(self, text: str, voice: str, model: str, extra: Optional[Dict[str, Any]]) -> Media:
+    def _voice_orpheus(self, text: str, voice: str, model: str, extra: Optional[Dict[str, Any]], description: str = "") -> Media:
         """Orpheus (unsloth/orpheus-3b-0.1-ft…): o LLM gera tokens de áudio e o SNAC (`hubertsiuzdak/snac_24khz`, baixado em Modelos locais) os decodifica em 24 kHz."""
         from . import localmodels as lm
 
@@ -946,8 +953,9 @@ class LocalHFMedia(MediaProvider):
             return tok, lm_, codec
 
         tok, lm_, codec = _local_load("voice", model, load)
-        name = (voice or "tara").strip().lower()
-        prompt = f"{name if name in ORPHEUS_VOICES else 'tara'}: {text}"
+        from . import voicestyle
+
+        prompt = f"{voicestyle.orpheus_voice(voice, description)}: {text}"
         ids = tok(prompt, return_tensors="pt").input_ids
         ids = torch.cat([torch.tensor([[_ORPHEUS_START]]), ids, torch.tensor([[_ORPHEUS_END_TEXT, _ORPHEUS_END_HUMAN]])], dim=1).to(dev)
         self.ctl.note("Sintetizando voz com o Orpheus (local)…")
@@ -997,7 +1005,7 @@ class LocalHFMedia(MediaProvider):
     def voice(self, text, *, voice="", speed=1.0, model="", extra=None, instructions=""):
         model = self._pick("voice", model, "suno/bark-small")
         if re.search(r"orpheus", model, re.I):
-            return self._voice_orpheus(text, voice, model, extra)
+            return self._voice_orpheus(text, voice, model, extra, instructions)
         if re.search(r"(^|/)csm-1b", model, re.I):
             return self._voice_csm(text, voice, model, extra)
         (tf,) = _local_import("transformers")
@@ -1006,6 +1014,11 @@ class LocalHFMedia(MediaProvider):
         self.ctl.note("Sintetizando voz localmente…")
         res = pipe(text, **(extra or {}))
         return Media(_wav_from_array(res["audio"], res["sampling_rate"]), "audio/wav")
+
+    def voice_style_note(self, model=""):
+        if re.search(r"orpheus", self.model_for("voice", model) or model or "", re.I):
+            return "O Orpheus só usa da descrição da voz o gênero (feminina ou masculina), para escolher uma das vozes dele quando o campo «Voz» está vazio; o resto da descrição foi ignorado."
+        return super().voice_style_note(self.model_for("voice", model) or model)
 
     def _asr(self, data, filename, mime, language, model, long_audio=False):
         model = self._pick("stt", model, "openai/whisper-small")
