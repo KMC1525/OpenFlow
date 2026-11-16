@@ -16,7 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from . import __version__, hf, native, team
+from . import __version__, hf, native
 from .jobs import HttpError, Job, JobManager  # noqa: F401  (reexportados)
 from .providers import ProviderError, build_provider, describe_presets
 from .routes_library import LibraryRoutes
@@ -120,7 +120,6 @@ class App:
         a = self.add
         a("GET", r"/api/state", self.r_state)
         a("GET", r"/api/settings", self.r_settings_get)
-        a("GET", r"/api/team", self.r_team)
         a("PUT", r"/api/settings", self.r_settings_put)
         a("GET", r"/api/settings/export", self.r_settings_export)
         a("POST", r"/api/settings/import", self.r_settings_import)
@@ -164,10 +163,6 @@ class App:
             "presets": describe_presets(), "settings": self.store.public_settings(),
             "configured": [pid for pid in s["providers"] if s["providers"][pid].get("api_key") or s["providers"][pid].get("model") or s["providers"][pid].get("base_url")],
         })
-
-    def r_team(self, req: "Request") -> None:
-        """As opções de equipe: 1/2/4/8/12/16/20/24/28/32 agentes e os oito níveis de esforço (Low … Omni)."""
-        req.json(team.options())
 
     def r_settings_get(self, req: "Request") -> None:
         req.json(self.store.public_settings())

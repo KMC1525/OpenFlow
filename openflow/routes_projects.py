@@ -11,7 +11,6 @@ from typing import Any, Dict
 
 from .canvas.engine import CanvasEngine
 from . import archives
-from . import team as teamlib
 from .canvas.media import MEDIA_PRESETS, MIME_EXT, build_media, describe_media_presets, sniff_mime
 from .canvas.schema import ASPECTS, CAPS, NODE_TYPES, SIZES, TEMPLATES, VIDEO_RESOLUTIONS, describe_types, find_folder, normalize_params, normalize_result
 from .jobs import HttpError, Job
@@ -180,10 +179,9 @@ class ProjectRoutes:
             raise HttpError(409, json.dumps({"job_id": running.id}))
         nodes = [text(n, "", 24) for n in (body.get("nodes") or [])][:200] if isinstance(body.get("nodes"), list) else None
         force = bool(body.get("force"))
-        team = teamlib.request_team(body)   # equipe escolhida na barra do editor (esforço e agentes dos nós de texto com IA)
 
         def work(job: Job) -> None:
-            CanvasEngine(self.store, cid, job.emit, lambda: job.cancelled, team=team).run(nodes or None, force)
+            CanvasEngine(self.store, cid, job.emit, lambda: job.cancelled).run(nodes or None, force)
 
         job = self.app.jobs.start(f"canvas:{cid}", work)
         req.json({"job_id": job.id})

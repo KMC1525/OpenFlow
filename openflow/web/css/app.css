@@ -290,13 +290,11 @@ input:focus-visible,select:focus-visible,textarea:focus-visible{outline-offset:0
 .cfg-jumps{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;margin-top:10px}
 .cfg-jump{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;background:var(--panel2,var(--panel));border:1px solid var(--line);border-radius:10px;padding:10px 12px;cursor:pointer;color:var(--text)}
 .cfg-jump:hover{border-color:var(--strong)}.cfg-jump span{font-size:12px;color:var(--muted)}
-.team-pick{gap:6px;max-width:none}.team-pick select{max-width:none;padding-right:16px;text-overflow:clip;box-sizing:content-box}.team-pick select+select{border-left:1px solid var(--line2);padding-left:8px}
 
 
 /* a barra de ferramentas do compositor fica numa linha só: os seletores são compactos e, em caixas estreitas, o Computer Use inativo vira só o ícone */
 .composer{container-type:inline-size}
-.team-pick select+svg{margin-left:2px}.team-pick select+select{border-left:0;padding-left:0}
-@container (min-width:560px){.composer .tools{flex-wrap:nowrap}.composer .tools>.tool{flex-shrink:0}.composer .tools .rt{flex:1 1 auto;justify-content:flex-end}.composer .tools .rt .tool.mbtn{flex:0 1 auto;min-width:0;max-width:220px}.composer .tools .rt .tool.mbtn .mlabel{min-width:0}.composer .tools .rt .team-pick,.composer .tools .rt .send{flex-shrink:0}}
+@container (min-width:560px){.composer .tools{flex-wrap:nowrap}.composer .tools>.tool{flex-shrink:0}.composer .tools .rt{flex:1 1 auto;justify-content:flex-end}.composer .tools .rt .tool.mbtn{flex:0 1 auto;min-width:0;max-width:220px}.composer .tools .rt .tool.mbtn .mlabel{min-width:0}.composer .tools .rt .send{flex-shrink:0}}
 @container (min-width:560px) and (max-width:760px){.composer .tools .rt .tool.mbtn{min-width:104px}}
 @container (min-width:560px){.composer .tools .rt .tool.mbtn{min-width:104px}}
 @container (max-width:760px){.composer .tools>.tool[title] .tl{display:none}.composer .tools>.tool:has(>.tl){padding:6px 10px}}

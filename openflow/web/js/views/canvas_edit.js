@@ -1,7 +1,6 @@
 import { api, events } from '../api.js';
 import { t } from '../i18n.js';
 import { go, state } from '../main.js';
-import { teamPicker } from '../team_ui.js';
 import { confirmDialog, debounce, fill, h, icon, popover, toast } from '../ui.js';
 import { modelSearchBar } from './canvas_hub.js';
 import { modelViewer } from '../model_viewer.js';
@@ -68,7 +67,6 @@ export default async function render(root, ctx, cid) {
   // ---------------------------------------------------------------------------------------------- estrutura
   const nameInput = h('input', { class: 'nm', value: cv.name, title: t('Nome do projeto'), 'aria-label': t('Nome do projeto'), onchange: async () => { try { await api(`/api/projects/${cid}/meta`, { method: 'POST', body: { name: nameInput.value } }); S.cv.name = nameInput.value; } catch (e) { toast(e.message, 'err'); } } });
   const runBtn = h('button', { class: 'btn primary', title: t('Executa o que está desatualizado (o resto vem do cache)'), onclick: () => run(null, false) }, icon('play', 14), t('Executar tudo'));
-  const team = teamPicker(state.settings && state.settings.canvas, null, { id: 'cv-team' });   // equipe dos nós de texto com IA (esforço Low … Omni e 1/2/4/8/12/16/20/24/28/32 agentes)
   const cancelBtn = h('button', { class: 'btn danger hidden', onclick: async () => { if (S.job) await api('/api/jobs/' + S.job + '/cancel', { method: 'POST' }).catch(() => {}); } }, icon('stop', 14), t('Cancelar'));
   const assetsBtn = h('button', { class: 'btn', onclick: () => { S.assetsOpen = !S.assetsOpen; localStorage.setItem('openflow.cv.assets', S.assetsOpen ? '1' : '0'); paintAssets(); } }, icon('image', 14), h('span', null, t('Arquivos')));
   // barra de pesquisa de modelos (Hugging Face) no topo: procura, escolhe a quantização, baixa e usa no nó selecionado
@@ -79,7 +77,7 @@ export default async function render(root, ctx, cid) {
     h('button', { class: 'btn ghost', title: t('Provedores de mídia'), onclick: () => c.openConfig() }, icon('config', 14), t('Provedores')),
     assetsBtn,
     h('a', { class: 'btn', href: `/api/projects/${cid}/download`, title: t('Baixa o projeto e todos os arquivos (.zip)') }, icon('download', 14), t('Baixar')),
-    team.el, runBtn, cancelBtn);
+    runBtn, cancelBtn);
 
   const world = h('div', { class: 'cv-world' });
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -427,7 +425,7 @@ export default async function render(root, ctx, cid) {
     if (S.job) return;
     await save();
     let r;
-    try { r = await api(`/api/projects/${cid}/run`, { method: 'POST', body: { nodes: ids, force: !!force, team: team.get() } }); }
+    try { r = await api(`/api/projects/${cid}/run`, { method: 'POST', body: { nodes: ids, force: !!force } }); }
     catch (e) { if (e.status === 409) { try { r = JSON.parse(e.message); } catch (er) { /* ignore */ } } if (!r) return toast(e.message, 'err'); }
     attach(r.job_id);
   }

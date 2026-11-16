@@ -2,6 +2,17 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.40.0] — 2026-11-16
+
+### Removed — ASTA's agents, multi-agents and effort levels (Low … Omni)
+- Gone: the **agent table** (1 to 32 parallel agents, private notes, peer review and a Synthesizer — `team.py`), the **effort levels** Low · Medium · High · Extra · Mega · Max · Ultra · Omni (`efforts.py`) and the model "thinking time" request (`providers/thinking.py`), along with the `GET /api/team` route, the team picker in the canvas bar, the "Agent team" card in Settings → Project, the `team` field in the run request and their texts, styles and tests.
+- The AI text nodes ("AI text", "Refine with AI") and the style description now make **a single call** to the model, with the node's fixed answer size (no effort multiplier).
+- Old settings with `agents`/`effort` still load (the keys are ignored).
+
+### Not verified yet
+- I kept the **Rust core planner** (`plan_agents`): it now only decides how many local text models can stay loaded in memory at once and the priority queue of the embedded model; the core ABI and the Rust code were not touched (nothing was recompiled). If you want, it can go in a release of its own.
+- `Cancelled` and the priority queue (`scheduler.py`) stay: they belong to cancellation and the local model's queue, not to the agents.
+
 ## [0.39.0] — 2026-11-15
 
 ### Removed (for now) — "Generate flow with AI"

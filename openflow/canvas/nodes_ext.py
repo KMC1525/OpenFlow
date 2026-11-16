@@ -439,7 +439,7 @@ def run_text_refine(eng, canvas, node):
     system = ("Você é um editor de texto dentro de um fluxo de produção de mídia. Cumpra a instrução usando o texto de entrada. Responda APENAS com o texto final, sem explicações nem aspas."
               + (f"\n\nEstilo do projeto: {style.render(src + ' ' + instruction)}" if style.text else ""))
     eng._check()
-    out = eng.team_chat(provider, pid, [{"role": "user", "content": f"{instruction}\n\nTexto de entrada:\n{src}"}], system, 0.5, 1500)
+    out = eng.text_chat(provider, [{"role": "user", "content": f"{instruction}\n\nTexto de entrada:\n{src}"}], system, 0.5, 1500)
     return {"assets": [], "text": out, "warnings": warnings}
 
 
