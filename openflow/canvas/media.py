@@ -36,7 +36,7 @@ from .. import perf as _perf
 from ..util import hardware_info
 from ..providers.base import ProviderError
 from . import procedural as proc
-from . import gguf_info, mesh3d, sdcli, support, voxcpm
+from . import gguf_info, lowmem, mesh3d, sdcli, support, voxcpm
 
 CAP_LABELS = {"image": "imagens", "video": "vídeos", "sound": "sons e músicas", "voice": "vozes", "stt": "transcrição de áudio", "model3d": "modelos 3D"}
 Ref = Tuple[bytes, str]  # (bytes, mime) de uma imagem de referência
@@ -538,7 +538,25 @@ def _slim(pipe: Any, dev: str) -> Any:
                 return pipe
             except Exception:  # noqa: BLE001
                 pass
-    return pipe.to(dev)
+    try:
+        return pipe.to(dev)
+    except Exception as exc:  # noqa: BLE001
+        if dev != "cuda" or lowmem.oom_kind(exc) != "gpu":
+            raise
+        gc.collect()   # o plano achou que cabia na placa e não coube (outro programa a usa): cai para a descarga do modelo, que cabe em bem menos memória
+        try:
+            import torch  # type: ignore
+
+            torch.cuda.empty_cache()
+        except Exception:  # noqa: BLE001
+            pass
+        for fn in ("enable_model_cpu_offload", "enable_sequential_cpu_offload"):
+            try:
+                getattr(pipe, fn)()
+                return pipe
+            except Exception:  # noqa: BLE001
+                gc.collect()
+        raise ProviderError("Não coube na memória da placa de vídeo nem com a descarga para a RAM. " + lowmem.tips("gpu")) from None
 
 
 def _local_load(cap: str, model: str, loader: Callable[[], Any]) -> Any:
@@ -571,6 +589,9 @@ def _local_load(cap: str, model: str, loader: Callable[[], Any]) -> Any:
             except Exception as exc:  # noqa: BLE001
                 if "torchvision" in str(exc).lower():  # ex.: processadores de visão do Qwen-Image/Qwen3-VL pedem a torchvision
                     raise ProviderError("Este modelo precisa da biblioteca torchvision, que não está instalada. Instale com:  pip install torchvision  (ou rode: flow libs --extras media) e tente de novo; depois de instalar, reinicie o OpenFlow.") from None
+                kind = lowmem.oom_kind(exc)
+                if kind:   # v0.72: acabou a memória ao CARREGAR (RAM ou placa): explica em vez do erro cru
+                    raise ProviderError(f"Acabou a memória {lowmem.where(kind)} ao carregar «{model}». {lowmem.tips(kind)}") from None
                 raise
             if plan:
                 _native.record("media", cap=cap, model=model, strategy=plan.get("strategy"), weights=plan.get("weights"), slicing=plan.get("slicing"), tiling=plan.get("tiling"))
@@ -650,16 +671,24 @@ class LocalHFMedia(MediaProvider):
         name = (model or self.model_for("image", model) or "").lower()
         if re.search(r"flux[-_. ]?3", name):
             return 10   # FLUX.3 Image Klein: até 10 imagens de referência no mesmo pedido
-        return 4 if "klein" in name else 1   # FLUX.2 klein edita com várias imagens de uma vez; os demais fazem imagem → imagem com uma
+        if "klein" in name:
+            return 4   # FLUX.2 klein edita com várias imagens de uma vez
+        if re.search(r"flux[-_. ]?2", name):
+            return 10   # FLUX.2 dev: até 10 imagens de referência (v0.72: antes só a primeira era usada)
+        if re.search(r"qwen[-_ ]?image[-_ ]?edit[-_ ]?(plus|2509|2511)", name):
+            return 3   # Qwen-Image-Edit-Plus (2509/2511): até 3 imagens
+        return 1   # os demais fazem imagem → imagem (ou edição) com uma
 
     def refs_need_edit(self, model: str = "") -> bool:
-        return self.max_refs(model) <= 1   # klein e FLUX.3 juntam várias referências também no modo Gerar
+        return self.max_refs(model) <= 1   # klein, FLUX.2 e FLUX.3 juntam várias referências também no modo Gerar
 
     @staticmethod
     def _defaults(model: str) -> Tuple[int, float]:
         """Passos e guidance do modelo (o padrão de cada família): FLUX.2 klein destilado 4 passos sem CFG; klein «base» 50 passos e guidance 4; FLUX.1 schnell 4 passos; FLUX.1 dev 28 passos e guidance 3,5;
         modelos «turbo»/«lightning»/«lcm» 2 passos sem CFG; os demais 25 passos e guidance 7."""
         name = model.lower()
+        if re.search(r"qwen[-_ ]?image", name):   # Qwen-Image usa `true_cfg_scale` (4,0) e 50 passos; 30 já dão o resultado e poupam tempo em máquina fraca; as versões «Lightning» são destiladas (4 ou 8 passos, sem CFG)
+            return ((4 if re.search(r"4[-_ ]?step", name) else 8), 1.0) if "lightning" in name else (30, 4.0)
         if re.search(r"flux[-_. ]?3", name):
             return (50, 3.5) if "base" in name else (16, 0.0)   # FLUX.3 Image Klein: destilado 16 passos sem guidance; «base» 50 passos e guidance 3,5
         if "klein" in name:
@@ -734,7 +763,16 @@ class LocalHFMedia(MediaProvider):
             raise ProviderError(f'O modelo local "{model}" ainda não foi baixado. Em Configuração → Mídia, escolha a precisão (quantização) e baixe-o antes de usar.', status=424)
         low = prec in ("fp16", "bf16")
         self.ctl.note(f"Modelo local {model} ({prec})")
-        return {"precision": prec, "dtype": lm.torch_dtype(prec), "variant": "fp16" if low and lm.has_fp16_variant(model) else None}
+        dtype = lm.torch_dtype(prec)
+        try:   # v0.72: fp16 não roda na CPU, e o FLUX/Qwen-Image geram imagem preta em fp16: o tipo vale para o aparelho em uso
+            (torch,) = _local_import("torch")
+            real = lowmem.device_dtype(model, dtype, _device()[0], torch)
+            if real is not dtype:
+                self.ctl.note(f"Tipo numérico: {str(real).replace('torch.', '')} (o fp16 não é seguro para este modelo/aparelho).")
+            dtype = real
+        except Exception:  # noqa: BLE001
+            pass
+        return {"precision": prec, "dtype": dtype, "variant": "fp16" if low and lm.has_fp16_variant(model) else None}
 
     @staticmethod
     def _transformer_only(model: str) -> bool:
@@ -773,17 +811,22 @@ class LocalHFMedia(MediaProvider):
         no_negative = fast or "flux" in model.lower()
         klein = "klein" in model.lower() and not flux3
         w, h = parse_wh(size)
-        w, h = (min(w, 768), min(h, 768)) if dev == "cpu" else (w, h)
-        w, h = max(256, w // 8 * 8), max(256, h // 8 * 8)
-        pil = _pil_refs(refs, 10 if flux3 else 4 if klein else 1) if refs else []
+        if dev == "cpu" and max(w, h) > 768:   # na CPU o lado maior vai a 768 mantendo a proporção (antes cada lado era cortado sozinho e 1024×576 virava 768×576, esticado)
+            k = 768 / max(w, h)
+            w, h = int(w * k), int(h * k)
+        w, h = max(256, w // 16 * 16), max(256, h // 16 * 16)   # múltiplos de 16: FLUX, Qwen-Image, SD3 e Z-Image trabalham em blocos de 16 px e o diffusers reclama (ou corta) o resto
+        pil = _pil_refs(refs, self.max_refs(model)) if refs else []
         if refs and not pil:
             raise ProviderError("Não consegui ler as imagens de referência ligadas ao nó (formato não suportado).")
         i2i = None
         if pil:
             if len(pil) == 1 and self.edit_mode:   # só no modo Editar com uma imagem: mantém a proporção dela; ao Gerar (e com várias referências) vale o tamanho pedido
                 w, h = _size_like(pil[0], w, h, 16 if (klein or flux3) else 8)
-            if not klein and not flux3:   # imagem → imagem: reaproveita os pesos já carregados (o FLUX.2 klein edita pelo próprio pipeline, com várias imagens)
-                i2i = diffusers.AutoPipelineForImage2Image.from_pipe(pipe)   # compartilha os pesos de `pipe` (não passa por _local_load: ele guarda um modelo só e descartaria o principal)
+            if not klein and not flux3 and not lowmem.edit_style(lowmem.params_of(pipe)):   # imagem → imagem: reaproveita os pesos já carregados (o FLUX.2 klein, o FLUX Kontext, o FLUX.2 e o Qwen-Image-Edit editam pelo próprio pipeline)
+                try:
+                    i2i = diffusers.AutoPipelineForImage2Image.from_pipe(pipe)   # compartilha os pesos de `pipe` (não passa por _local_load: ele guarda um modelo só e descartaria o principal)
+                except Exception:  # noqa: BLE001 — v0.72: o diffusers não liga este pipeline a um de imagem → imagem: antes era um erro cru no meio da geração
+                    raise ProviderError(f"«{model}» não aceita uma imagem de referência neste modo (o diffusers não tem o pipeline de imagem → imagem dele). Use um modelo de edição (FLUX Kontext, FLUX.2, Qwen-Image-Edit) ou gere sem imagem ligada.") from None
         out = []
         for i in range(max(1, count)):
             self.ctl.check()
@@ -810,23 +853,88 @@ class LocalHFMedia(MediaProvider):
                 img.save(buf, format="PNG")
                 out.append(Media(buf.getvalue(), "image/png"))
                 continue
+            target = i2i or pipe
+            params = lowmem.params_of(target)
+            qwen = bool(re.search(r"qwen[-_ ]?image", model.lower()))
             kw = {"prompt": prompt, "width": w, "height": h, "num_inference_steps": steps, "guidance_scale": guidance,
                   "generator": torch.Generator("cpu").manual_seed(int(seed + i) if seed else int(time.time() * 1000) % (2 ** 31) + i)}
             if negative and not no_negative:
                 kw["negative_prompt"] = negative
-            if pil and klein:
-                kw["image"] = [p.resize((w, h)) for p in pil]   # edição do FLUX.2 klein: todas as imagens ligadas guiam o resultado
+            if qwen and lowmem.accepted(params, "true_cfg_scale"):   # Qwen-Image: o CFG é `true_cfg_scale` e só vale com prompt negativo (sem ele o diffusers desliga o CFG: imagem mais fraca)
+                kw.pop("guidance_scale", None)
+                kw["true_cfg_scale"] = guidance
+                if guidance > 1.0 and "negative_prompt" not in kw:
+                    kw["negative_prompt"] = " "
+            if pil and (klein or lowmem.edit_style(params)):   # edição pelo próprio pipeline (FLUX.2 klein/FLUX.2, FLUX Kontext, Qwen-Image-Edit): não há `strength`; as imagens ligadas guiam o resultado
+                imgs = [p.resize((w, h)) for p in pil]
+                if klein or lowmem.multi_image(type(target).__name__):
+                    kw["image"] = imgs
+                else:
+                    kw["image"] = imgs[0]
             elif pil:
                 kw.pop("width"), kw.pop("height")
                 kw.update(image=pil[0].resize((w, h)), strength=0.8 if fast else 0.75)
                 if fast:
                     kw["num_inference_steps"] = max(4, steps)   # modelos «turbo»: com strength < 1 sobram menos passos, e precisam de pelo menos 1
+            kw = lowmem.keep(kw, params)   # só o que o pipeline aceita (o campo «Extra» do usuário vai depois, sem filtro)
             kw.update(extra or {})
-            img = (i2i or pipe)(**kw).images[0]
+            img = self._generate(target, kw, pipe, dev, torch, model)
+            w, h = int(kw.get("width") or w), int(kw.get("height") or h)   # se o tamanho foi reduzido por falta de memória, as próximas imagens já saem no tamanho que coube
             buf = io.BytesIO()
             img.save(buf, format="PNG")
             out.append(Media(buf.getvalue(), "image/png"))
         return out
+
+    def _lighten(self, pipe: Any) -> None:
+        """Depois de faltar memória na placa: fatias de atenção/VAE e descarga do modelo para a RAM (o que couber nesta versão do diffusers)."""
+        for fn in ("enable_vae_slicing", "enable_vae_tiling", "enable_attention_slicing"):
+            try:
+                getattr(pipe, fn)()
+            except Exception:  # noqa: BLE001
+                pass
+        for fn in ("enable_sequential_cpu_offload", "enable_model_cpu_offload"):
+            try:
+                getattr(pipe, fn)()
+                break
+            except Exception:  # noqa: BLE001
+                pass
+        self.ctl.note("Faltou memória na placa de vídeo: tentando de novo com a descarga do modelo para a RAM…")
+
+    def _generate(self, call: Any, kw: Dict[str, Any], pipe: Any, dev: str, torch: Any, model: str) -> Any:
+        """Roda o pipeline. Se acabar a memória (placa de vídeo ou RAM), tenta de novo mais leve — na placa: fatiamento do VAE e descarga para a RAM; depois, uma imagem 25% menor (até 2 reduções) — em vez de
+        devolver o erro cru do torch. `kw` é atualizado com o tamanho que coube."""
+        tries, shrunk, lowered = 0, 0, False
+        while True:
+            try:
+                return call(**kw).images[0]
+            except Exception as exc:  # noqa: BLE001
+                kind = lowmem.oom_kind(exc)
+                if not kind:
+                    raise
+                gc.collect()
+                try:
+                    if dev == "cuda":
+                        torch.cuda.empty_cache()
+                except Exception:  # noqa: BLE001
+                    pass
+                tries += 1
+                if kind == "gpu" and not lowered and dev == "cuda":
+                    lowered = True
+                    self._lighten(pipe)
+                    continue
+                cur = (int(kw.get("width") or 0), int(kw.get("height") or 0))
+                if not cur[0] and kw.get("image") is not None:   # imagem → imagem: o tamanho é o da imagem
+                    first = kw["image"][0] if isinstance(kw["image"], (list, tuple)) else kw["image"]
+                    cur = tuple(first.size)
+                nxt = lowmem.shrink(*cur) if cur[0] and shrunk < 2 else None
+                if not nxt:
+                    raise ProviderError(lowmem.friendly_oom(kind, model, cur[0], cur[1], shrunk)) from None
+                shrunk += 1
+                if kw.get("width"):
+                    kw["width"], kw["height"] = nxt
+                if kw.get("image") is not None:
+                    kw["image"] = [im.resize(nxt) for im in kw["image"]] if isinstance(kw["image"], (list, tuple)) else kw["image"].resize(nxt)
+                self.ctl.note(f"Faltou memória: tentando de novo em {nxt[0]}×{nxt[1]}…")
 
     # ---- 3D (v0.37): Shap-E (texto e imagem, diffusers), TripoSR e Hunyuan3D-2 (imagem, bibliotecas próprias)
     def model3d_needs_image(self, model: str = "") -> bool:
@@ -1111,9 +1219,13 @@ class LocalHFMedia(MediaProvider):
         """VoxCPM / VoxCPM2 (openbmb/VoxCPM2): fala em 30 idiomas, «design de voz» pela descrição, clonagem controlável (áudio de referência) e clonagem fiel (referência + o texto dela). Saída em 48 kHz."""
         (np,) = _local_import("numpy")
         (torch,) = _local_import("torch")
+        if sys.version_info < (3, 10):
+            raise ProviderError(f"A biblioteca voxcpm precisa do Python 3.10 ou mais novo (este é o {sys.version_info[0]}.{sys.version_info[1]}). Instale um Python mais novo e rode o instalador do OpenFlow de novo.")
         try:
             vox = __import__("voxcpm", fromlist=["_"])
-        except ImportError:
+        except ImportError as exc:
+            if exc.name and exc.name.split(".")[0] != "voxcpm":   # a biblioteca está instalada, mas falta (ou quebrou) uma dependência dela
+                raise ProviderError(f'A biblioteca voxcpm está instalada, mas falta a dependência «{exc.name}». Reinstale:  pip install -U voxcpm  (ou rode: flow libs --extras voxcpm).') from None
             raise ProviderError('O VoxCPM precisa da biblioteca "voxcpm" (Python 3.10 ou mais novo):  pip install voxcpm  (ou rode: flow libs --extras voxcpm).') from None
         self._ready(model)
         dev, _ = _device()
@@ -1237,12 +1349,48 @@ class LocalHFMedia(MediaProvider):
         w, h = size_of_aspect(aspect, long_side or (704 if dev != "cpu" else 384))
         w, h = w // 32 * 32 or 32, h // 32 * 32 or 32
         fps = 24
+        params = lowmem.params_of(pipe)
+        if image and not lowmem.accepted(params, "image"):   # v0.72: um modelo só de texto → vídeo recebia `image=` e quebrava com um TypeError no meio da geração
+            raise ProviderError(f"«{model}» só gera vídeo a partir de texto (o pipeline dele não aceita uma imagem). Desligue a imagem do nó ou escolha um modelo de imagem → vídeo (ex.: um LTX-Video ou Wan «i2v»).")
         kw: Dict[str, Any] = {"prompt": prompt, "width": w, "height": h, "num_frames": int(max(9, min(161, duration * fps)) // 8 * 8 + 1)}
         if image:
             kw["image"] = open_rgb(image[0]).resize((w, h))
+        kw = lowmem.keep(kw, params)
         kw.update(extra or {})
+        (torch,) = _local_import("torch")
         self.ctl.note("Gerando vídeo localmente (pode demorar)…")
-        frames = pipe(**kw).frames[0]
+        tries = 0
+        while True:
+            try:
+                frames = pipe(**kw).frames[0]
+                break
+            except Exception as exc:  # noqa: BLE001
+                kind = lowmem.oom_kind(exc)
+                if not kind:
+                    raise
+                gc.collect()
+                try:
+                    if dev == "cuda":
+                        torch.cuda.empty_cache()
+                except Exception:  # noqa: BLE001
+                    pass
+                tries += 1
+                if tries > 3:
+                    raise ProviderError(lowmem.friendly_oom(kind, model, int(kw.get("width") or 0), int(kw.get("height") or 0), tries - 1)) from None
+                if tries == 1 and kind == "gpu" and dev == "cuda":
+                    self._lighten(pipe)
+                    continue
+                frames_now = int(kw.get("num_frames") or 0)
+                if frames_now > 25:   # menos quadros: o vídeo fica mais curto, mas cabe
+                    kw["num_frames"] = max(9, (frames_now // 2) // 8 * 8 + 1)
+                    self.ctl.note(f"Faltou memória: tentando de novo com {kw['num_frames']} quadros (o vídeo fica mais curto)…")
+                elif kw.get("width") and (nxt := lowmem.shrink(int(kw["width"]), int(kw["height"]), 0.75, 256, 32)):
+                    kw["width"], kw["height"] = nxt
+                    if kw.get("image") is not None:
+                        kw["image"] = kw["image"].resize(nxt)
+                    self.ctl.note(f"Faltou memória: tentando de novo em {nxt[0]}×{nxt[1]}…")
+                else:
+                    raise ProviderError(lowmem.friendly_oom(kind, model, int(kw.get("width") or 0), int(kw.get("height") or 0), tries - 1)) from None
         return _frames_to_mp4(frames, fps)
 
     def test(self) -> str:

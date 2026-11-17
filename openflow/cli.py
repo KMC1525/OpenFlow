@@ -133,9 +133,9 @@ LIBS = {
     "docs": "extração de PDFs mais precisa",
     "media": "modelos locais de imagem, vídeo, som e voz (PyTorch, diffusers, transformers — vários GB)",
     "local": "modelos GGUF embutidos: texto, imagem e vídeo (llama-cpp-python e stable-diffusion-cpp-python; compilam código nativo)",
-    "voxcpm": "voz do VoxCPM2 (openbmb/VoxCPM2): fala em 30 idiomas, voz por descrição e clonagem (precisa do Python 3.10+; só instala se você pedir: flow libs --extras voxcpm)",
+    "voxcpm": "voz do VoxCPM2 (openbmb/VoxCPM2): fala em 30 idiomas, voz por descrição e clonagem (biblioteca voxcpm; precisa do Python 3.10 ou mais novo)",
 }
-OPT_IN_LIBS = ("voxcpm",)   # extras que «all» não instala: trazem muitas dependências próprias (gradio, funasr, modelscope…)
+MIN_PY = {"voxcpm": (3, 10)}   # extras que só existem a partir de uma versão do Python: «all» pula o que este Python não suporta
 
 
 def _lib_desc(extra: str) -> str:
@@ -149,7 +149,7 @@ def _wanted_libs(spec: str):
         return [], []
     names = [x.strip() for x in spec.replace(";", ",").split(",") if x.strip()]
     if "all" in names:
-        return [n for n in LIBS if n not in OPT_IN_LIBS], []
+        return [n for n in LIBS if sys.version_info >= MIN_PY.get(n, (3, 0))], []
     return [n for n in LIBS if n in names], [n for n in names if n not in LIBS]
 
 
@@ -857,6 +857,12 @@ def _doctor(_args: argparse.Namespace) -> int:
             libs.append(mod)
         except ImportError:
             pass
+    try:
+        import importlib.util as _iu
+
+        print(_("Voz do VoxCPM2 (biblioteca voxcpm): disponível") if _iu.find_spec("voxcpm") else _('Voz do VoxCPM2 (biblioteca voxcpm): não instalada (opcional, Python 3.10+: flow libs --extras voxcpm)'))
+    except (ImportError, ValueError):
+        pass
     if len(libs) == 3:
         print(_("Modelos locais de mídia do OpenFlow (torch, diffusers, transformers): disponível"))
     else:
