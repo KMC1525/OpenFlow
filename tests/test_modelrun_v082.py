@@ -295,8 +295,10 @@ class NodeTests(NodeBase):
             eng = CanvasEngine(self.store, self.cid, lambda e: None, lambda: False)
             canvas = self.cs.get(self.cid)
             node = next(n for n in canvas["nodes"] if n["id"] == "m")
+            from openflow.canvas import nodes_ext
             h1 = eng.node_hash(canvas, node)
             Path(path).write_bytes(b"another model")
+            nodes_ext._SIG_CACHE.clear()                                                   # o carimbo vale 3 s (v0.83); aqui o arquivo foi trocado na hora
             self.assertNotEqual(h1, eng.node_hash(canvas, node))
 
     def test_clear_errors(self):

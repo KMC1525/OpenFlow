@@ -195,7 +195,7 @@ export default async function render(root, ctx) {
     };
     // v0.81: cria no disco uma faixa menor (Q2…Q8) a partir deste arquivo (sd-cli / llama.cpp, em segundo plano)
     const makeTier = async (q) => {
-      let jid; try { jid = (await api('/api/hf/requant', { method: 'POST', body: { kind: m.kind, name: m.name, tier: q } })).job_id; } catch (e) { return toast(e.message, 'err'); }
+      let jid; try { jid = (await api('/api/hf/requant', { method: 'POST', body: { kind: m.kind, name: m.name, tier: q } })).job_id; } catch (e) { return toast(e.status === 409 ? t('Já há uma faixa sendo criada: espere ela terminar.') : e.message, 'err'); }
       toast(t('Criando {f}…', { f: m.name + ' → ' + q }));
       events('/api/jobs/' + jid + '/events', (ev) => {
         if (ev.type === 'done') { toast(t('Faixa criada: {f}', { f: ev.name }), 'ok'); loadItems(); }

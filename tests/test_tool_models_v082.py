@@ -67,7 +67,7 @@ class DownloadTests(Case):
         hub, snap = self.dl("tf")
         self.assertEqual(sorted(hub.downloads), sorted(f["name"] for f in lm.select_tool_files(REPO_FILES, "tf")))
         self.assertEqual((snap / lm.FRAMEWORK_MARKER).read_text(), "tf")
-        self.assertEqual((snap / lm.MARKER).read_text(), "fp32")
+        self.assertFalse((snap / lm.MARKER).exists())                                                # v0.83: só o marcador do framework; a precisão não é tocada
         with mock.patch.object(lm, "_snapshot", return_value=snap):
             self.assertEqual(lm.downloaded_framework("acme/tiny-model"), "tf")
 
@@ -89,23 +89,36 @@ class DownloadTests(Case):
     def test_a_tool_model_is_not_an_image_model(self):
         _hub, snap = self.dl("torch")
         M._LOCAL_CACHE.clear()
-        with mock.patch.object(lm, "_snapshot", return_value=snap), mock.patch.object(lm, "downloaded_precision", return_value="fp32"):
+        with mock.patch.object(lm, "_snapshot", return_value=snap):
+            self.assertEqual(lm.downloaded_precision("acme/tiny-model"), "")
             p = provider("local_hf", "", {"image": "acme/tiny-model"}, key="", needs_key=False)
             p.ctl = types.SimpleNamespace(note=lambda m: None, check=lambda: None)
             with self.assertRaises(ProviderError) as cm:
                 p._ready("acme/tiny-model")
         self.assertIn("Modelo PyTorch/TensorFlow", str(cm.exception))
 
+    def test_downloading_both_ways_keeps_both_working(self):
+        """v0.83: baixar também como modelo de imagem não pode deixar o marcador do framework recusando o uso como modelo de imagem."""
+        _hub, snap = self.dl("tf")
+        hub = fake_hub(self.cache)
+        with mock.patch.object(lm, "_hub", return_value=hub), mock.patch.object(lm.shutil, "disk_usage", return_value=types.SimpleNamespace(free=100 * GB)):
+            snap2 = lm.download("acme/tiny-model", "fp16", "", None, lambda: False)
+        self.assertEqual(snap, snap2)
+        M._LOCAL_CACHE.clear()
+        with mock.patch.object(lm, "_snapshot", return_value=snap), mock.patch.object(lm, "has_fp16_variant", return_value=False), mock.patch.dict("sys.modules", {"torch": mock.MagicMock()}):
+            p = provider("local_hf", "", {"image": "acme/tiny-model"}, key="", needs_key=False)
+            p.ctl = types.SimpleNamespace(note=lambda m: None, check=lambda: None)
+            self.assertEqual(p._ready("acme/tiny-model")["precision"], "fp16")                      # usa como modelo de imagem
+            self.assertEqual(lm.downloaded_framework("acme/tiny-model"), "tf")                      # e o nó «Modelo PyTorch/TensorFlow» também acha o arquivo
+
     def test_tool_models_are_not_listed_among_the_installed_hf_models(self):
         from openflow.canvas import installed
 
         root = Path(tempfile.mkdtemp())
-        for name, marked in (("models--a--img", False), ("models--b--tool", True)):
+        for name, marker in (("models--a--img", lm.MARKER), ("models--b--tool", lm.FRAMEWORK_MARKER)):
             snap = root / name / "snapshots" / "abc"
             snap.mkdir(parents=True)
-            (snap / lm.MARKER).write_text("fp16")
-            if marked:
-                (snap / lm.FRAMEWORK_MARKER).write_text("tf")
+            (snap / marker).write_text("fp16" if marker == lm.MARKER else "tf")
         with mock.patch.object(installed, "hf_cache_dir", return_value=root):
             self.assertEqual([m["model"] for m in installed.downloaded_hf_models()], ["a/img"])
 

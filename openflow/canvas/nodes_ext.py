@@ -1318,15 +1318,30 @@ def run_img_watermark(eng, canvas, node):
         return _img_out(eng, node, tmp, out, _title(node, "Imagem com marca"))
 
 
+_SIG_CACHE: Dict[Tuple[str, str], Tuple[float, str]] = {}
+
+
 def model_signature(eng: Any, node: Dict[str, Any]) -> str:
-    """O «carimbo» do arquivo do modelo do nó (tamanho e data): trocar o arquivo sem trocar o nome deixa o nó desatualizado. «» se o modelo não foi achado (o erro aparece ao rodar)."""
+    """O «carimbo» do arquivo do modelo do nó (tamanho e data): trocar o arquivo sem trocar o nome deixa o nó desatualizado. «» se o modelo não foi achado (o erro aparece ao rodar). É chamado a cada vez que o
+    canvas confere o que está desatualizado (várias vezes por segundo): o resultado vale 3 s (v0.83; antes cada chamada varria a pasta do modelo)."""
+    import time
+
     from . import modelrun
 
+    key = (str(node["params"].get("model", "")), str(node["params"].get("framework", "auto")))
+    hit = _SIG_CACHE.get(key)
+    now = time.monotonic()
+    if hit and now - hit[0] < 3.0:
+        return hit[1]
     try:
-        path, _kind = modelrun.resolve(node["params"].get("model", ""), {"auto": "", "torch": "torch", "tf": "tf"}[node["params"].get("framework", "auto")], getattr(eng.store, "models_dir", None))
+        path, _kind = modelrun.resolve(key[0], {"auto": "", "torch": "torch", "tf": "tf"}[key[1]], getattr(eng.store, "models_dir", None))
+        sig = f"{path}|{modelrun.fingerprint(path)}"
     except Exception:  # noqa: BLE001
-        return ""
-    return f"{path}|{modelrun.fingerprint(path)}"
+        sig = ""
+    if len(_SIG_CACHE) > 256:
+        _SIG_CACHE.clear()
+    _SIG_CACHE[key] = (now, sig)
+    return sig
 
 
 def run_ai_model(eng, canvas, node):
@@ -1360,8 +1375,10 @@ def run_ai_model(eng, canvas, node):
         with Image.open(_path(eng, a)) as im:
             im.load()
             img = im.copy()
-    except OSError:
-        raise ValueError("Não consegui ler a imagem de entrada.") from None
+    except Image.DecompressionBombError:
+        raise ValueError(f"A imagem de entrada é grande demais ({Image.MAX_IMAGE_PIXELS / 1e6:.0f} megapixels ou mais): reduza-a antes (nó «Redimensionar»).") from None
+    except (OSError, ValueError, SyntaxError):
+        raise ValueError("Não consegui ler a imagem de entrada (o arquivo está corrompido ou incompleto).") from None
     from . import lowmem
 
     try:

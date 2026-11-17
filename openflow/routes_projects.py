@@ -750,9 +750,10 @@ class ProjectRoutes:
         from .canvas import frameworks
 
         cache = ProjectRoutes._FW_CACHE
-        if req.query.get("refresh", [""])[0] not in ("1", "true") and cache["v"] is not None and _time.time() - cache["t"] < 30:
+        deep = req.query.get("tf", [""])[0] in ("1", "true")   # «Verificar o TensorFlow»: carrega a biblioteca para ver a placa
+        if req.query.get("refresh", [""])[0] not in ("1", "true") and not deep and cache["v"] is not None and _time.time() - cache["t"] < 30:
             return req.json(cache["v"])
-        data = frameworks.report()
+        data = frameworks.report(probe_tf=deep)
         cache["t"], cache["v"] = _time.time(), data
         req.json(data)
 
