@@ -8,9 +8,13 @@
 """
 from __future__ import annotations
 
+import contextlib
 import inspect
+import os
 import re
-from typing import Any, Dict, Optional, Set
+import threading
+import time
+from typing import Any, Callable, Dict, Optional, Set, Tuple
 
 # modelos treinados em bfloat16: em float16 saem imagens pretas/ruído (NaN)
 BF16_ONLY = re.compile(r"flux|qwen[-_ ]?image|z[-_ ]?image|chroma|hidream|omnigen|lumina|sana|cosmos|hunyuan[-_ ]?image", re.I)
@@ -95,3 +99,117 @@ def where(kind: str) -> str:
 def friendly_oom(kind: str, model: str, w: int, h: int, tries: int) -> str:
     size = f"{w}×{h}" + (f", depois de reduzir o tamanho {tries}x" if tries else "")
     return f"Acabou a memória {where(kind)} ao gerar com «{model}» ({size}). {tips(kind)}"
+
+
+# --------------------------------------------------------------------------- travamentos (v0.77): progresso, cancelamento e memória
+def explicit(params: Optional[Set[str]], name: str) -> bool:
+    """O pipeline TEM o argumento `name` na assinatura (e não só um **kwargs genérico)."""
+    return params is not None and name in params
+
+
+def default_of(call: Any, name: str) -> Any:
+    """O valor padrão de um argumento do pipeline (ex.: `num_inference_steps` = 50), ou None."""
+    try:
+        d = inspect.signature(call).parameters[name].default
+    except (TypeError, ValueError, KeyError):
+        return None
+    return None if d is inspect.Parameter.empty else d
+
+
+def fmt_seconds(sec: float) -> str:
+    sec = int(max(0, sec))
+    return f"{sec // 3600}h{sec % 3600 // 60:02d}" if sec >= 3600 else f"{sec // 60}min{sec % 60:02d}s" if sec >= 60 else f"{sec}s"
+
+
+class _SafeCtl:
+    """Um Ctl que nunca quebra: sem `check` ou `note` no objeto recebido, esses passos viram «nada»."""
+
+    def __init__(self, ctl: Any) -> None:
+        self._c = ctl
+
+    def check(self) -> None:
+        f = getattr(self._c, "check", None)
+        if f:
+            f()
+
+    def note(self, msg: str) -> None:
+        f = getattr(self._c, "note", None)
+        if f:
+            f(msg)
+
+
+def safe_ctl(ctl: Any) -> Any:
+    return _SafeCtl(ctl)
+
+
+def step_progress(ctl: Any, total: int = 0, label: str = "Gerando", interval: float = 1.5, clock: Callable[[], float] = time.monotonic) -> Callable[..., Any]:
+    """O `callback_on_step_end` do diffusers: a cada passo de difusão (1) confere o cancelamento — antes só se olhava entre uma imagem e outra, e o botão «Parar» ficava mudo por minutos numa máquina fraca — e
+    (2) avisa o progresso («passo 5 de 28, faltam ≈ 3min10s») no máximo a cada `interval` segundos, para o nó não parecer travado."""
+    ctl = safe_ctl(ctl)
+    state = {"t0": clock(), "last": -1e9}
+
+    def callback(pipe: Any, step: int, timestep: Any, cb_kwargs: Dict[str, Any]) -> Dict[str, Any]:
+        ctl.check()
+        now = clock()
+        done = int(step) + 1
+        if now - state["last"] >= interval or (total and done >= total):
+            state["last"] = now
+            if total and done <= total:
+                left = (now - state["t0"]) / done * (total - done)
+                ctl.note(f"{label}: passo {done} de {total}" + (f" — faltam ≈ {fmt_seconds(left)}" if done > 1 and left >= 3 else ""))
+            else:
+                ctl.note(f"{label}: passo {done}")
+        return cb_kwargs
+    return callback
+
+
+def effective_steps(steps: int, strength: Optional[float] = None) -> int:
+    """Quantos passos o pipeline de fato roda: em imagem → imagem com `strength` < 1 só uma parte deles."""
+    if steps and strength is not None and 0 < strength < 1:
+        return max(1, round(steps * strength))
+    return int(steps or 0)
+
+
+def fit(weights: int, ram_avail: int, strategy: str = "") -> Tuple[str, str]:
+    """O modelo cabe na memória do computador? («ok» | «warn» | «refuse», mensagem). Um modelo maior que a RAM livre vai para a memória virtual do disco e o computador inteiro trava (mouse, janelas, tudo):
+    acima de 1× a RAM livre avisa; acima de 2×, recusa (se for de propósito: OPENFLOW_ALLOW_SWAP=1). GPU com o modelo inteiro na placa não passa pela RAM."""
+    if not weights or not ram_avail or strategy == "gpu":
+        return "ok", ""
+    gib = 1024 ** 3
+    ratio = weights / float(ram_avail)
+    if ratio <= 1.0:
+        return "ok", ""
+    msg = (f"Este modelo ocupa {weights / gib:.1f} GB e só há {ram_avail / gib:.1f} GB de RAM livre: ele iria para a memória virtual do disco e o computador pode travar por minutos. "
+           "Use uma precisão menor ou uma versão quantizada em GGUF (provedor «GGUF local», Q4_K_M ou menor), ou feche outros programas")
+    if ratio > 2.0 and os.environ.get("OPENFLOW_ALLOW_SWAP", "") not in ("1", "true", "yes"):
+        return "refuse", msg + ". Para tentar mesmo assim (devagar, usando o disco), defina OPENFLOW_ALLOW_SWAP=1."
+    return "warn", msg + "."
+
+
+def torch_threads(physical: int, mode: str) -> int:
+    """Quantas threads o torch usa na CPU: sempre deixa pelo menos um núcleo livre para a interface e o sistema (no modo máximo, tudo). 0 = não mexe."""
+    physical = max(1, int(physical or 1))
+    if mode == "max":
+        return 0
+    if mode == "light":
+        return max(1, physical // 2)
+    return max(1, physical - 1) if physical > 2 else physical
+
+
+@contextlib.contextmanager
+def heartbeat(ctl: Any, label: str, interval: float = 15.0) -> Any:
+    """Enquanto uma etapa longa e sem eventos roda (a decodificação final da imagem na CPU, a stable-diffusion.cpp…), avisa a cada `interval` segundos que o OpenFlow continua trabalhando e há quanto tempo: sem isso
+    o nó parece travado."""
+    ctl = safe_ctl(ctl)
+    stop = threading.Event()
+    t0 = time.monotonic()
+
+    def beat() -> None:
+        while not stop.wait(interval):
+            ctl.note(f"{label}… {fmt_seconds(time.monotonic() - t0)}")
+    t = threading.Thread(target=beat, daemon=True)
+    t.start()
+    try:
+        yield
+    finally:
+        stop.set()

@@ -559,7 +559,43 @@ def _slim(pipe: Any, dev: str) -> Any:
         raise ProviderError("Não coube na memória da placa de vídeo nem com a descarga para a RAM. " + lowmem.tips("gpu")) from None
 
 
+_TLS = threading.local()   # o Ctl do nó que está carregando/gerando (para avisar o progresso do carregamento, que não passa pelo provedor)
+_TORCH_THREADS: Dict[str, Any] = {"orig": None}
+_HEARTBEAT_S = 8.0
+
+
+def _limit_threads() -> None:
+    """Deixa um núcleo da CPU livre para a interface e o sistema enquanto o torch gera (v0.77): o torch usa todos os núcleos por padrão e, numa máquina fraca, o computador inteiro «trava» durante a geração.
+    Segue o modo de desempenho (leve: metade; equilibrado: todos menos um; máximo: todos)."""
+    try:
+        import torch  # type: ignore
+
+        if _TORCH_THREADS["orig"] is None:
+            _TORCH_THREADS["orig"] = int(torch.get_num_threads())
+        mode = _perf.resolve(str(PERF.get("mode") or "auto"), hardware_info())
+        want = lowmem.torch_threads(int(_native.sys_info().get("physical") or os.cpu_count() or 1), mode) or _TORCH_THREADS["orig"]
+        if int(torch.get_num_threads()) != want:
+            torch.set_num_threads(max(1, int(want)))
+    except Exception:  # noqa: BLE001 — sem torch (ou sem informação do sistema) não há o que limitar
+        pass
+
+
+def _heartbeat(stop: threading.Event, what: str, ctl: Any, interval: float = 8.0) -> None:
+    """Enquanto um modelo grande carrega (minutos, sem nenhum evento), avisa a cada poucos segundos que o OpenFlow está trabalhando — e há quanto tempo."""
+    t0 = time.monotonic()
+    while not stop.wait(interval):
+        ctl.note(f"Carregando {what} na memória… {lowmem.fmt_seconds(time.monotonic() - t0)} (modelos grandes levam alguns minutos)")
+
+
 def _local_load(cap: str, model: str, loader: Callable[[], Any]) -> Any:
+    """`_local_load_locked` com o Ctl do nó (deixado por `_ready` na thread) valendo SÓ para esta chamada: um Ctl que sobra de um trabalho cancelado não pode cancelar o carregamento do trabalho seguinte."""
+    try:
+        return _local_load_locked(cap, model, loader)
+    finally:
+        _TLS.ctl = None
+
+
+def _local_load_locked(cap: str, model: str, loader: Callable[[], Any]) -> Any:
     """Mantém só um modelo local na memória por vez (hardware modesto). Antes de carregar: plano (núcleo Rust) e pré-carga paralela dos pesos para o cache do sistema."""
     _MEDIA_IDLE.touch(_perf.profile(PERF, hardware_info())["idle_s"])
     with _LOCAL_LOCK:
@@ -580,8 +616,18 @@ def _local_load(cap: str, model: str, loader: Callable[[], Any]) -> Any:
             plan = _media_plan(model)
             _PLAN.clear()
             _PLAN.update(plan)
+            ctl = lowmem.safe_ctl(getattr(_TLS, "ctl", None))
+            verdict, why = lowmem.fit(int(plan.get("weights") or 0), int(_perf.memory_state().get("ram_avail") or 0) if plan else 0, str(plan.get("strategy") or ""))
+            if verdict == "refuse":
+                raise ProviderError(f"«{model}»: {why}")
+            if verdict == "warn":
+                ctl.note("Atenção: " + why)
+            _limit_threads()
             if plan.get("prefetch") and plan.get("files"):
                 _native.prefetch(plan["files"])   # leitura paralela: o from_pretrained acha os pesos já em RAM
+            stop = threading.Event()
+            beat = threading.Thread(target=_heartbeat, args=(stop, f"«{model}»", ctl, _HEARTBEAT_S), daemon=True)
+            beat.start()
             try:
                 _LOCAL_CACHE[key] = loader()
             except ProviderError:
@@ -593,6 +639,9 @@ def _local_load(cap: str, model: str, loader: Callable[[], Any]) -> Any:
                 if kind:   # v0.72: acabou a memória ao CARREGAR (RAM ou placa): explica em vez do erro cru
                     raise ProviderError(f"Acabou a memória {lowmem.where(kind)} ao carregar «{model}». {lowmem.tips(kind)}") from None
                 raise
+            finally:
+                stop.set()
+            ctl.check()   # o usuário pode ter cancelado durante o carregamento
             if plan:
                 _native.record("media", cap=cap, model=model, strategy=plan.get("strategy"), weights=plan.get("weights"), slicing=plan.get("slicing"), tiling=plan.get("tiling"))
         return _LOCAL_CACHE[key]
@@ -765,6 +814,8 @@ class LocalHFMedia(MediaProvider):
         """Argumentos de carregamento do modelo (precisão escolhida, só arquivos locais). Recusa modelos que ainda não foram baixados."""
         from . import localmodels as lm
 
+        _TLS.ctl = self.ctl
+        _limit_threads()
         prec = lm.downloaded_precision(model)
         if not prec:
             raise ProviderError(f'O modelo local "{model}" ainda não foi baixado. Em Configuração → Mídia, escolha a precisão (quantização) e baixe-o antes de usar.', status=424)
@@ -884,6 +935,8 @@ class LocalHFMedia(MediaProvider):
                 if fast:
                     kw["num_inference_steps"] = max(4, steps)   # modelos «turbo»: com strength < 1 sobram menos passos, e precisam de pelo menos 1
             kw = lowmem.keep(kw, params)   # só o que o pipeline aceita (o campo «Extra» do usuário vai depois, sem filtro)
+            if lowmem.explicit(params, "callback_on_step_end"):   # v0.77: progresso e cancelamento a cada passo (antes só entre uma imagem e outra: o «Parar» ficava mudo por minutos)
+                kw["callback_on_step_end"] = lowmem.step_progress(self.ctl, lowmem.effective_steps(int(kw.get("num_inference_steps") or steps), kw.get("strength")), f"Gerando imagem {i + 1} de {max(1, count)}" if count > 1 else "Gerando imagem")
             kw.update(extra or {})
             img = self._generate(target, kw, pipe, dev, torch, model)
             w, h = int(kw.get("width") or w), int(kw.get("height") or h)   # se o tamanho foi reduzido por falta de memória, as próximas imagens já saem no tamanho que coube
@@ -913,7 +966,8 @@ class LocalHFMedia(MediaProvider):
         tries, shrunk, lowered = 0, 0, False
         while True:
             try:
-                return call(**kw).images[0]
+                with lowmem.heartbeat(self.ctl, "Ainda gerando (a decodificação final da imagem também demora)"):
+                    return call(**kw).images[0]
             except Exception as exc:  # noqa: BLE001
                 kind = lowmem.oom_kind(exc)
                 if not kind:
@@ -1397,13 +1451,16 @@ class LocalHFMedia(MediaProvider):
         if params is not None and "frame_rate" in params:
             kw["frame_rate"] = fps   # LTX: o pipeline assume 25 quadros por segundo; o MP4 sai a 24, então diz a taxa real (senão o movimento fica ~4% mais lento)
         kw = lowmem.keep(kw, params)
+        if lowmem.explicit(params, "callback_on_step_end"):   # progresso e cancelamento a cada passo (um vídeo leva muitos minutos numa máquina fraca)
+            kw["callback_on_step_end"] = lowmem.step_progress(self.ctl, int((extra or {}).get("num_inference_steps") or lowmem.default_of(pipe, "num_inference_steps") or 0), "Gerando vídeo")
         kw.update(extra or {})
         (torch,) = _local_import("torch")
         self.ctl.note("Gerando vídeo localmente (pode demorar)…")
         tries = 0
         while True:
             try:
-                frames = pipe(**kw).frames[0]
+                with lowmem.heartbeat(self.ctl, "Ainda gerando o vídeo (a decodificação final também demora)"):
+                    frames = pipe(**kw).frames[0]
                 break
             except Exception as exc:  # noqa: BLE001
                 kind = lowmem.oom_kind(exc)
@@ -2162,7 +2219,8 @@ class GGUFMedia(MediaProvider):
                 _install_sd_log(_local_import("stable_diffusion_cpp", extra="local")[0])   # o construtor da biblioteca troca o callback de log: reinstala o nosso antes de cada geração
                 _SD_LOG.clear()
                 try:
-                    imgs = gen(**{**kw, "width": max(256, int(w * scale) // 16 * 16), "height": max(256, int(h * scale) // 16 * 16)})
+                    with lowmem.heartbeat(self.ctl, "Gerando a imagem com o modelo GGUF"):
+                        imgs = gen(**{**kw, "width": max(256, int(w * scale) // 16 * 16), "height": max(256, int(h * scale) // 16 * 16)})
                 except _SDCrashed as exc:   # o sistema matou o processo por falta de memória: o modelo é recarregado e a imagem sai de novo em resolução menor (a memória das ativações cai com a área)
                     if not exc.oom or scale <= 0.4 or max(w, h) * scale <= 384:
                         raise

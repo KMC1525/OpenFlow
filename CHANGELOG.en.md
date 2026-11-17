@@ -2,6 +2,20 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.77.0] — 2026-11-17
+
+### Fixed — freezes while generating and editing on weak machines
+Four causes made the node (or the whole computer) look frozen; all were handled.
+- **The «Stop» button was mute for minutes:** cancellation was only read between one image and the next, and on a weak machine one image takes many minutes. Cancellation is now read **at every diffusion step** (local Hugging Face image and video), and the node shows progress: «Generating image: step 12 of 28 — about 3min10s left» (in image → image, it counts only the steps that actually run). With several images, «Generating image 2 of 3».
+- **The whole computer stuttered:** torch used every CPU core. It now leaves **at least one core free** for the interface and the system (balanced mode: all but one; light: half; max: all, as before). Applies to local image, video, voice, sound and transcription.
+- **Silence during long steps:** loading a big model takes minutes with no event at all, and so does the end of generation (decoding the image on the CPU, stable-diffusion.cpp). Every few seconds the node now says «Loading «model» into memory… 1min20s» and «Still generating… 45s», with the elapsed time; the notice stops when the step ends. If you cancel during loading, the cancellation takes effect right after it.
+- **A model bigger than the RAM froze the whole machine:** a model that does not fit in free RAM goes to the disk's virtual memory and the whole computer stops responding for minutes. Now: above 1× the free RAM, the node **warns** («This model takes 20.0 GB and there is only 16.0 GB of free RAM… use a smaller precision or a GGUF»); above 2×, it **refuses before loading**, with the same explanation. To try anyway (slowly, using the disk), set `OPENFLOW_ALLOW_SWAP=1`. A model entirely on the graphics card does not count RAM.
+
+### Not yet verified
+- **No real model was run** (Hugging Face is blocked where this was developed): fake pipelines with the real diffusers signature call the callback at every step, and torch is simulated. Whether the computer really feels smoother, and how much slower generation gets with one core less, depends on your machine.
+- Per-step cancellation and progress apply to diffusers pipelines that have `callback_on_step_end` in their signature (most: FLUX, Qwen-Image, SD3, SDXL, Z-Image, LTX, Wan). FLUX.3 (modular pipeline), Python stable-diffusion.cpp and sd-cli show only the periodic notice: Python stable-diffusion.cpp still cannot be interrupted in the middle of an image.
+- The 1× and 2× RAM limits are simple rules on the size of the model files; a model that fits in RAM but changes type on loading (e.g. fp16 → bf16) may take more than its file size.
+
 ## [0.76.0] — 2026-11-17
 
 ### Fixed — «AudioVAE checkpoint not found» in Dubbing (and Voice) with openbmb/VoxCPM2
