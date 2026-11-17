@@ -232,7 +232,7 @@ def _speech_params(ntype: str, p: Dict[str, Any], prov: str, model: str) -> Dict
                 "provider": prov, "model": model}
     return {"language": _lang(p.get("language"), "en", ("keep",)), "source_language": _lang(p.get("source_language"), "auto", ("auto",)), "voice": text(p.get("voice"), "", 80), "voice_style": text(p.get("voice_style"), "", 600), "speed": round(num(p.get("speed"), 1, 0.5, 2), 2),
             "assign": "alternate" if p.get("assign") == "alternate" else "labels", "mix": "duck" if p.get("mix") == "duck" else "replace", "original_volume": round(num(p.get("original_volume"), 0.15, 0, 1), 2), "fit": p.get("fit", True) is not False, "provider": prov, "model": model,
-            "extra": _json_dict(p.get("extra"))}
+            "extra": _json_dict(p.get("extra")), "clone": "off" if p.get("clone") == "off" else "auto", "speakers": int(num(p.get("speakers"), 0, 0, 8))}
 
 
 def normalize_params(ntype: str, p: Any) -> Dict[str, Any]:

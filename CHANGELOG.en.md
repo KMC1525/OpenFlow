@@ -2,6 +2,18 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.80.0] — 2026-11-17
+
+### Dubbing with openbmb/VoxCPM2 — each person's voice, automatically
+- **Dubbing clones the voice of whoever speaks in the original, without you connecting anything.** Before, dubbing with VoxCPM2 used the same voice (or the node's description) for every line; cloning a voice needed a Voice node with a reference audio for each character. Now, when the voice model clones (VoxCPM2) and no Voice nodes are connected, the node: (1) tells who speaks each stretch of the original audio/video (the same voice separation as Transcript); (2) takes a sample of each person's voice from the original (their longest lines, up to ≈ 12 s); (3) dubs each line with the cloned voice of whoever said it — several speakers, several voices, on one model loaded once.
+- **Same language, faithful cloning:** with no translation ("Keep the language") and a transcribed speech, the sample's transcript goes along and VoxCPM2 continues the sample's speech (the model's most faithful mode). Translating into another language uses the timbre (controllable cloning); if you wrote "What the voice is like", that description guides the style while keeping the timbre.
+- **Two new settings on the node:** "Clone the voice of whoever speaks in the original" (on by default; turn it off for the old dubbing) and "How many voices in the original" (0 = detect; giving the number is more reliable). Connected Voice nodes still win over the automatic cloning; a model that does not clone (the other voice models) behaves as before, with no new warning.
+- **Clear warnings:** which voices were cloned and each sample's length, who speaks too little in the original (under 1.5 s: keeps the node's voice), and when cloning was not possible (no ffmpeg/numpy, not enough speech, silence). Telling several speakers apart only works when the speech has real timing (a timed transcription or SRT/VTT subtitles); with an untimed script the dub uses one voice, sampled from the stretches with sound.
+
+### Not verified yet
+- **The real VoxCPM2 was never run** (Hugging Face is blocked where this was developed): the tests use a simulated `voxcpm` library and synthetic voices (deep and high). I do not know whether the cloned voice sounds like the original, nor whether speaker separation works on real people (similar voices, overlapping speech and background music confuse it; the cloned sample carries the original's noise along).
+- Faithful cloning (sample + transcript) across different languages is deliberately not used: same language only.
+
 ## [0.79.0] — 2026-11-17
 
 ### Bug hunt 2 — what was searched

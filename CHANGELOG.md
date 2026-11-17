@@ -2,6 +2,18 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.80.0] — 2026-11-17
+
+### Dublagem com o openbmb/VoxCPM2 — a voz de cada pessoa, sozinha
+- **A Dublagem clona a voz de quem fala no original, sem você ligar nada.** Antes, dublar com o VoxCPM2 usava a mesma voz (ou a descrição do nó) para todas as falas; clonar uma voz pedia um nó Voz com um áudio de referência para cada personagem. Agora, quando o modelo de voz clona (VoxCPM2) e não há nós Voz ligados, o nó: (1) separa quem fala cada trecho do áudio/vídeo original (a mesma separação de vozes da Transcrição); (2) tira do original uma amostra da voz de cada pessoa (as falas mais longas dela, até ≈ 12 s); (3) dubla cada fala com a voz clonada de quem a disse — vários locutores, várias vozes, no mesmo modelo carregado uma vez só.
+- **No mesmo idioma, clonagem fiel:** sem traduzir («Manter o idioma») e com a fala transcrita, a transcrição da amostra segue junto e o VoxCPM2 continua a fala dela (é o modo mais fiel do modelo). Traduzindo para outro idioma, vale o timbre (clonagem controlável); se você escreveu «Como é a voz», a descrição guia o estilo mantendo o timbre.
+- **Dois ajustes novos no nó:** «Clonar a voz de quem fala no original» (ligado por padrão; desligue para a dublagem de antes) e «Quantas vozes no original» (0 = descobrir; dizer o número é mais confiável). Nós Voz ligados continuam valendo no lugar da clonagem automática; um modelo que não clona (os outros modelos de voz) segue como antes, sem aviso novo.
+- **Avisos claros:** quais vozes foram clonadas e o tamanho da amostra de cada uma, quem fala pouco no original (menos de 1,5 s: fica com a voz do nó), e quando não deu para clonar (sem ffmpeg/numpy, sem fala suficiente, silêncio). A separação em vários locutores só vale quando a fala tem tempos de verdade (transcrição com tempos ou legendas SRT/VTT); com um roteiro sem tempos a dublagem usa uma voz só, amostrada dos trechos com som.
+
+### Ainda não verificado
+- **O VoxCPM2 de verdade nunca foi executado** (o Hugging Face está bloqueado onde isto foi desenvolvido): os testes usam uma biblioteca `voxcpm` simulada e vozes sintéticas (grave e aguda). Não sei se a voz clonada soa como a original, nem se a separação de locutores funciona com pessoas reais (vozes parecidas, fala ao mesmo tempo e música ao fundo confundem; a amostra clonada leva o ruído do original junto).
+- A clonagem fiel (amostra + transcrição) entre idiomas diferentes não é usada de propósito: só no mesmo idioma.
+
 ## [0.79.0] — 2026-11-17
 
 ### Caçando bugs 2 — o que foi procurado
