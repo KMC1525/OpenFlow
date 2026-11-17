@@ -42,7 +42,7 @@ SPECS: Dict[str, Dict[str, Any]] = {
     "img_collage": {"label": "Colagem", "icon": "image", "out": "image", "group": "Imagem", "ins": [("images", "Imagens", IMG, True)]},
     "img_frame": {"label": "Quadro do vídeo", "icon": "video", "out": "image", "group": "Imagem", "ins": [("video", "Vídeo", VID, False)]},
     "img_crop": {"label": "Recortar imagem", "icon": "scissors", "out": "image", "group": "Imagem", "ins": [("image", "Imagem", IMG, False)]},
-    "img_watermark": {"label": "Marca d'água", "icon": "image", "out": "image", "group": "Imagem", "ins": [("image", "Imagem", IMG, False), ("logo", "Marca", ["image"], False)]},
+    "img_watermark": {"label": "Marca d'água", "icon": "image", "out": "media", "group": "Imagem", "ins": [("image", "Imagem ou vídeo", IMG, False), ("logo", "Marca (para pôr)", ["image"], False), ("mask", "Máscara (para remover, opcional)", ["image"], False)]},
     # ---- 3D (v0.58): esqueleto, animação e textura de modelos 3D (GLB/OBJ → GLB)
     "tex3d": {"label": "Textura 3D", "icon": "palette", "out": "model3d", "group": "3D", "ins": [("model", "Modelo 3D", ["model3d"], False), ("image", "Imagem", ["image", "video"], False)]},
     "rig3d": {"label": "Esqueleto 3D", "icon": "cube", "out": "model3d", "group": "3D", "ins": [("model", "Modelo 3D", ["model3d"], False)]},
@@ -153,7 +153,9 @@ def normalize(t: str, p: Dict[str, Any]) -> Dict[str, Any]:
                 "x": round(n("x", 0, 0, 100), 1), "y": round(n("y", 0, 0, 100), 1), "w": round(n("w", 100, 1, 100), 1), "h": round(n("h", 100, 1, 100), 1),
                 "anchor": _pick(p.get("anchor"), ("center", "top", "bottom", "left", "right"), "center")}
     if t == "img_watermark":
-        return {"pos": _pick(p.get("pos"), ("br", "bl", "tr", "tl", "center"), "br"), "scale": round(n("scale", 20, 2, 80), 1), "opacity": round(n("opacity", 0.85, 0.05, 1), 2), "margin": int(n("margin", 3, 0, 20))}
+        return {"pos": _pick(p.get("pos"), ("br", "bl", "tr", "tl", "center"), "br"), "scale": round(n("scale", 20, 2, 80), 1), "opacity": round(n("opacity", 0.85, 0.05, 1), 2), "margin": int(n("margin", 3, 0, 20)),
+                "mode": _pick(p.get("mode"), ("add", "remove"), "add"), "where": _pick(p.get("where"), ("corner", "box", "auto"), "corner"), "rm_w": round(n("rm_w", 22, 1, 100), 1), "rm_h": round(n("rm_h", 10, 1, 100), 1),
+                "rm_x": round(n("rm_x", 70, 0, 100), 1), "rm_y": round(n("rm_y", 85, 0, 100), 1)}
     if t == "rig3d":
         return {"style": _pick(p.get("style"), ops3d.RIG_STYLES, "humanoid"), "bones": int(n("bones", 8, 2, 32)), "smooth": round(n("smooth", 0.5, 0, 1), 2)}
     if t == "anim3d":
@@ -1292,6 +1294,8 @@ def run_img_crop(eng, canvas, node):
 
 def run_img_watermark(eng, canvas, node):
     p = node["params"]
+    if p["mode"] == "remove":
+        return _remove_watermark(eng, canvas, node)
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td)
         base = _image_file(eng, _first(eng, canvas, node, "image", ("image", "video"), "uma imagem"), tmp, "base")
@@ -1304,6 +1308,57 @@ def run_img_watermark(eng, canvas, node):
         # a marca ocupa `scale`% da altura da imagem; scale2ref mantém a proporção dela
         _ff(eng, ["-i", str(base), "-i", str(logo), "-filter_complex", flt, "-map", "[o]", "-frames:v", "1", str(out)])
         return _img_out(eng, node, tmp, out, _title(node, "Imagem com marca"))
+
+
+def _remove_watermark(eng, canvas, node):
+    """Apaga a marca d'água (v0.70) de uma imagem ou de um vídeo com o `delogo` do ffmpeg (ou, com uma máscara ligada, o `removelogo`). Imagem entra → imagem sai; vídeo entra → vídeo sai (com o som)."""
+    from . import watermark as wm
+    from .. import attachments as att
+
+    p = node["params"]
+    a = _first(eng, canvas, node, "image", ("image", "video"), "uma imagem ou um vídeo")
+    is_video = a["kind"] == "video"
+    warns: List[str] = []
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        src = _path(eng, a) if is_video else _image_file(eng, a, tmp, "base")
+        info = att.video_info(src) if is_video else {}
+        size = (info.get("w"), info.get("h")) if is_video else (_dims(src) or (0, 0))
+        W, H = int(size[0] or 0), int(size[1] or 0)
+        if W < 8 or H < 8:
+            raise ValueError("Não consegui ler o tamanho do arquivo para achar a marca d'água.")
+        masks = _inputs(eng, canvas, node, "mask", ("image",))
+        if masks:
+            mask = tmp / "mask.png"
+            _ff(eng, ["-i", str(_path(eng, masks[0])), "-vf", f"scale={W}:{H}:flags=neighbor,format=gray", "-frames:v", "1", str(mask)])   # branco = marca; o filtro exige a máscara do tamanho do quadro
+            vf = wm.removelogo_filter(mask)
+        else:
+            if p["where"] == "auto":
+                if not is_video:
+                    raise ValueError("A detecção automática só funciona em vídeo (ela procura o que fica parado entre os quadros). Numa imagem, escolha «Canto» ou «Área», ou ligue uma máscara.")
+                frames = wm.sample_frames(src, a.get("duration") or 0, W, H, shutil.which("ffmpeg"))
+                if frames is None:
+                    raise ValueError("A detecção automática precisa do numpy (pip install numpy) e do ffmpeg. Escolha «Canto» ou «Área».")
+                eng.ctl.note("Procurando a marca d'água…")
+                box, why = wm.detect(frames, W, H)
+                if box is None:
+                    raise ValueError("Marca d'água automática: " + why)
+                warns.append("Marca encontrada em " + wm.describe(box, W, H) + ". Se não for a marca, escolha a área à mão.")
+            else:
+                box = wm.region(p["where"], p["pos"], p["rm_w"], p["rm_h"], p["rm_x"], p["rm_y"], p["margin"], W, H)
+            vf = wm.delogo_filter(box)
+        eng._check()
+        if is_video:
+            out = tmp / "o.mp4"
+            _ff(eng, ["-i", str(src), "-vf", f"{vf},{EVEN}", "-map", "0:v:0", *(["-map", "0:a"] if has_audio(src) else ["-an"]), *_mp4_args(_src_fps(src)), str(out)])
+            res = _vid_out(eng, node, out, _title(node, "Vídeo sem marca"), w=W // 2 * 2, h=H // 2 * 2)
+        else:
+            out = tmp / "o.png"
+            _ff(eng, ["-i", str(src), "-vf", vf, "-frames:v", "1", str(out)])
+            res = _img_out(eng, node, tmp, out, _title(node, "Imagem sem marca"))
+        if warns:
+            res["warnings"] = warns
+        return res
 
 
 def run_vid_reframe(eng, canvas, node):

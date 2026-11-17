@@ -2,6 +2,19 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.70.0] — 2026-11-17
+
+### New — Remove watermarks from images and videos
+- **The Watermark node now also removes:** under «What to do», choose «Remove a watermark». It works on **images and videos** (the video keeps its resolution, frame rate and sound). The node's output can now be a video and connects to any media input; the «Add a mark» mode is unchanged (and is the default).
+- **Where the mark is:** in a **corner** (size as % of the frame and margin), in an **area** in % (left, top, width, height), **found automatically** (video only) or given by a **mask** connected to the new «Mask» input (white = what to erase), which replaces the area.
+- **How it erases:** ffmpeg rebuilds the area from the surrounding pixels (`delogo`; with a mask, `removelogo`). A small mark over a smooth background disappears well; over a detailed background a **blurry smear** is left: it is not an inpainting model and does not «guess» what was underneath.
+- **Automatic detection in video:** it analyzes 14 frames spread across the video and looks, in the four corners, for what does not change and has edges (letters and outlines). The node says where it found it («Mark found at x…%»). Needs numpy. In an almost still video (slides, fixed camera) the mark cannot be told apart from the background and the node warns instead of guessing; if nothing is found, it also warns.
+
+### Not yet verified
+- Tested with synthetic images and videos (white mark over a smooth background or moving noise), real ffmpeg and numpy. **Real photos and videos were not tested:** semi-transparent, moving, large marks or marks over detailed backgrounds may stay visible or leave a smear, and automatic detection was tuned only on those test videos.
+- Marks that fill the frame, appear in several places or move around are not handled (the area is fixed throughout the video).
+- Removing watermarks from other people's content may infringe copyright; use it on your own material or with permission.
+
 ## [0.69.0] — 2026-11-17
 
 ### New — Transcript with several voices
