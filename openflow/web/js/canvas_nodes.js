@@ -404,6 +404,9 @@ const BODY = {
     lab(t('Áudio original'), sel(c, n, 'mix', [['replace', t('Trocar pela dublagem')], ['duck', t('Manter baixinho por baixo')]])),
     n.params.mix === 'duck' ? lab(t('Volume do original (0 a 1)'), txt(c, n, 'original_volume', '0.15', 'number')) : null,
     checkbox(t('Acelerar a fala que não cabe no tempo'), n.params.fit, (v) => c.change(n, 'fit', v, true)),
+    checkbox(t('Clonar a voz de quem fala no original (modelos que clonam, como o VoxCPM2)'), n.params.clone !== 'off', (v) => c.change(n, 'clone', v ? 'auto' : 'off', true)),
+    n.params.clone !== 'off' ? lab(t('Quantas vozes no original (0 = descobrir)'), txt(c, n, 'speakers', '0', 'number')) : null,
+    n.params.clone !== 'off' ? h('div', { class: 'dim small' }, t('Sem nós Voz ligados, o OpenFlow separa quem fala no original, tira uma amostra da voz de cada pessoa e dubla cada fala com a voz clonada dela. Só vale para modelos que clonam voz (VoxCPM2). Vozes parecidas, fala ao mesmo tempo e música ao fundo confundem a separação, e o ruído do original vai junto para a voz clonada.')) : null,
     ...providerBlock(c, n, 'voice'),
     h('div', { class: 'dim small' }, t('A transcrição usa o modelo padrão de Configuração → Mídia (Whisper local). Com a voz Demo o resultado é só um balbucio.'))],
   transcript: (c, n) => [

@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..providers import ProviderError, build_provider
+from . import autoclone, diarize
 from . import subtitles as sub
 from . import voicestyle
 from .media import MIME_EXT, build_media, media_config, pick_provider
@@ -334,6 +335,41 @@ def profile_signature(eng: Any, canvas: Dict[str, Any], node: Dict[str, Any]) ->
     return sig
 
 
+def _auto_voices(eng: Any, path: Path, base: Dict[str, Any], orig: List[Dict[str, Any]], orig_timed: bool, transcribed: bool, segs: List[Dict[str, Any]], p: Dict[str, Any],
+                 warnings: List[str]) -> Optional[Tuple[List[Dict[str, Any]], List[Tuple[int, str]]]]:
+    """Dublagem automática com a voz de cada locutor (v0.80): se o modelo de voz clona voz e o usuário não ligou nós Voz, tira do áudio original uma amostra da voz de cada pessoa e dubla cada fala com a voz
+    clonada de quem a disse (`autoclone`). Devolve (perfis, quem fala cada trecho) ou None (modelo que não clona, sem numpy/ffmpeg, sem fala suficiente: a dublagem segue com a voz do nó)."""
+    prov = base.get("prov")
+    if prov is None or not prov.clones_voice(base["model_override"] or base["model"]):
+        return None
+    x = diarize.decode(path)
+    if x is None:
+        warnings.append("Não consegui clonar a voz do original: isso precisa do ffmpeg e do numpy (pip install numpy) e de um áudio legível. Dublei com a voz do nó.")
+        return None
+    eng._check()
+    eng.ctl.note("Separando as vozes do original e preparando a clonagem de cada uma…")
+    labelled, voices, notes = autoclone.plan(x, orig, orig_timed, p["speakers"])
+    warnings += notes
+    if not any(v["wav"] for v in voices):
+        warnings.append("Não achei fala suficiente no original (menos de 1,5 s) para clonar a voz: dublei com a voz do nó.")
+        return None
+    same_language = p["language"] == "keep" and transcribed and not str(base.get("voice_style") or "").strip()   # a clonagem fiel (amostra + texto dela) pede o mesmo idioma e uma transcrição de verdade
+    profiles: List[Dict[str, Any]] = []
+    for i, v in enumerate(voices):
+        prof = dict(base, name=diarize.speaker_name(i, []) if len(voices) > 1 else "", aliases=[])
+        if v["wav"]:
+            prof["reference"] = (v["wav"], "audio/wav")
+            prof["reference_text"] = v["text"] if same_language else ""
+        profiles.append(prof)
+    who = [(min(len(profiles) - 1, autoclone.speaker_of(labelled, s["start"], s["end"])) if labelled else 0, s["text"]) for s in segs]
+    done = [f"{(diarize.speaker_name(i, []) + ' ') if len(voices) > 1 else ''}(amostra de {v['seconds']:g} s)".strip() for i, v in enumerate(voices) if v["wav"]]
+    warnings.append("Voz clonada do áudio original: " + ", ".join(done) + ". Música ou ruído de fundo no original vão para a voz clonada também.")
+    for i, v in enumerate(voices):
+        if not v["wav"] and len(voices) > 1:
+            warnings.append(f"«{diarize.speaker_name(i, [])}» fala pouco no original (menos de 1,5 s): ficou com a voz do nó.")
+    return profiles, who
+
+
 def run_dub(eng: Any, canvas: Dict[str, Any], node: Dict[str, Any]) -> Dict[str, Any]:
     p = node["params"]
     warnings: List[str] = []
@@ -344,11 +380,14 @@ def run_dub(eng: Any, canvas: Dict[str, Any], node: Dict[str, Any]) -> Dict[str,
         raise ValueError("O arquivo de entrada não existe mais.")
     duration = float(src.get("duration") or 0.0) or float(_file_duration(path) or 0.0)
     script = eng.inputs(canvas, node, "script")["text"].strip()
+    orig: List[Dict[str, Any]] = []     # a fala original, com os tempos dela (para separar e clonar as vozes: v0.80)
+    orig_timed = transcribed = False
     if script:
         if sub.looks_timed(script):
             segs = sub.parse(script)
             if not segs:
                 raise ValueError("Não consegui ler as legendas ligadas em «Roteiro» (esperava SRT ou VTT).")
+            orig, orig_timed = list(segs), True
         else:
             if duration <= 0:
                 raise ValueError("Não consegui medir a duração do arquivo para distribuir o roteiro no tempo.")
@@ -356,6 +395,7 @@ def run_dub(eng: Any, canvas: Dict[str, Any], node: Dict[str, Any]) -> Dict[str,
             warnings.append("O roteiro não tinha tempos: distribuí a fala ao longo do arquivo em proporção ao tamanho de cada frase.")
     else:
         segs, timed, label = transcribe_media(eng, src, p["source_language"])
+        orig, orig_timed, transcribed = list(segs), bool(timed), True
         if not timed:
             warnings.append(f"{label} não devolve o tempo de cada trecho: a dublagem saiu como uma fala só, do começo ao fim.")
         if p["language"] != "keep":
@@ -375,6 +415,10 @@ def run_dub(eng: Any, canvas: Dict[str, Any], node: Dict[str, Any]) -> Dict[str,
         _prov, own_pid, _model = eng._provider(node)
         profiles = [{"name": "", "aliases": [], "pid": own_pid, "model": _model, "model_override": p["model"], "voice": p["voice"], "voice_style": p["voice_style"], "speed": p["speed"], "extra": p["extra"], "style": None, "prov": _prov}]
         who = [(0, s["text"]) for s in segs]
+        if p["clone"] == "auto":   # v0.80: o modelo clona voz (VoxCPM2) e não há nós Voz: a voz de cada locutor do original é clonada sozinha
+            auto = _auto_voices(eng, path, profiles[0], orig, orig_timed, transcribed, segs, p, warnings)
+            if auto:
+                profiles, who = auto
     clips: List[Tuple[Dict[str, Any], Any]] = []
     spoken: List[Dict[str, Any]] = []
     counts = [0] * len(profiles)
