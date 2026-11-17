@@ -624,10 +624,18 @@ class Request:
 
     # entrada
     def content_length(self) -> int:
-        try:
-            return max(0, int(self.headers.get("Content-Length") or 0))
-        except ValueError:
+        if "chunked" in (self.headers.get("Transfer-Encoding") or "").lower():
+            raise HttpError(411, "Envie o corpo com Content-Length (corpo em pedaços não é aceito)")   # v0.78: antes era lido como vazio, em silêncio
+        raw = self.headers.get("Content-Length")
+        if raw is None or str(raw).strip() == "":
             return 0
+        try:
+            n = int(str(raw).strip())
+        except ValueError:
+            raise HttpError(400, "Content-Length inválido") from None
+        if n < 0:
+            raise HttpError(400, "Content-Length inválido")   # v0.78: valor negativo ou ilegível virava «corpo vazio» e a requisição passava como válida
+        return n
 
     def body_bytes(self, limit: int = 8 * 1024 * 1024) -> bytes:
         n = self.content_length()

@@ -30,6 +30,16 @@ SRC = Path(__file__).resolve().parent
 _LIB: Any = None
 _TRIED = False
 _REASON = ""
+
+
+def translate_reason(reason: str) -> str:
+    """O motivo de o núcleo Rust estar inativo, no idioma do terminal (v0.78: em inglês ele saía em português: só as frases fixas eram traduzidas, e o motivo é guardado em português)."""
+    from ..termi18n import _
+
+    m = re.match(r"^(.*): versão da interface diferente \(recompile com `flow native setup`\)$", reason or "")
+    if m:
+        return _("{n}: versão da interface diferente (recompile com `flow native setup`)", n=m.group(1))
+    return _(reason) if reason else ""
 _LOCK = threading.Lock()
 WAVES = {"sine": 0, "square": 1, "saw": 2, "triangle": 3}
 

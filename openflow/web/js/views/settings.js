@@ -317,7 +317,7 @@ async function performance() {
   const pf = Object.assign({ mode: 'auto', idle_unload_min: 10 }, state.settings.performance || {});
   const nat = state.native || {};
   const hw = state.hardware;
-  const cmd = (label, text) => h('div', { class: 'field' }, h('label', { class: 'f' }, label), h('div', { class: 'codebox' }, h('span', null, text), h('button', { class: 'btn sm ghost', onclick: () => { navigator.clipboard.writeText(text).then(() => toast(t('Copiado'))); } }, icon('copy', 13))));
+  const cmd = (label, text) => field(label, h('div', { class: 'codebox' }, h('span', null, text), h('button', { class: 'btn sm ghost', 'aria-label': t('Copiar'), title: t('Copiar'), onclick: () => { navigator.clipboard.writeText(text).then(() => toast(t('Copiado'))); } }, icon('copy', 13))));
   return h('div', null,
     cfgCard(t('Desempenho'),
       h('div', { class: 'grid2' },

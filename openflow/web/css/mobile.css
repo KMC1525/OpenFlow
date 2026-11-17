@@ -12,6 +12,9 @@ html[data-standalone="yes"] body{padding-top:env(safe-area-inset-top)}
   .palette-item,.modal .foot .btn{min-height:44px}
 }
 
+/* celular (v0.78): botões pequenos e os botões dos seletores segmentados ficavam com menos de 28 px: difíceis de tocar */
+@media (max-width:520px){.btn.sm{min-height:34px;min-width:34px}.seg button{min-height:34px;min-width:34px}}
+
 /* áreas seguras (notch, barra de gestos, cantos arredondados) */
 html[data-device]:not([data-device="desktop"]) #side{padding-bottom:max(6px,env(safe-area-inset-bottom));padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
 html[data-device]:not([data-device="desktop"]) .page{padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right))}

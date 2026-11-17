@@ -11,7 +11,10 @@ Só os arquivos da precisão escolhida são baixados (variantes `.fp16.safetenso
 """
 from __future__ import annotations
 
+import contextlib
+import os
 import re
+import shutil
 import urllib.parse
 
 import threading
@@ -183,6 +186,63 @@ def _gated_or(exc: Exception, model: str, token: str) -> ProviderError:
     return ProviderError(f"Não foi possível baixar «{model}»: {exc}")
 
 
+def _cache_dir(hub: Any) -> Path:
+    """Onde o huggingface_hub guarda os modelos baixados (a pasta que enche)."""
+    try:
+        return Path(hub.constants.HF_HUB_CACHE)
+    except Exception:  # noqa: BLE001
+        base = os.environ.get("HF_HUB_CACHE") or os.path.join(os.environ.get("HF_HOME") or os.path.join(os.path.expanduser("~"), ".cache", "huggingface"), "hub")
+        return Path(base)
+
+
+def check_space(hub: Any, model: str, files: List[Dict[str, Any]]) -> None:
+    """Confere se há espaço em disco para o que falta baixar (v0.78). Sem isso, um disco cheio só aparecia no meio do download — depois de gastar minutos e rede — como «No space left on device» cru."""
+    pending = 0
+    for f in files:
+        try:
+            cached = hub.try_to_load_from_cache(model, f["name"])
+        except Exception:  # noqa: BLE001
+            cached = None
+        if not (isinstance(cached, (str, os.PathLike)) and Path(cached).is_file()):
+            pending += int(f.get("size") or 0)
+    if not pending:
+        return
+    folder = _cache_dir(hub)
+    probe = folder
+    while not probe.exists() and probe != probe.parent:
+        probe = probe.parent
+    try:
+        free = shutil.disk_usage(probe).free
+    except OSError:
+        return
+    if free < pending * 1.02 + (200 << 20):
+        gb = 1024 ** 3
+        raise ProviderError(f"Sem espaço em disco para «{model}»: faltam baixar {pending / gb:.1f} GB e há {free / gb:.1f} GB livres em {folder}. Libere espaço, escolha uma precisão menor (fp16/bf16) "
+                            "ou mude a pasta dos modelos em Configuração → Armazenamento.", status=507)
+
+
+@contextlib.contextmanager
+def cancellable(hub: Any, cancelled: Callable[[], bool]) -> Any:
+    """Faz o «Cancelar» valer no MEIO de um arquivo grande (v0.78): antes só era lido entre um arquivo e outro, e cancelar um .safetensors de 5 GB esperava ele terminar. A barra de progresso do huggingface_hub
+    (`file_download.tqdm`) passa a levantar o cancelamento a cada pedaço recebido; o arquivo parcial fica em .incomplete e o próximo download continua dele. Se a versão do hub não tem essa barra, nada muda."""
+    fd = getattr(hub, "file_download", None)
+    base = getattr(fd, "tqdm", None)
+    if fd is None or base is None:
+        yield
+        return
+
+    class CancellableBar(base):  # type: ignore[misc, valid-type]
+        def update(self, n: Any = 1) -> Any:
+            if cancelled():
+                raise ProviderError("cancelado")
+            return super().update(n)
+    fd.tqdm = CancellableBar
+    try:
+        yield
+    finally:
+        fd.tqdm = base
+
+
 def download(model: str, precision: str, token: str = "", progress: Optional[Callable[[int, int], None]] = None, cancelled: Callable[[], bool] = lambda: False) -> Path:
     """Baixa os arquivos da precisão escolhida, um a um (dá para cancelar entre arquivos), e registra a escolha."""
     if precision not in PRECISIONS:
@@ -194,6 +254,7 @@ def download(model: str, precision: str, token: str = "", progress: Optional[Cal
         raise _gated_or(exc, model, token) from None
     if not files:
         raise ProviderError("Nenhum arquivo utilizável neste repositório.")
+    check_space(hub, model, files)
     total = sum(f["size"] for f in files)
     done, snap = 0, None
     for f in files:
@@ -209,7 +270,8 @@ def download(model: str, precision: str, token: str = "", progress: Optional[Cal
         t = threading.Thread(target=poll, daemon=True)
         t.start()
         try:
-            snap = Path(hub.hf_hub_download(model, f["name"], token=token or None)).parents[len(Path(f["name"]).parts) - 1]
+            with cancellable(hub, cancelled):
+                snap = Path(hub.hf_hub_download(model, f["name"], token=token or None)).parents[len(Path(f["name"]).parts) - 1]
         except ProviderError:
             raise
         except Exception as exc:  # noqa: BLE001

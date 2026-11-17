@@ -126,6 +126,9 @@ class BrowserTests(unittest.TestCase):
     def test_31_sound_model_search_by_topic(self):
         self.run_script("sound_search_v065_ui.js")
 
+    def test_32_every_field_has_a_name_and_labels_focus_their_field(self):
+        self.run_script("labels_v078_ui.js")
+
     def test_19_the_ai_flow_generator_and_the_team_picker_are_gone(self):
         self.run_script("no_flow_ai_ui.js")
 

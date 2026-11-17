@@ -2,6 +2,25 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.78.0] — 2026-11-17
+
+### Bug hunt — what was searched
+- **API:** 974 calls with malformed bodies and queries (broken JSON, wrong types, 200 KB of text, ids with `..` and with 300 characters) on every route that touches neither the network nor the user's disk; **160 random node graphs** (cycles, self-links, ports that do not exist) in the engine; the upload and static-file routes with odd headers; every `flow` command; the interface at 3 screen sizes (phone, tablet, desktop) and 2 languages, with all screens, the 5 Settings tabs and **all 63 node types** on the canvas (console errors, sideways scrolling, unnamed fields, clipped text, content overflowing the node border); and the model install flow.
+- The engine and the API withstood almost everything (no hang, no exception in the 160 graphs); what showed up is below.
+
+### Fixed
+- **Installing models — a full disk only showed up in the middle of the download:** the local Hugging Face download did not check free space; a full disk only gave «No space left on device» after minutes of wasted network. It now checks **beforehand**, discounting what is already in the cache, and says how much is missing («Not enough disk space for «…»: 4.0 GB left to download and 2.0 GB free in …; free space, choose a smaller precision or change the models folder»).
+- **Installing models — «Cancel» waited for the file to finish:** cancellation was only read between one file and the next, so cancelling a 5 GB `.safetensors` waited for it to end. It now takes effect **in the middle** of the file (the partial is kept and the next download continues from it; the cancelled model is not marked as downloaded).
+- **Interface — fields without a name (accessibility):** the label of almost every field sat next to the field with no link to it: screen readers read «combo box» without saying which, and clicking the label did not go to the field. There were 13 fields in Settings (providers, performance, computer protection, memory, language…) and the canvas node fields. The label is now linked to the field (`for`/`id`) and, for button groups, names the group; the copy button for the GPU command got a name.
+- **Interface — phone:** small buttons and the segmented-selector buttons were under 28 px; they are now at least 34 px on narrow screens.
+- **API — a huge project id gave a 500 error** («File name too long»); it is now «does not exist». **Invalid or negative Content-Length and chunked bodies (`Transfer-Encoding: chunked`)** were read as «empty body» and the request passed as valid (creating a blank project, for instance); they now give 400 and 411.
+- **English terminal with a Portuguese snippet:** the reason the Rust core is inactive («library not built…», «turned off by OPENFLOW_NO_NATIVE», «interface version differs…») came out in Portuguese; it now follows the terminal language.
+
+### Not yet verified
+- No real model was downloaded or run (Hugging Face is blocked where this was developed): the space check and cancelling in the middle of a file were tested with a simulated `huggingface_hub`. Cancelling mid-file depends on the installed hub version using the `file_download.tqdm` progress bar; if it does not, cancellation still takes effect only between files, as before.
+- The accessibility and layout audit was done by script (Chromium), not with a real screen reader; colors and contrast were not evaluated.
+- The hunt does not exhaust the program: it covered the paths described above.
+
 ## [0.77.0] — 2026-11-17
 
 ### Fixed — freezes while generating and editing on weak machines

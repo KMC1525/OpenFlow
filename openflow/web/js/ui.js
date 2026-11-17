@@ -177,8 +177,25 @@ export function seg(options, value, onChange) {
   return el;
 }
 
+let _fid = 0;
+/** Liga um <label class="f"> ao seu campo (v0.78): o rótulo ficava ao lado do campo, sem `for`, e leitor de tela e «clicar no rótulo» não funcionavam. O 1º campo dentro de `control` (ou o próprio) ganha um id e o
+ * rótulo aponta para ele; sem nenhum campo (um grupo de botões, uma caixa de código), o rótulo nomeia o grupo. */
+export function bindLabel(label, control) {
+  if (!label || !control || !control.matches) return;
+  const target = control.matches('input,select,textarea') ? control : control.querySelector('input,select,textarea');
+  if (target) {
+    if (!target.id) target.id = 'fld-' + (++_fid);
+    if (!target.getAttribute('aria-label') && !target.getAttribute('aria-labelledby')) label.htmlFor = target.id;
+    return;
+  }
+  if (!label.id) label.id = 'lbl-' + (++_fid);
+  if (!control.getAttribute('aria-labelledby') && !control.getAttribute('aria-label')) { control.setAttribute('role', control.getAttribute('role') || 'group'); control.setAttribute('aria-labelledby', label.id); }
+}
+
 export function field(label, control, hint) {
-  return h('div', { class: 'field' }, label ? h('label', { class: 'f' }, label) : null, control, hint ? h('div', { class: 'hint' }, hint) : null);
+  const lab = label ? h('label', { class: 'f' }, label) : null;
+  bindLabel(lab, control);
+  return h('div', { class: 'field' }, lab, control, hint ? h('div', { class: 'hint' }, hint) : null);
 }
 export function range(min, max, step, value, onInput, fmt) {
   const out = h('output', null, fmt ? fmt(value) : value);
