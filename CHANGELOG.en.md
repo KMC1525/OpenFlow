@@ -2,6 +2,28 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.83.0] — 2026-11-17
+
+### Bug hunt 3 — what was searched
+- **The 0.80–0.82 code** (cloned-voice dubbing, Q2–Q8 tiers, PyTorch/TensorFlow, the own-model node), read with an eye to breaking it, plus: 1018 malformed API calls (every route, the new ones included), 160 random graphs in the engine, 4000 random inputs to the new pure functions and a layout audit of the new screens at 3 screen sizes × 2 languages.
+- The API, the engine and the pure functions held up to everything; the bugs are below, all in the new features.
+
+### Fixed
+- **Creating a tier of a TEXT model could hang forever.** llama.cpp's output (one line per tensor, hundreds of KB) went to a pipe nobody read: the buffer filled up and the process stopped. It now goes to a temporary file (and the error shows the end of the log). The test hangs on the old code.
+- **"Quantization on load" recompressed upwards:** asking for Q8 on a Q5 file (or Q1, IQ…) said "Compressing to Q8" and sent the request to stable-diffusion.cpp. It now only applies to a tier SMALLER than the file's, also for types that are not one of the five tiers.
+- **"Look in other repositories" offered another model:** whoever searched for "Z-Image" got "Z-Image-Turbo". The repository's base name must now be equal.
+- **The "PyTorch/TensorFlow model" node scanned whole folders:** pointing to the home folder by mistake walked the whole disk; and the "is the node stale?" check (several times a second) repeated the scan. The search now stops at 4000 files and 6 levels (no hidden, cache or linked folders) and the model's stamp is valid for 3 s.
+- **A huge or broken image in the own-model node** gave "Unexpected error" (decompression bomb) or an error without a reason: it now says the image is too big, or corrupt/incomplete.
+- **Downloading a model for the "PyTorch/TensorFlow model" node broke the repository as an image model:** it wrote the "fp32" mark (looked like a complete model) and, after downloading the repository normally, the old marker still refused it. The framework download now only writes its own marker, and both ways coexist.
+- **The PyTorch/TensorFlow card loaded TensorFlow just because someone opened Settings** (≈ 400 MB of RAM and several seconds, on computers that already struggle): it now only loads through the "Check TensorFlow" button (or if it was already loaded).
+- **UI — the model search panel went past the screen edge on tablets** (the open sidebar pushed the `92vw` out: "Download" buttons cut off); the panel now fits the width left. **The long command in the PyTorch card** pushed the "Copy" button off the card on phones: it now wraps (also the graphics-card one).
+- **UI — "Create tier"/download with another one running** showed the server's JSON in the notice; it now says "A download is already running" (in the three places: model search, Library and Settings).
+- **Dubbing without audio:** the warning that the voice could not be cloned now reminds that a silent video will not do. The "Own models" search has its own help text (it used to talk about sound and voice).
+
+### Not verified yet
+- No real model was downloaded or run (Hugging Face blocked), and nothing ran on a graphics card. The layout audit is scripted (Chromium), not a person with a screen reader; contrast and colours were not evaluated.
+- The hunt does not exhaust the program: it covered the paths above.
+
 ## [0.82.0] — 2026-11-17
 
 ### Full PyTorch and TensorFlow support

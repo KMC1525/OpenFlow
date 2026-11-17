@@ -18,6 +18,14 @@ run('frameworks_v082', async ({ api, open, check }) => {
   check('card:conselho-do-tensorflow-no-windows', /WSL2/.test(await page.locator('#fw-body').innerText()));
   await page.locator('#fw-refresh').click(); await page.waitForSelector('#fw-torch', { timeout: 8000 });
   check('card:ler-de-novo-pede-ao-servidor', reads >= 2);
+  // v0.83: o TensorFlow só é carregado quando a pessoa pede («Verificar o TensorFlow»)
+  const asked = [];
+  await page.unroute('**/api/media/frameworks*');
+  await page.route('**/api/media/frameworks*', (r) => { const u = r.request().url(); asked.push(u); const deep = /tf=1/.test(u); json(r, { ...REPORT, tensorflow: { ...REPORT.tensorflow, probed: deep, gpus: [] }, advice: { torch: [], tensorflow: [{ level: deep ? 'ok' : 'info', text: deep ? 'O TensorFlow 2.21.0 roda na CPU.' : 'O TensorFlow 2.21.0 está instalado. Para saber se ele usa a placa de vídeo é preciso carregá-lo.', text_en: 'x' }] } }); });
+  await page.locator('#fw-refresh').click(); await page.waitForSelector('#fw-tf-probe', { timeout: 8000 });
+  check('card:tensorflow-nao-e-carregado-sozinho', !asked.some((u) => /tf=1/.test(u)) && /instalado|installed/.test(await page.locator('#fw-tf').innerText()));
+  await page.locator('#fw-tf-probe').click(); await page.waitForFunction(() => /roda na CPU/.test(document.getElementById('fw-body').innerText), null, { timeout: 8000 });
+  check('card:verificar-o-tensorflow-pede-ao-servidor', asked.some((u) => /tf=1/.test(u)) && (await page.locator('#fw-tf-probe').count()) === 0);
 
   // «Modelos próprios» na barra de pesquisa do Canvas
   const seen = { dl: [], use: [] };

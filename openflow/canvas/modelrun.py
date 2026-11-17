@@ -31,6 +31,23 @@ MAX_BYTES_WARN = 1 << 30
 _SKIP_H5 = ("tf_model.h5", "model.weights.h5")      # pesos de transformers / só pesos: não são um modelo Keras completo
 _PREFER = re.compile(r"(^|[^a-z])(model|best|generator|net|main|final)([^a-z]|$)", re.I)
 REPO = re.compile(r"^[\w.-]+/[\w.-]+$")
+MAX_SCAN = 4000      # arquivos olhados ao procurar um modelo numa pasta (v0.83: apontar para a pasta pessoal, por engano, varria o disco inteiro e travava o nó)
+MAX_DEPTH = 6
+_SKIP_DIRS = {"__pycache__", "node_modules", ".git", ".cache"}
+
+
+def walk(folder: Path):
+    """Os arquivos de uma pasta (até `MAX_DEPTH` níveis e `MAX_SCAN` arquivos), sem as pastas ocultas e as de cache — sem seguir atalhos para fora."""
+    base = Path(folder)
+    seen = 0
+    for root, dirs, files in os.walk(base, followlinks=False):
+        depth = len(Path(root).relative_to(base).parts)
+        dirs[:] = sorted(d for d in dirs if not d.startswith(".") and d not in _SKIP_DIRS) if depth < MAX_DEPTH else []
+        for f in sorted(files):
+            seen += 1
+            if seen > MAX_SCAN:
+                return
+            yield Path(root) / f
 
 
 # ----------------------------------------------------------------------------- achar o modelo
@@ -61,17 +78,17 @@ def candidates(folder: Path, framework: str = "") -> List[Path]:
     found: List[Path] = []
     if (folder / "saved_model.pb").is_file():
         found.append(folder)
-    for p in sorted(folder.rglob("*")):
-        if p.is_file() and kind_of(p):
-            found.append(p)
-        elif p.is_dir() and (p / "saved_model.pb").is_file() and p != folder:
+    for p in walk(folder):
+        if p.name == "saved_model.pb" and p.parent != folder:
+            found.append(p.parent)
+        elif kind_of(p):
             found.append(p)
     if framework in ("tf", "torch"):
         found = [c for c in found if framework_of(kind_of(c)) == framework]
 
     def size(p: Path) -> int:
         try:
-            return sum(f.stat().st_size for f in p.rglob("*") if f.is_file()) if p.is_dir() else p.stat().st_size
+            return sum(f.stat().st_size for f in walk(p)) if p.is_dir() else p.stat().st_size
         except OSError:
             return 0
     return sorted(found, key=lambda p: (0 if _PREFER.search(p.stem if p.is_file() else p.name) else 1, -size(p), str(p)))
@@ -402,8 +419,8 @@ def fingerprint(path: Path) -> str:
     p = Path(path)
     try:
         if p.is_dir():
-            parts = [(str(f.relative_to(p)), f.stat().st_size, int(f.stat().st_mtime)) for f in sorted(p.rglob("*")) if f.is_file()]
-            return str(hash(tuple(parts)) & 0xFFFFFFFF)
+            parts = [(str(f.relative_to(p)), f.stat().st_size, int(f.stat().st_mtime)) for f in walk(p)]
+            return f"{len(parts)}-{abs(hash(tuple(parts))) & 0xFFFFFFFF}"
         st = p.stat()
         return f"{st.st_size}-{int(st.st_mtime)}"
     except OSError:

@@ -344,7 +344,7 @@ def _auto_voices(eng: Any, path: Path, base: Dict[str, Any], orig: List[Dict[str
         return None
     x = diarize.decode(path)
     if x is None:
-        warnings.append("Não consegui clonar a voz do original: isso precisa do ffmpeg e do numpy (pip install numpy) e de um áudio legível. Dublei com a voz do nó.")
+        warnings.append("Não consegui clonar a voz do original: isso precisa do ffmpeg e do numpy (pip install numpy) e de um arquivo com áudio legível (um vídeo sem som não serve). Dublei com a voz do nó.")
         return None
     eng._check()
     eng.ctl.note("Separando as vozes do original e preparando a clonagem de cada uma…")

@@ -108,14 +108,25 @@ def wanted(value: Any) -> str:
     return tier_of(v) if v else ""
 
 
+def file_bits(quant: str) -> int:
+    """Os bits por peso do tipo de um arquivo («Q5_K_M» → 5, «IQ3_XS» → 3, «BF16» → 16, «F32» → 32); 0 se não dá para saber."""
+    q = (quant or "").strip().upper().replace("UD-", "")
+    if q in ("F16", "BF16"):
+        return 16
+    if q == "F32":
+        return 32
+    m = re.match(r"^(?:IQ|TQ|Q)(\d)", q)
+    return int(m.group(1)) if m else 0
+
+
 def with_weight_type(load: Dict[str, Any], file_quant: str, tier: str) -> Tuple[Dict[str, Any], str]:
     """Usa um arquivo na faixa `tier` mesmo que ele seja de outra: pede à stable-diffusion.cpp que recomprima os pesos ao carregar (`wtype`). Devolve (carga, aviso). Só vale para uma faixa MENOR que
-    a do arquivo (recomprimir para cima não devolve qualidade); a igual não faz nada."""
+    a do arquivo (recomprimir para cima não devolve qualidade; v0.83: também vale para os tipos que não são uma das cinco faixas, como Q5 e Q1); a igual não faz nada."""
     if not tier:
         return load, ""
-    have = tier_of(file_quant)
-    if have and NOMINAL[have] <= NOMINAL[tier]:
-        return load, ("" if have == tier else f"O arquivo já é {have}: não há o que comprimir para {tier} (a quantização pedida só vale para uma faixa menor que a do arquivo).")
+    bits = file_bits(file_quant)
+    if bits and bits <= NOMINAL[tier]:
+        return load, ("" if tier_of(file_quant) == tier else f"O arquivo já é {file_quant} ({bits} bits): não há o que comprimir para {tier} (a quantização pedida só vale para uma faixa menor que a do arquivo).")
     return {**load, "wtype": SD_TYPE[tier].lower()}, f"Comprimindo os pesos para {tier} ao carregar (a stable-diffusion.cpp recomprime o arquivo{' ' + file_quant if file_quant else ''}): a carga demora um pouco mais, a memória cai."
 
 

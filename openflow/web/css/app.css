@@ -191,6 +191,7 @@ button.chip{cursor:pointer}button.chip:hover{border-color:var(--line3);color:var
 .prov .roles{margin-left:auto;display:flex;gap:6px}
 .kv{display:grid;grid-template-columns:150px 1fr;gap:6px 14px;font-size:13px}.kv dt{color:var(--muted)}.kv dd{margin:0}
 .codebox{font:12px var(--mono);background:var(--bg2);border:1px solid var(--line2);border-radius:12px;padding:10px 12px;display:flex;gap:10px;align-items:center;justify-content:space-between;overflow:auto}
+.codebox>span{min-width:0;overflow-wrap:anywhere}.codebox>.btn{flex:none}   /* v0.83: o comando comprido quebra a linha em vez de empurrar o botão «Copiar» para fora do cartão (celular) */
 .res{margin-top:8px;font-size:13px}.res.ok{color:var(--ok)}.res.err{color:var(--err)}
 .fig{display:grid;place-items:center;padding:10px;border:1px solid var(--line2);border-radius:16px;background:var(--bg2)}
 

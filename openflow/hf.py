@@ -295,7 +295,8 @@ def other_repos(repo: str, kind: str, missing: List[str], token: str = "", ram_g
     except ProviderError:
         return []
     key = re.sub(r"[^a-z0-9]", "", name.lower())
-    cands = [m for m in found if m["id"] != repo and key and key in re.sub(r"[^a-z0-9]", "", m["id"].split("/", 1)[-1].lower())][:limit]
+    # o MESMO modelo: o nome-base do candidato (sem «-GGUF» etc.) é igual ao nosso. Antes bastava conter: «Z-Image-GGUF» aceitava «Z-Image-Turbo-GGUF», que é outro modelo (v0.83)
+    cands = [m for m in found if m["id"] != repo and key and re.sub(r"[^a-z0-9]", "", base_name(m["id"]).lower()) == key][:limit]
 
     def one(m: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         try:

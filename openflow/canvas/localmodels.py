@@ -388,9 +388,11 @@ def download(model: str, precision: str, token: str = "", progress: Optional[Cal
             progress(done, total)
     if snap is None:
         raise ProviderError("O download não gerou arquivos.")
-    (snap / MARKER).write_text(precision, encoding="utf-8")
-    if framework:
+    if framework:   # baixado para o nó «Modelo PyTorch/TensorFlow»: só o marcador do framework. A precisão fica como estava (v0.83: antes a marca de «fp32» fazia o repositório parecer um modelo de imagem
+        # completo, e um download normal depois deixava o marcador do framework recusando o uso como modelo de imagem)
         (snap / FRAMEWORK_MARKER).write_text(framework, encoding="utf-8")
+    else:
+        (snap / MARKER).write_text(precision, encoding="utf-8")
     return snap
 
 

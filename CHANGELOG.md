@@ -2,6 +2,28 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.83.0] — 2026-11-17
+
+### Caçando bugs 3 — o que foi procurado
+- **Código das versões 0.80 a 0.82** (dublagem com voz clonada, faixas Q2–Q8, PyTorch/TensorFlow, nó de modelo próprio), lido com olhar de quem quer quebrar, mais: 1018 chamadas malformadas à API (todas as rotas, as novas incluídas), 160 grafos aleatórios no motor, 4000 entradas aleatórias nas funções puras novas e uma auditoria de layout em 3 tamanhos de tela × 2 idiomas das telas novas.
+- A API, o motor e as funções puras aguentaram tudo; os bugs estão abaixo, todos nos recursos novos.
+
+### Corrigido
+- **Criar uma faixa de um modelo de TEXTO podia travar para sempre.** A saída do llama.cpp (uma linha por tensor, centenas de KB) ia para um pipe que ninguém lia: o buffer enchia e o processo parava. Agora vai para um arquivo temporário (e o erro mostra o fim do log). O teste trava no código antigo.
+- **«Quantização ao carregar» recomprimia para cima:** pedir Q8 para um arquivo Q5 (ou Q1, IQ…) dizia «Comprimindo para Q8» e mandava o pedido à stable-diffusion.cpp. Agora só vale para uma faixa MENOR que a do arquivo, também para os tipos que não são uma das cinco faixas.
+- **«Procurar em outros repositórios» oferecia outro modelo:** quem procurava o «Z-Image» recebia o «Z-Image-Turbo». Agora o nome-base do repositório tem que ser igual.
+- **O nó «Modelo PyTorch/TensorFlow» varria pastas inteiras:** apontar para a pasta pessoal por engano percorria o disco todo; e a conferência «o nó está desatualizado?» (várias vezes por segundo) repetia a varredura. Agora a busca para em 4000 arquivos e 6 níveis (sem pastas ocultas, de cache nem atalhos) e o carimbo do modelo vale 3 s.
+- **Imagem enorme ou quebrada no nó de modelo próprio** dava «Erro inesperado» (bomba de descompressão) ou um erro sem dizer o motivo: agora diz que a imagem é grande demais, ou que está corrompida/incompleta.
+- **Baixar um modelo para o nó «Modelo PyTorch/TensorFlow» estragava o repositório como modelo de imagem:** gravava a marca «fp32» (parecia um modelo completo) e, depois de baixar o repositório normalmente, o marcador antigo ainda o recusava. Agora o download do framework só grava o próprio marcador, e os dois jeitos convivem.
+- **O card do PyTorch/TensorFlow carregava o TensorFlow só porque alguém abriu as Configurações** (≈ 400 MB de RAM e vários segundos, em computadores que já sofrem): agora só carrega pelo botão «Verificar o TensorFlow» (ou se ele já estava carregado).
+- **Interface — o painel de busca de modelos passava da borda da tela em tablets** (a barra lateral aberta empurrava o `92vw` para fora: botões «Baixar» cortados); agora o painel cabe na largura que sobra. **O comando comprido do card do PyTorch** empurrava o botão «Copiar» para fora no celular: agora quebra a linha (vale também para o do card da placa de vídeo).
+- **Interface — «Criar faixa»/baixar com outro em andamento** mostrava o JSON do servidor no aviso; agora diz «Já há um download em andamento» (nos três lugares: busca de modelos, Biblioteca e Configurações).
+- **Dublagem sem áudio:** o aviso de que não deu para clonar a voz agora lembra que um vídeo sem som não serve. A busca de «Modelos próprios» tem texto de ajuda próprio (antes falava de som e voz).
+
+### Ainda não verificado
+- Nenhum modelo real foi baixado ou executado (Hugging Face bloqueado), e nada rodou numa placa de vídeo. A auditoria de layout é por script (Chromium), não por uma pessoa com leitor de tela; contraste e cores não foram avaliados.
+- A caça não esgota o programa: foram os caminhos descritos acima.
+
 ## [0.82.0] — 2026-11-17
 
 ### Suporte total ao PyTorch e ao TensorFlow

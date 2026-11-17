@@ -220,7 +220,7 @@ def tf_info(probe: bool = True) -> Dict[str, Any]:
     keras = dist_version("keras")
     if not version:
         return {"installed": False, "keras": keras}
-    info: Dict[str, Any] = {"installed": True, "version": version, "keras": keras, "backend": "", "gpus": [], "built_with_cuda": False}
+    info: Dict[str, Any] = {"installed": True, "version": version, "keras": keras, "backend": "", "gpus": [], "built_with_cuda": False, "probed": bool(probe)}
     if not probe:
         return info
     try:
@@ -274,6 +274,8 @@ def tf_advice(info: Dict[str, Any], gpu_vendors: Sequence[str], system: str, py:
         return [_a("info", "O TensorFlow não está instalado: ele só é preciso para rodar modelos feitos para ele (Keras, SavedModel).", "TensorFlow is not installed: it is only needed to run models made for it (Keras, SavedModel).", cmd)]
     if info.get("error"):
         return [_a("error", f"O TensorFlow está instalado ({info.get('version', '?')}), mas não carrega: {info['error']}. Reinstale-o.", f"TensorFlow is installed ({info.get('version', '?')}) but does not load: {info['error']}. Reinstall it.", cmd)]
+    if info.get("probed") is False:   # v0.83: carregar o TensorFlow custa ≈ 400 MB de RAM e alguns segundos: só quando a pessoa pede
+        return [_a("info", f"O TensorFlow {info.get('version', '')} está instalado. Para saber se ele usa a placa de vídeo é preciso carregá-lo (≈ 400 MB de RAM): use «Verificar o TensorFlow».", f"TensorFlow {info.get('version', '')} is installed. Knowing whether it uses the graphics card means loading it (≈ 400 MB of RAM): use “Check TensorFlow”.")]
     if info.get("gpus"):
         names = ", ".join(g["name"] for g in info["gpus"])
         return [_a("ok", f"O TensorFlow {info.get('version', '')} usa a placa de vídeo: {names}.", f"TensorFlow {info.get('version', '')} is using the graphics card: {names}.")]
@@ -285,13 +287,14 @@ def tf_advice(info: Dict[str, Any], gpu_vendors: Sequence[str], system: str, py:
 
 
 # ----------------------------------------------------------------------------- tudo junto
-def report(probe: bool = True) -> Dict[str, Any]:
-    """O retrato do PyTorch e do TensorFlow neste computador, com os conselhos: {system, python, gpus, torch, tensorflow, advice: {torch, tensorflow}}."""
+def report(probe: bool = True, probe_tf: bool = True) -> Dict[str, Any]:
+    """O retrato do PyTorch e do TensorFlow neste computador, com os conselhos: {system, python, gpus, torch, tensorflow, advice: {torch, tensorflow}}. `probe_tf=False` (o que a tela faz) só carrega o
+    TensorFlow se ele já estiver carregado: importá-lo custa ≈ 400 MB de RAM e vários segundos, e quem só abriu as Configurações não deve pagar isso (v0.83)."""
     import platform
 
     system = platform.system() or sys.platform
     gv = vendors()
-    t, f = torch_info(probe), tf_info(probe)
+    t, f = torch_info(probe), tf_info(probe and (probe_tf or "tensorflow" in sys.modules))
     t["device"] = best_device(t) if t.get("installed") and not t.get("error") else ""
     return {"system": system, "machine": platform.machine(), "python": platform.python_version(), "gpu_vendors": gv, "torch": t, "tensorflow": f,
             "advice": {"torch": torch_advice(t, gv, system, platform.machine()), "tensorflow": tf_advice(f, gv, system)}}

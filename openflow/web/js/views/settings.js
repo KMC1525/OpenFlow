@@ -175,12 +175,13 @@ function frameworksCard() {
     body.replaceChildren(
       h('dl', { class: 'kv', style: { margin: 0 } },
         h('dt', null, 'PyTorch'), h('dd', { id: 'fw-torch' }, tc.installed ? tc.version + (tc.build ? ' · ' + tc.build : '') + (tc.device ? ' · ' + tc.device : '') : t('não instalado')),
-        h('dt', null, 'TensorFlow'), h('dd', { id: 'fw-tf' }, tf.installed ? tf.version + (tf.keras ? ' · Keras ' + tf.keras : '') + ' · ' + ((tf.gpus || []).length ? t('usa a placa') : 'CPU') : t('não instalado')),
+        h('dt', null, 'TensorFlow'), h('dd', { id: 'fw-tf' }, tf.installed ? tf.version + (tf.keras ? ' · Keras ' + tf.keras : '') + ' · ' + (tf.probed === false ? t('instalado') : (tf.gpus || []).length ? t('usa a placa') : 'CPU') : t('não instalado')),
         h('dt', null, t('Placas de vídeo')), h('dd', null, (r.gpu_vendors || []).join(', ') || t('nenhuma'))),
       ...r.advice.torch.map(advice), ...r.advice.tensorflow.map(advice),
+      tf.installed && tf.probed === false ? h('button', { class: 'btn sm', type: 'button', id: 'fw-tf-probe', style: { marginTop: '8px', marginRight: '8px' }, onclick: () => { body.replaceChildren(h('span', { class: 'muted small' }, t('Lendo o PyTorch e o TensorFlow…'))); load(false, true); } }, t('Verificar o TensorFlow')) : null,
       h('button', { class: 'btn sm ghost', type: 'button', id: 'fw-refresh', style: { marginTop: '8px' }, onclick: () => { body.replaceChildren(h('span', { class: 'muted small' }, t('Lendo o PyTorch e o TensorFlow…'))); load(true); } }, t('Ler de novo')));
   };
-  const load = (fresh) => api('/api/media/frameworks' + (fresh ? '?refresh=1' : '')).then(paint).catch((e) => body.replaceChildren(h('span', { class: 'muted small' }, e.message)));
+  const load = (fresh, deep) => api('/api/media/frameworks' + (deep ? '?tf=1' : fresh ? '?refresh=1' : '')).then(paint).catch((e) => body.replaceChildren(h('span', { class: 'muted small' }, e.message)));
   load(false);
   return cfgCard(t('PyTorch e TensorFlow'), h('p', { class: 'muted small', style: { marginTop: 0 } }, t('Os modelos locais usam o PyTorch; o TensorFlow só é preciso para os modelos feitos para ele (Keras, SavedModel), no nó «Modelo PyTorch/TensorFlow». Aqui você vê se cada um usa a placa de vídeo e o que fazer se não usa. No terminal: flow frameworks e flow torch.')), body);
 }
@@ -462,7 +463,7 @@ function localModels(p, draft) {
         area.replaceChildren(h('div', { class: 'card' }, h('div', { class: 'row', style: { marginBottom: '8px' } }, h('span', { class: 'mono small' }, model + ' · ' + pick.id), h('span', { class: 'grow' }), label, h('button', { class: 'btn sm', id: 'lm-cancel-' + cap }, t('Cancelar'))), h('div', { class: 'bar' }, bar)));
         let jid;
         try { await saveSettings({ media: { models: { local_hf: { [cap]: model } } } }); jid = (await api('/api/media/local/download', { method: 'POST', body: { model, precision: pick.id } })).job_id; }
-        catch (e) { area.replaceChildren(); return toast(e.message, 'err'); }
+        catch (e) { area.replaceChildren(); return toast(e.status === 409 ? t('Já há um download em andamento.') : e.message, 'err'); }
         area.querySelector('#lm-cancel-' + cap).onclick = () => api('/api/jobs/' + jid + '/cancel', { method: 'POST' });
         events('/api/jobs/' + jid + '/events', (ev) => {
           if (ev.type === 'progress' && ev.total) { const pc = Math.min(1, ev.done / ev.total); bar.style.width = Math.round(pc * 100) + '%'; label.textContent = Math.round(pc * 100) + '% · ' + fmtBytes(ev.done) + ' / ' + fmtBytes(ev.total); }

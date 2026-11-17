@@ -13,6 +13,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -87,24 +88,27 @@ def convert_sdcli(exe: Path, src: Path, tmp: Path, tier: str, cancelled: Callabl
 def convert_llama(src: Path, tmp: Path, tier: str, cancelled: Callable[[], bool], note: Callable[[str], None]) -> None:
     name, ftype = quants.LLAMA_TYPE[tier]
     note(f"Comprimindo para {name} com o llama.cpp…")
-    p = subprocess.Popen([sys.executable, "-c", _LLAMA_SCRIPT, str(src), str(tmp), str(ftype)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace")
-    start = time.time()
-    try:
-        while p.poll() is None:
-            if cancelled():
-                p.terminate()
-                raise ProviderError("cancelado")
-            if time.time() - start > 6 * 3600:
-                p.terminate()
-                raise ProviderError("A compressão demorou demais e foi interrompida.")
-            time.sleep(0.3)
-    finally:
-        if p.poll() is None:
-            p.kill()
-        out = p.stdout.read() if p.stdout else ""
-        p.wait()
-        if p.stdout:
-            p.stdout.close()
+    # a saída vai para um ARQUIVO, não para um pipe: o llama.cpp escreve uma linha por tensor (centenas de KB) e, num pipe que ninguém lê, o processo trava quando o buffer enche (v0.83)
+    with tempfile.TemporaryFile() as log:
+        p = subprocess.Popen([sys.executable, "-c", _LLAMA_SCRIPT, str(src), str(tmp), str(ftype)], stdout=log, stderr=subprocess.STDOUT)
+        start = time.time()
+        try:
+            while p.poll() is None:
+                if cancelled():
+                    p.terminate()
+                    raise ProviderError("cancelado")
+                if time.time() - start > 6 * 3600:
+                    p.terminate()
+                    raise ProviderError("A compressão demorou demais e foi interrompida.")
+                time.sleep(0.3)
+        finally:
+            if p.poll() is None:
+                p.kill()
+            p.wait()
+        log.seek(0, 2)
+        size = log.tell()
+        log.seek(max(0, size - 4000))
+        out = log.read().decode("utf-8", "replace")
     if p.returncode != 0:
         if "No module named" in out and "llama_cpp" in out:
             raise ProviderError("Comprimir um modelo de texto precisa da biblioteca llama-cpp-python:  pip install llama-cpp-python  (ou rode: flow libs --extras local).")

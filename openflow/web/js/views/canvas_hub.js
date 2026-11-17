@@ -38,7 +38,10 @@ export function modelSearchBar(c) {
   const root = h('div', { class: 'cv-hub', role: 'search' }, input, h('button', { class: 'btn icon sm', type: 'button', id: 'hub-go', title: t('Buscar'), 'aria-label': t('Buscar modelos'), onclick: () => { st.q = input.value.trim(); search(); } }, icon('search', 15)), panel);
   syncFmt();
   api('/api/media/hub/topics').then((r) => { st.topics = r.topics; syncTopic(); if (!panel.classList.contains('hidden')) paint(); }).catch(() => { st.topics = {}; });
-  const openPanel = () => { panel.classList.remove('hidden'); paint(); };
+  // v0.83: o painel não passa da borda da tela (com a barra lateral aberta, o `92vw` o empurrava para fora em tablets)
+  const fit = () => { const r = root.getBoundingClientRect(); panel.style.maxWidth = Math.max(260, document.documentElement.clientWidth - r.left - 10) + 'px'; };
+  window.addEventListener('resize', fit);
+  const openPanel = () => { panel.classList.remove('hidden'); fit(); paint(); };
   input.addEventListener('focus', () => { if (panel.classList.contains('hidden')) openPanel(); });   // ao clicar na barra já aparecem os recomendados
   // outras partes do app (avisos dos nós) pedem uma busca aqui: «flow:hub» { q, cap, fmt }
   const onHubEvent = (e) => { if (!root.isConnected) return; const d = (e && e.detail) || {}; if (d.cap && CAPS.some(([v]) => v === d.cap)) { st.cap = d.cap; capSel.value = d.cap; st.topic = d.topic || ''; st.results = null; } if (d.fmt) st.fmt = d.fmt; st.fmt = st.cap === 'text' ? 'gguf' : BOTH_CAPS.includes(st.cap) ? st.fmt : 'original'; syncFmt(); syncTopic(); input.focus(); if (d.q) { input.value = d.q; st.q = d.q; search(); } else openPanel(); };
@@ -116,7 +119,7 @@ export function modelSearchBar(c) {
               h('span', { class: 'chip solid' }, bytes(f.size)),
               mine ? h('button', { class: 'btn sm primary', type: 'button', dataset: { act: 'use' }, onclick: () => (st.cap === 'text' ? useModel('local_hf', f.name.split('/').pop()) : useModel('gguf_local', f.name.split('/').pop())) }, icon('check', 13), t('Usar'))
                 : h('button', { class: 'btn sm', type: 'button', dataset: { act: 'download' }, onclick: async () => {
-                  let jid; try { jid = (await api('/api/hf/download', { method: 'POST', body: { repo, files: f.files, sizes: f.sizes, quant: f.quant || 'sem-rotulo', kind } })).job_id; } catch (e) { return toast(e.message, 'err'); }
+                  let jid; try { jid = (await api('/api/hf/download', { method: 'POST', body: { repo, files: f.files, sizes: f.sizes, quant: f.quant || 'sem-rotulo', kind } })).job_id; } catch (e) { return toast(e.status === 409 ? t('Já há um download em andamento.') : e.message, 'err'); }
                   progressRow(row, repo.split('/')[1] + ' · ' + (f.quant || ''), jid, async (ok) => { if (ok) have.add(f.name.split('/').pop()); draw(); });
                 } }, icon('download', 13), t('Baixar')));
             return row;
@@ -132,7 +135,7 @@ export function modelSearchBar(c) {
           entries.map(([fw, d]) => { const row = h('div', { class: 'hub-q', dataset: { quant: fw } });
             fill(row, h('div', { class: 'grow' }, h('b', null, FW[fw][0]), h('div', { class: 'dim small' }, t(FW[fw][1]))), h('span', { class: 'chip solid' }, bytes(d.size)),
               h('button', { class: 'btn sm', type: 'button', dataset: { act: 'download' }, onclick: async () => {
-                let jid; try { jid = (await api('/api/tool/download', { method: 'POST', body: { model: repo, framework: fw } })).job_id; } catch (e) { return toast(e.message, 'err'); }
+                let jid; try { jid = (await api('/api/tool/download', { method: 'POST', body: { model: repo, framework: fw } })).job_id; } catch (e) { return toast(e.status === 409 ? t('Já há um download em andamento.') : e.message, 'err'); }
                 progressRow(row, repo.split('/')[1] + ' · ' + FW[fw][0], jid, (ok) => { if (ok) api('/api/tool/info?model=' + encodeURIComponent(repo)).then((i) => draw(i.found)).catch(() => draw(true)); else draw(have); });
               } }, icon('download', 13), t('Baixar')));
             return row; }),
@@ -150,7 +153,7 @@ export function modelSearchBar(c) {
               h('span', { class: 'chip solid' }, bytes(p.size)),
               cur === p.id ? h('button', { class: 'btn sm primary', type: 'button', dataset: { act: 'use' }, disabled: blocked, title: blocked ? t('O OpenFlow ainda não roda este modelo') : '', onclick: () => useModel('local_hf', repo) }, icon('check', 13), t('Usar'))
                 : h('button', { class: 'btn sm', type: 'button', dataset: { act: 'download' }, disabled: !state.libs, onclick: async () => {
-                  let jid; try { jid = (await api('/api/media/local/download', { method: 'POST', body: { model: repo, precision: p.id } })).job_id; } catch (e) { return toast(e.message, 'err'); }
+                  let jid; try { jid = (await api('/api/media/local/download', { method: 'POST', body: { model: repo, precision: p.id } })).job_id; } catch (e) { return toast(e.status === 409 ? t('Já há um download em andamento.') : e.message, 'err'); }
                   progressRow(row, repo.split('/')[1] + ' · ' + p.id, jid, (ok) => draw(ok ? p.id : cur));
                 } }, icon('download', 13), t('Baixar')));
             return row; }),
@@ -179,7 +182,7 @@ export function modelSearchBar(c) {
         m.status === 'ready' || m.status === 'beta' ? h('button', { class: 'btn sm', type: 'button', dataset: { act: 'rec-open' }, onclick: () => go(m.repo) }, t('Ver quantizações'))
           : m.status === 'alt' ? h('button', { class: 'btn sm primary', type: 'button', onclick: () => go(m.use) }, t('Abrir {r}', { r: m.use })) : null));
     }));
-    box.append(h('div', { class: 'hub-head muted small' }, st.cap === 'text' ? t('O texto usa só GGUF (llama.cpp). Escreva o nome ou o endereço dono/nome do modelo e aperte Enter.')
+    box.append(h('div', { class: 'hub-head muted small' }, st.cap === 'tool' ? t('Modelos próprios de imagem → imagem (ampliar, tirar ruído, colorir…) para o nó «Modelo PyTorch/TensorFlow». Escreva o que procura (esrgan, denoise, colorize…) ou o endereço dono/nome e aperte Enter.') : st.cap === 'text' ? t('O texto usa só GGUF (llama.cpp). Escreva o nome ou o endereço dono/nome do modelo e aperte Enter.')
       : BOTH_CAPS.includes(st.cap) ? t('Escreva o nome ou o endereço dono/nome do modelo e aperte Enter. Em «Formato» escolha GGUF (quantizações) ou Original (diffusers).') : t('Escreva o nome ou o endereço dono/nome do modelo e aperte Enter (som, voz, transcrição e 3D usam o formato original).')));
     return box;
   }
@@ -190,6 +193,7 @@ export function modelSearchBar(c) {
     ...(r.topics || []).slice(0, 3).map((x) => h('span', { class: 'chip', dataset: { topic: x } }, t(topicName(x)))), r.library ? h('span', { class: 'chip', title: t('Biblioteca') }, r.library) : null) : null);
 
   function paint() {
+    fit();
     if (st.results === null && !st.busy && !st.err && SOUND_CAPS.includes(st.cap) && st.fmt === 'original' && st.topics) {   // som, voz e transcrição: ao abrir já aparecem os mais baixados do assunto (sem digitar nada)
       const key = st.cap + '|' + st.topic + '|' + st.q;
       if (st.browsed !== key) { st.browsed = key; setTimeout(search, 0); fill(panel, filters, h('div', { class: 'muted small', style: { padding: '12px' } }, h('span', { class: 'spinner' }), ' ', t('Procurando…'))); return; }
@@ -208,6 +212,6 @@ export function modelSearchBar(c) {
           return h('div', { class: 'hub-item' }, row, slot);
         }) : h('div', { class: 'muted small', style: { padding: '12px' } }, st.results ? t('Nada encontrado. Tente outro nome.') : ''));
   }
-  const dispose = () => { window.removeEventListener('flow:hub', onHubEvent); document.removeEventListener('pointerdown', onHubDown); };   // o Canvas chama ao fechar
+  const dispose = () => { window.removeEventListener('resize', fit); window.removeEventListener('flow:hub', onHubEvent); document.removeEventListener('pointerdown', onHubDown); };   // o Canvas chama ao fechar
   return { el: root, dispose, search: (q) => { input.value = q; st.q = q; search(); } };
 }
