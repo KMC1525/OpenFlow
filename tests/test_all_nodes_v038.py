@@ -12,7 +12,7 @@ from openflow.storage import Store
 
 FF = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
 MULTI2 = ("img_collage", "vid_join", "aud_mix")                       # pedem ao menos duas entradas
-SKIP = {"text", "upload", "style_prompt", "style_folder", "in_url"}    # sem execução própria / pedem a internet
+SKIP = {"text", "upload", "style_prompt", "style_folder", "in_url", "ai_model"}    # sem execução própria / pedem a internet / pedem um arquivo de modelo (o ai_model é testado em test_modelrun_v082)
 PARAMS = {"text_extract": {"what": "numbers"}, "img_text": {"text": "Olá"}, "in_random": {"lines": "a\nb\nc"}, "text_template": {"template": "X {1}"}}
 
 

@@ -134,9 +134,11 @@ LIBS = {
     "media": "modelos locais de imagem, vídeo, som e voz (PyTorch, diffusers, transformers — vários GB)",
     "local": "modelos GGUF embutidos: texto, imagem e vídeo (llama-cpp-python e stable-diffusion-cpp-python; compilam código nativo)",
     "quant": "comprimir ao carregar os modelos originais em Q8, Q6, Q4, Q3 ou Q2 (biblioteca optimum-quanto; roda em qualquer aparelho, até na CPU)",
+    "tensorflow": "TensorFlow/Keras, para rodar no nó «Modelo PyTorch/TensorFlow» os modelos feitos para eles (.keras, .h5, SavedModel); pesado (centenas de MB) e NÃO vem no «all»: peça com --extras tensorflow",
     "voxcpm": "voz do VoxCPM2 (openbmb/VoxCPM2): fala em 30 idiomas, voz por descrição e clonagem (biblioteca voxcpm; precisa do Python 3.10 ou mais novo)",
 }
-MIN_PY = {"voxcpm": (3, 10)}   # extras que só existem a partir de uma versão do Python: «all» pula o que este Python não suporta
+OPT_IN = {"tensorflow"}   # extras pesados que o «all» não instala: só quando pedidos pelo nome
+MIN_PY = {"voxcpm": (3, 10), "tensorflow": (3, 10)}   # extras que só existem a partir de uma versão do Python: «all» pula o que este Python não suporta
 
 
 def _lib_desc(extra: str) -> str:
@@ -150,7 +152,7 @@ def _wanted_libs(spec: str):
         return [], []
     names = [x.strip() for x in spec.replace(";", ",").split(",") if x.strip()]
     if "all" in names:
-        return [n for n in LIBS if sys.version_info >= MIN_PY.get(n, (3, 0))], []
+        return [n for n in LIBS if n not in OPT_IN and sys.version_info >= MIN_PY.get(n, (3, 0))], []
     return [n for n in LIBS if n in names], [n for n in names if n not in LIBS]
 
 
@@ -709,6 +711,56 @@ def _models_quant(store, args: argparse.Namespace) -> int:
     return 0
 
 
+def _advice_line(a: dict) -> str:
+    icon = {"ok": "✓", "info": "·", "warn": "⚠", "error": "✗"}.get(a.get("level"), "·")
+    text = a.get("text_en") if system_lang() == "en" and a.get("text_en") else a.get("text", "")
+    return f"  {icon} {text}" + (f"\n      {a['command']}" if a.get("command") else "")
+
+
+def _frameworks(_args: argparse.Namespace) -> int:
+    """`flow frameworks`: o PyTorch e o TensorFlow deste computador — versão, aparelho, e o que fazer para usar a placa de vídeo."""
+    from .canvas import frameworks as fw
+
+    r = fw.report()
+    t, f = r["torch"], r["tensorflow"]
+    print(_("Placas de vídeo detectadas: {g}", g=", ".join(r["gpu_vendors"]) or _("nenhuma")))
+    if t.get("installed"):
+        print(_("PyTorch: {v} ({b}) · aparelho em uso: {d}", v=t.get("version", "?"), b=t.get("build") or "?", d=t.get("device") or "?"))
+    else:
+        print(_("PyTorch: não instalado"))
+    for a in r["advice"]["torch"]:
+        print(_advice_line(a))
+    if f.get("installed"):
+        print(_("TensorFlow: {v} · Keras {k} (motor: {b}) · placas: {n}", v=f.get("version", "?"), k=f.get("keras") or "?", b=f.get("backend") or "?", n=len(f.get("gpus") or [])))
+    else:
+        print(_("TensorFlow: não instalado"))
+    for a in r["advice"]["tensorflow"]:
+        print(_advice_line(a))
+    return 0
+
+
+def _torch(args: argparse.Namespace) -> int:
+    """`flow torch`: mostra o PyTorch certo para este computador; `--install` instala (tentando os índices do mais novo ao mais antigo)."""
+    from .canvas import frameworks as fw
+
+    vend = next((v for v in fw.vendors() if v in ("nvidia", "amd", "intel")), "cpu")
+    import platform
+
+    system = platform.system()
+    if not args.install:
+        print(_("Placa detectada: {g}", g=vend if vend != "cpu" else _("nenhuma que o PyTorch use (CPU)")))
+        print(_("Comando recomendado:"))
+        print("  " + fw.torch_command(vend, system, args.index or ""))
+        print(_("Para instalar agora:  flow torch --install   (feche o OpenFlow antes)"))
+        return 0
+    res = fw.torch_install(vend, system, args.index or "")
+    if res["ok"]:
+        print(_("✓ PyTorch instalado (índice: {i}). Rode  flow frameworks  para conferir.", i=res["index"]))
+        return 0
+    print(_("⚠  Não consegui instalar o PyTorch (índices tentados: {t}). Rode o comando de  flow torch  à mão e veja a mensagem do pip.", t=", ".join(res["tried"])))
+    return 1
+
+
 def _models_support(store) -> int:
     """`flow models support`: confere os arquivos de apoio (VAE, codificadores de texto, mmproj) de cada modelo instalado e baixa o que falta."""
     from . import hf
@@ -891,6 +943,13 @@ def _doctor(_args: argparse.Namespace) -> int:
         print(_("Voz do VoxCPM2 (biblioteca voxcpm): disponível") if _iu.find_spec("voxcpm") else _('Voz do VoxCPM2 (biblioteca voxcpm): não instalada (opcional, Python 3.10+: flow libs --extras voxcpm)'))
     except (ImportError, ValueError):
         pass
+    try:   # v0.82: PyTorch e TensorFlow (só as versões instaladas: sem importar, que demora)
+        from .canvas import frameworks as _fw
+
+        _t, _f = _fw.torch_info(probe=False), _fw.tf_info(probe=False)
+        print("PyTorch: " + (_t["version"] if _t.get("installed") else _("não instalado")) + " · TensorFlow: " + (_f["version"] if _f.get("installed") else _("não instalado")) + _("  (detalhes e placa de vídeo: flow frameworks)"))
+    except Exception:  # noqa: BLE001
+        pass
     if len(libs) == 3:
         print(_("Modelos locais de mídia do OpenFlow (torch, diffusers, transformers): disponível"))
     else:
@@ -942,6 +1001,10 @@ def main(argv=None) -> int:
     fol.add_argument("--print", action="store_true", help=_("só mostra o caminho, sem abrir"))
     fol.add_argument("--app", action="store_true", help=_("abre a pasta do programa instalado em vez da dos dados"))
     fol.add_argument("--home", help=_("pasta de dados (padrão ~/.openflow)"))
+    sub.add_parser("frameworks", help=_("PyTorch e TensorFlow deste computador: versão, placa de vídeo e o que falta para usá-la"))
+    tor = sub.add_parser("torch", help=_("mostra (ou instala com --install) o PyTorch certo para a placa de vídeo deste computador"))
+    tor.add_argument("--install", action="store_true", help=_("instala agora (tenta os índices de pacotes do mais novo ao mais antigo)"))
+    tor.add_argument("--index", default="", help=_("índice do PyTorch a usar (ex.: cu126, rocm6.4, xpu, cpu)"))
     sub.add_parser("doctor", help=_("mostra diagnóstico do ambiente"))
     sub.add_parser("version", help=_("mostra a versão"))
     args = parser.parse_args(argv)
@@ -957,6 +1020,10 @@ def main(argv=None) -> int:
         return _native(args)
     if args.cmd == "folder":
         return _folder(args)
+    if args.cmd == "frameworks":
+        return _frameworks(args)
+    if args.cmd == "torch":
+        return _torch(args)
     if args.cmd == "doctor":
         return _doctor(args)
     if args.cmd == "version":

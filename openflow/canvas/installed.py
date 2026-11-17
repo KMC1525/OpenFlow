@@ -14,7 +14,7 @@ from typing import Any, Dict, List
 from .. import hf
 from .media import MEDIA_PRESETS, media_config
 from . import modelkind
-from .localmodels import MARKER, PRECISIONS
+from .localmodels import FRAMEWORK_MARKER, MARKER, PRECISIONS
 
 
 SUPPORT_RE = re.compile(r"(qwen2[._]?5.*vl|qwen3-|qwen3[._]?5|qwen3vl_32b_minimax|moss[-_]?image[-_](?:vae|tokenizer)|t5xxl|clip[_-]?[lg]\b|clip[_-]?vision|umt5|mmproj|high[-_]?noise)", re.I)   # `high-noise`: o segundo modelo do Wan2.2 A14B
@@ -42,7 +42,7 @@ def downloaded_hf_models() -> List[Dict[str, str]]:
                 prec = marker.read_text(encoding="utf-8").strip()
             except OSError:
                 continue
-            if prec in PRECISIONS:
+            if prec in PRECISIONS and not (marker.parent / FRAMEWORK_MARKER).is_file():   # os baixados para o nó «Modelo PyTorch/TensorFlow» não são modelos de imagem, som ou voz
                 out.append({"model": f"{parts[0]}/{parts[1]}", "precision": prec})
                 break
     return out

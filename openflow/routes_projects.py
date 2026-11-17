@@ -63,6 +63,10 @@ class ProjectRoutes:
         a("GET", r"/api/media/local/state", self.r_local_state)
         a("GET", r"/api/media/local/options", self.r_local_options)
         a("GET", r"/api/media/local/quants", self.r_local_quants)
+        a("GET", r"/api/media/frameworks", self.r_frameworks)
+        a("GET", r"/api/tool/info", self.r_tool_info)
+        a("GET", r"/api/tool/files", self.r_tool_files)
+        a("POST", r"/api/tool/download", self.r_tool_download)
         a("POST", r"/api/media/local/download", self.r_local_download)
 
     # ------------------------------------------------------------------ documentos
@@ -548,7 +552,7 @@ class ProjectRoutes:
         req.json({"items": items[:50]})
 
     # ------------------------------------------------------------------ barra de busca de modelos (Hugging Face) no topo do editor
-    HUB_CAPS = ("image", "video", "sound", "voice", "stt", "text", "model3d")
+    HUB_CAPS = ("image", "video", "sound", "voice", "stt", "text", "model3d", "tool")
     GGUF_CAP_KIND = {"image": "image", "video": "video", "text": "text"}   # só estes têm provedor GGUF no OpenFlow (sons e vozes usam o formato original)
 
     def r_hub_topics(self, req) -> None:
@@ -588,6 +592,8 @@ class ProjectRoutes:
         b = req.body_json()
         b = b if isinstance(b, dict) else {}
         cap, provider, model = text(b.get("cap"), "", 12), text(b.get("provider"), "", 20), text(b.get("model"), "", 200)
+        if cap == "tool":   # v0.82: um modelo próprio (PyTorch/TensorFlow) baixado: vai para o campo «Modelo» do nó «Modelo PyTorch/TensorFlow» selecionado
+            return self._use_tool_model(req, b, model)
         if cap not in self.HUB_CAPS or provider not in ("gguf_local", "local_hf") or not model:
             raise HttpError(400, "Informe o tipo, o provedor (gguf_local ou local_hf) e o modelo.")
         if provider == "gguf_local":
@@ -621,6 +627,88 @@ class ProjectRoutes:
                 patched = self.cs.patch_node_params(cid, nid, patch)
         req.json({"ok": True, "provider": pid, "label": label, "model": model, "cap": cap, "node_updated": patched})
 
+    # ------------------------------------------------------------------ modelos próprios (v0.82): PyTorch (TorchScript, torch.export) e TensorFlow (Keras, SavedModel)
+    def _use_tool_model(self, req, b: Dict[str, Any], model: str) -> None:
+        from .canvas import modelrun
+
+        if not REPO_RE.match(model):
+            raise HttpError(400, "Informe o modelo no formato dono/nome.")
+        try:
+            modelrun.resolve(model, "", self.store.models_dir)   # só passa a usar o que já foi baixado e dá para rodar
+        except ProviderError as exc:
+            raise HttpError(404, str(exc))
+        patched = False
+        cid, nid = text(b.get("canvas"), "", 40), text(b.get("node"), "", 40)
+        if cid and nid:
+            cv = self.cs.get(cid)
+            n = next((x for x in (cv or {}).get("nodes", []) if x["id"] == nid), None)
+            if n and n["type"] == "ai_model":
+                patched = self.cs.patch_node_params(cid, nid, {"model": model})
+        req.json({"ok": True, "provider": "tool", "label": "Modelo PyTorch/TensorFlow", "model": model, "cap": "tool", "node_updated": patched})
+
+    def r_tool_info(self, req) -> None:
+        """O que o nó «Modelo PyTorch/TensorFlow» acharia com este texto: {found, path, kind, framework, size} ou {found: false, error}; e se as bibliotecas estão instaladas."""
+        from .canvas import frameworks, modelrun
+
+        model = text(req.query.get("model", [""])[0], "", 400)
+        fw = text(req.query.get("framework", [""])[0], "", 6)
+        libs = {"torch": frameworks.has_module("torch"), "tf": frameworks.has_module("tensorflow")}
+        if not model.strip():
+            return req.json({"found": False, "error": "", "libs": libs})
+        try:
+            path, kind = modelrun.resolve(model, fw if fw in ("tf", "torch") else "", self.store.models_dir)
+        except ProviderError as exc:
+            return req.json({"found": False, "error": str(exc), "libs": libs})
+        need = modelrun.framework_of(kind)
+        req.json({"found": True, "path": str(path), "kind": kind, "framework": need, "label": path.name, "libs": libs,
+                  "missing_lib": "" if libs.get(need) else ("PyTorch" if need == "torch" else "TensorFlow")})
+
+    def r_tool_files(self, req) -> None:
+        """Os frameworks que um repositório tem para o nó «Modelo PyTorch/TensorFlow», com o tamanho de cada download."""
+        from .canvas import localmodels as lm
+
+        model = text(req.query.get("model", [""])[0], "", 200)
+        if not REPO_RE.match(model):
+            raise HttpError(400, "Informe o modelo no formato dono/nome.")
+        try:
+            req.json(lm.tool_options(model, self._hf_token()))
+        except ProviderError as exc:
+            raise HttpError(502, str(exc))
+        except Exception as exc:  # noqa: BLE001 — erros da biblioteca do Hugging Face (repositório inexistente, sem rede…)
+            raise HttpError(502, f"Não foi possível consultar o modelo: {exc}")
+
+    def r_tool_download(self, req) -> None:
+        """Baixa um modelo (`model` dono/nome) para o nó «Modelo PyTorch/TensorFlow», só os arquivos do `framework` escolhido («torch» ou «tf»)."""
+        from .canvas import localmodels as lm
+
+        body = req.body_json()
+        body = body if isinstance(body, dict) else {}
+        model, fw = text(body.get("model"), "", 200), text(body.get("framework"), "", 6)
+        if not REPO_RE.match(model):
+            raise HttpError(400, "Informe o modelo no formato dono/nome.")
+        if fw not in ("tf", "torch"):
+            raise HttpError(400, "Escolha o framework: PyTorch (torch) ou TensorFlow (tf).")
+        running = self.app.jobs.running("tool_model")
+        if running:
+            raise HttpError(409, json.dumps({"job_id": running.id}))
+
+        def work(job: Job) -> None:
+            import time
+
+            job.emit({"type": "start", "model": model, "framework": fw})
+            last = [0.0]
+
+            def progress(done: int, total: int) -> None:
+                if time.time() - last[0] > 0.4:
+                    last[0] = time.time()
+                    job.emit({"type": "progress", "done": done, "total": total})
+
+            lm.download(model, "fp32", self._hf_token(), progress, lambda: job.cancelled, framework=fw)
+            job.emit({"type": "done", "model": model, "framework": fw})
+
+        job = self.app.jobs.start("tool_model", work)
+        req.json({"job_id": job.id})
+
     # ------------------------------------------------------------------ modelos locais: a precisão é escolhida antes do download
     def _hf_token(self) -> str:
         return (self.store.get_settings().get("hf") or {}).get("token", "")
@@ -652,6 +740,21 @@ class ProjectRoutes:
             raise HttpError(502, str(exc))
         except Exception as exc:  # noqa: BLE001 — erros da biblioteca do Hugging Face (repositório inexistente, sem rede…)
             raise HttpError(502, f"Não foi possível consultar o modelo: {exc}")
+
+    _FW_CACHE: Dict[str, Any] = {"t": 0.0, "v": None}
+
+    def r_frameworks(self, req) -> None:
+        """O PyTorch e o TensorFlow deste computador (v0.82): versão, placa de vídeo em uso e os conselhos. Importar as bibliotecas demora: o resultado vale 30 s (`?refresh=1` refaz)."""
+        import time as _time
+
+        from .canvas import frameworks
+
+        cache = ProjectRoutes._FW_CACHE
+        if req.query.get("refresh", [""])[0] not in ("1", "true") and cache["v"] is not None and _time.time() - cache["t"] < 30:
+            return req.json(cache["v"])
+        data = frameworks.report()
+        cache["t"], cache["v"] = _time.time(), data
+        req.json(data)
 
     def r_local_quants(self, req) -> None:
         """Versões menores (quantizadas, da comunidade) do modelo, para baixar no lugar do original."""

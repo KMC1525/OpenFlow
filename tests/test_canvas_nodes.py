@@ -25,7 +25,7 @@ class SchemaTests(unittest.TestCase):
         groups = {}
         for k, v in nodes_ext.SPECS.items():
             groups.setdefault(v["group"], []).append(k)
-        self.assertEqual({g: len(v) for g, v in groups.items()}, {"Texto": 7, "Imagem": 9, "Vídeo": 8, "Som": 7, "Input": 6, "Output": 6, "3D": 3})   # v0.34: +10 nós; v0.58: +3 nós 3D (textura, esqueleto, animação); v0.61: +1 nó de som (Letra; Música e SFX são geradores, fora desta lista)
+        self.assertEqual({g: len(v) for g, v in groups.items()}, {"Texto": 7, "Imagem": 10, "Vídeo": 8, "Som": 7, "Input": 6, "Output": 6, "3D": 3})   # v0.34: +10 nós; v0.58: +3 nós 3D (textura, esqueleto, animação); v0.61: +1 nó de som (Letra; Música e SFX são geradores, fora desta lista); v0.82: +1 nó de imagem (Modelo PyTorch/TensorFlow)
         self.assertEqual([g for g, _ in schema.PALETTE], ["Texto", "Imagem", "Vídeo", "Som", "Input", "3D", "Output"])
         listed = [t for _, ts in schema.PALETTE for t in ts]
         self.assertEqual(sorted(listed), sorted(schema.NODE_TYPES))  # todo nó (antigo e novo) está na paleta, uma vez só

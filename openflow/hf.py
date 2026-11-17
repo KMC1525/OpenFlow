@@ -16,7 +16,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from .canvas import quants
+from .canvas import frameworks, quants
 from .providers import http
 from .providers.base import ProviderError
 
@@ -160,6 +160,7 @@ def search(query: str, token: str = "", limit: int = 20, kind: str = "text") -> 
 ORIGINAL_TAGS: Dict[str, List[str]] = {
     "image": ["text-to-image", "image-to-image"], "video": ["text-to-video", "image-to-video"], "sound": ["text-to-audio"], "voice": ["text-to-speech"], "stt": ["automatic-speech-recognition"], "model3d": ["text-to-3d", "image-to-3d"],
     "text": ["text-generation"],
+    "tool": ["image-to-image"],   # v0.82: modelos próprios de imagem → imagem, para o nó «Modelo PyTorch/TensorFlow»
 }
 
 
@@ -184,7 +185,8 @@ def search_original(query: str, token: str = "", cap: str = "image", limit: int 
         for m in data if isinstance(data, list) else []:
             mid = m.get("id") or m.get("modelId") if isinstance(m, dict) else None
             if isinstance(mid, str) and REPO_RE.match(mid):
-                row = found.setdefault(mid, {"id": mid, "downloads": int(m.get("downloads") or 0), "likes": int(m.get("likes") or 0), "cap": cap, "format": "original", "gguf": "gguf" in [str(t).lower() for t in (m.get("tags") or [])]})
+                row = found.setdefault(mid, {"id": mid, "downloads": int(m.get("downloads") or 0), "likes": int(m.get("likes") or 0), "cap": cap, "format": "original", "gguf": "gguf" in [str(t).lower() for t in (m.get("tags") or [])],
+                                                           "frameworks": frameworks.detect(tags=m.get("tags") or [], library=str(m.get("library_name") or ""))})   # PyTorch / TensorFlow / JAX… (v0.82)
                 row["downloads"] = max(int(row.get("downloads") or 0), int(m.get("downloads") or 0))
                 row["likes"] = max(int(row.get("likes") or 0), int(m.get("likes") or 0))
                 row["gguf"] = row["gguf"] or ("gguf" in [str(t).lower() for t in (m.get("tags") or [])])

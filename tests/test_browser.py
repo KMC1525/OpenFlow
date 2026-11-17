@@ -132,6 +132,9 @@ class BrowserTests(unittest.TestCase):
     def test_33_the_five_quantization_tiers_q2_to_q8(self):
         self.run_script("quants_v081_ui.js")
 
+    def test_34_pytorch_and_tensorflow_card_own_models_and_the_model_node(self):
+        self.run_script("frameworks_v082_ui.js")
+
     def test_19_the_ai_flow_generator_and_the_team_picker_are_gone(self):
         self.run_script("no_flow_ai_ui.js")
 

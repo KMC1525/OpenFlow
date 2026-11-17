@@ -1,5 +1,5 @@
 import { api, events } from '../api.js';
-import { t } from '../i18n.js';
+import { getLang, t } from '../i18n.js';
 import { go, refreshState, renderSide, saveSettings, state } from '../main.js';
 import { accentSwatches, themeCards } from '../appearance.js';
 import { ui } from '../prefs.js';
@@ -161,6 +161,28 @@ async function projectTab() {
   return h('div', null,
     cfgCard(t('Novos projetos'), field(t('Modelo inicial'), select(opts, cv.template, (v) => { cv.template = v; }), t('O modelo que vem marcado ao criar um projeto novo. Os provedores de imagem, vídeo, som e voz ficam em Mídia.'))),
     saveRow(() => saveSettings({ canvas: cv })));
+}
+
+// PyTorch e TensorFlow (v0.82): o que está instalado, se usa a placa de vídeo e o comando certo para quem não usa (o texto do conselho vem do servidor, em português e em inglês)
+function frameworksCard() {
+  const body = h('div', { id: 'fw-body', 'aria-live': 'polite' }, h('span', { class: 'muted small' }, t('Lendo o PyTorch e o TensorFlow…')));
+  const advice = (a) => h('div', { class: 'fw-advice', dataset: { level: a.level }, style: { marginTop: '6px' } },
+    h('span', { class: 'chip ' + (a.level === 'ok' ? 'on' : a.level === 'warn' || a.level === 'error' ? 'warn' : ''), style: { marginRight: '6px' } }, { ok: '✓', info: 'i', warn: '!', error: '×' }[a.level] || 'i'),
+    h('span', { class: 'small' }, getLang() === 'en' && a.text_en ? a.text_en : a.text),
+    a.command ? h('div', { class: 'codebox' }, h('span', { class: 'fw-cmd' }, a.command), h('button', { class: 'btn sm ghost', type: 'button', onclick: () => navigator.clipboard.writeText(a.command).then(() => toast(t('Copiado'), 'ok')) }, t('Copiar'))) : null);
+  const paint = (r) => {
+    const tc = r.torch, tf = r.tensorflow;
+    body.replaceChildren(
+      h('dl', { class: 'kv', style: { margin: 0 } },
+        h('dt', null, 'PyTorch'), h('dd', { id: 'fw-torch' }, tc.installed ? tc.version + (tc.build ? ' · ' + tc.build : '') + (tc.device ? ' · ' + tc.device : '') : t('não instalado')),
+        h('dt', null, 'TensorFlow'), h('dd', { id: 'fw-tf' }, tf.installed ? tf.version + (tf.keras ? ' · Keras ' + tf.keras : '') + ' · ' + ((tf.gpus || []).length ? t('usa a placa') : 'CPU') : t('não instalado')),
+        h('dt', null, t('Placas de vídeo')), h('dd', null, (r.gpu_vendors || []).join(', ') || t('nenhuma'))),
+      ...r.advice.torch.map(advice), ...r.advice.tensorflow.map(advice),
+      h('button', { class: 'btn sm ghost', type: 'button', id: 'fw-refresh', style: { marginTop: '8px' }, onclick: () => { body.replaceChildren(h('span', { class: 'muted small' }, t('Lendo o PyTorch e o TensorFlow…'))); load(true); } }, t('Ler de novo')));
+  };
+  const load = (fresh) => api('/api/media/frameworks' + (fresh ? '?refresh=1' : '')).then(paint).catch((e) => body.replaceChildren(h('span', { class: 'muted small' }, e.message)));
+  load(false);
+  return cfgCard(t('PyTorch e TensorFlow'), h('p', { class: 'muted small', style: { marginTop: 0 } }, t('Os modelos locais usam o PyTorch; o TensorFlow só é preciso para os modelos feitos para ele (Keras, SavedModel), no nó «Modelo PyTorch/TensorFlow». Aqui você vê se cada um usa a placa de vídeo e o que fazer se não usa. No terminal: flow frameworks e flow torch.')), body);
 }
 
 // Aceleração por placa de vídeo (v0.29): NVIDIA/AMD/Intel, se o llama.cpp instalado usa a placa e quanto cada modelo de texto deve render nela
@@ -333,6 +355,7 @@ async function performance() {
     cpuCard(pf),
     downloadsCard(),
     gpuAccelCard(hw),
+    frameworksCard(),
     cfgCard(t('Núcleo Rust'),
       h('dl', { class: 'kv', style: { margin: 0 } }, h('dt', null, t('Núcleo Rust')), h('dd', null, nat.active ? h('span', { class: 'chip on' }, t('ativo')) : h('span', { class: 'muted' }, t('inativo — usando Python puro'))),
         h('dt', null, 'Rust (cargo)'), h('dd', null, nat.cargo ? t('encontrado') : t('não encontrado (opcional)')),
