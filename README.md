@@ -8,7 +8,7 @@ Connect a few nodes, see each result on the node, edit the final video without l
 
 [Install](#install) · [Use](#use) · [Nodes](#nodes) · [Models](#models) · [Settings](#settings) · [Data](#your-data) · [Development](#development) · [Changelog](CHANGELOG.en.md) · [Português](README.pt-BR.md)
 
-`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Rust core` · `v0.80.0`
+`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Rust core` · `v0.81.0`
 
 </div>
 
@@ -62,7 +62,7 @@ The Style Prompt and Style Folder (folders and subfolders, renameable) apply to 
 
 ## Models
 
-**All model search and download happens in the model search bar at the top of the Canvas editor**, with a downloads indicator next to it (progress, speed, time left, cancel). Click it to see a catalog of known models (it only lists them), search Hugging Face by type, or paste an `owner/name` address. For image and video choose **GGUF** (pick the quantization: bits, size, quality, fits your RAM?) or the **original** diffusers format; text is GGUF only; sound, voice, transcription and 3D use the original format. For **sound, voice and transcription** pick a **topic** (music, sound effects, voice, voice cloning, dubbing…): the list opens with the most downloaded, without the video/«omni» noise of the Hub, and each result says whether it **runs in OpenFlow**.
+**All model search and download happens in the model search bar at the top of the Canvas editor**, with a downloads indicator next to it (progress, speed, time left, cancel). Click it to see a catalog of known models (it only lists them), search Hugging Face by type, or paste an `owner/name` address. For image and video choose **GGUF** (pick the quantization: bits, size, quality, fits your RAM?) or the **original** diffusers format; text is GGUF only; sound, voice, transcription and 3D use the original format. For **sound, voice and transcription** pick a **topic** (music, sound effects, voice, voice cloning, dubbing…): the list opens with the most downloaded, without the video/«omni» noise of the Hub, and each result says whether it **runs in OpenFlow**. **Q2, Q3, Q4, Q6 and Q8 for every model (v0.81):** the GGUF list shows the five tiers of each repository (the missing ones are dimmed, with a button to look for them in other repositories of the same model); a missing tier can be **created** from a downloaded file (Library → model menu → “Create tier”, or `flow models quant --name FILE.gguf --tier Q4`) or **used on the fly** in an image/video node (“Quantization on load”); original (diffusers) models get Q8…Q2 in the precision choice, compressing the weights on load (needs `flow libs --extras quant`).
 
 - **Support files come along:** VAE, text encoders and `mmproj` are downloaded with the model (switch off in *Settings → Performance → Model downloads*).
 - **Providers:** only local ones — *Hugging Face local* (diffusers, transformers), *GGUF local* (llama.cpp for text, stable-diffusion.cpp for image/video) and an offline *Demo*. 3D: Shap-E, TripoSR, Hunyuan3D-2.

@@ -21,6 +21,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from ..providers import ProviderError
 from ..util import flow_home, ssl_context
+from . import quants
 
 REPO = "leejet/stable-diffusion.cpp"
 RELEASES_API = f"https://api.github.com/repos/{REPO}/releases/latest"
@@ -405,7 +406,7 @@ def sys_platform() -> str:
 
 #: parâmetro de carga da biblioteca Python → opção do sd-cli (caminhos de arquivo)
 LOAD_FLAGS = {"diffusion_model_path": "--diffusion-model", "model_path": "-m", "vae_path": "--vae", "llm_path": "--llm", "t5xxl_path": "--t5xxl", "clip_l_path": "--clip_l", "clip_g_path": "--clip_g",
-              "tokenizer_path": "--tokenizer", "llm_vision_path": "--llm_vision", "clip_vision_path": "--clip_vision", "audio_vae_path": "--audio-vae", "high_noise_diffusion_model_path": "--high-noise-diffusion-model"}
+              "tokenizer_path": "--tokenizer", "llm_vision_path": "--llm_vision", "clip_vision_path": "--clip_vision", "audio_vae_path": "--audio-vae", "high_noise_diffusion_model_path": "--high-noise-diffusion-model", "wtype": "--type"}
 #: parâmetro de carga booleano → opção
 LOAD_SWITCHES = {"offload_params_to_cpu": ["--offload-to-cpu"], "diffusion_flash_attn": ["--flash-attn", "off,diffusion=on"], "keep_clip_on_cpu": ["--clip-on-cpu"], "te_on_cpu": ["--backend", "te=cpu"], "vae_tiling": ["--vae-tiling"], "vae_on_cpu": ["--vae-on-cpu"]}
 #: parâmetro de geração → opção
@@ -492,7 +493,7 @@ def build_args(exe: Path, load: Dict[str, Any], run: Dict[str, Any], *, prompt: 
         load = {**load, "keep_clip_on_cpu": True, "vae_on_cpu": True}
     for k, v in load.items():
         if k in LOAD_FLAGS and isinstance(v, str) and v:
-            args += [LOAD_FLAGS[k], v]
+            args += [LOAD_FLAGS[k], quants.sd_cli_type(v) if k == "wtype" else v]   # «q4_k» (biblioteca Python) → «q4_K» (sd-cli)
         elif k in LOAD_SWITCHES:
             if v:
                 args += LOAD_SWITCHES[k]

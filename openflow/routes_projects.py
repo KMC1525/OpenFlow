@@ -647,7 +647,7 @@ class ProjectRoutes:
         if not REPO_RE.match(model):
             raise HttpError(400, "Informe o modelo no formato dono/nome.")
         try:
-            req.json(lm.options(model, self._hf_token(), bool(hardware_info().get("gpu"))))
+            req.json(lm.options(model, self._hf_token(), bool(hardware_info().get("gpu")), float(hardware_info().get("ram_gb") or 0)))
         except ProviderError as exc:
             raise HttpError(502, str(exc))
         except Exception as exc:  # noqa: BLE001 — erros da biblioteca do Hugging Face (repositório inexistente, sem rede…)

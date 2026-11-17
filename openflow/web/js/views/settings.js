@@ -428,7 +428,7 @@ function localModels(p, draft) {
         list.replaceChildren(...r.options.map((o) => h('label', { class: 'quant' + (o === pick ? ' on' : ''), onclick: () => { pick = o; paint(); } },
           h('input', { type: 'radio', name: 'prec-' + cap, checked: o === pick }),
           h('div', { class: 'grow' }, h('div', { class: 'row', style: { gap: '8px' } }, h('b', null, o.id), o.recommended ? h('span', { class: 'chip on' }, t('Recomendada')) : null),
-            h('div', { class: 'dim small' }, t(PREC_HINT[o.id]))),
+            h('div', { class: 'dim small' }, t(PREC_HINT[o.id])), o.memory ? h('div', { class: 'dim small' }, t('Memória ≈ {n}', { n: fmtBytes(o.memory) })) : null),
           h('span', { class: 'chip solid' }, o.size ? fmtBytes(o.size) : '?'))));
         btn.disabled = !pick;
         btn.replaceChildren(icon('download', 14), pick ? t('Baixar {q} ({s})', { q: model + ' · ' + pick.id, s: pick.size ? fmtBytes(pick.size) : '?' }) : t('Escolha uma precisão para baixar'));

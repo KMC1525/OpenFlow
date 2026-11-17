@@ -145,6 +145,8 @@ class App:
 
         a("GET", r"/api/unsloth/catalog", self.r_unsloth_catalog)
         a("GET", r"/api/hf/files", self.r_hf_files)
+        a("GET", r"/api/hf/tiers", self.r_hf_tiers)
+        a("POST", r"/api/hf/requant", self.r_hf_requant)
         a("GET", r"/api/hf/local", self.r_hf_local)
         a("POST", r"/api/hf/download", self.r_hf_download)
         a("DELETE", r"/api/hf/local/(?P<name>[^/]+)", self.r_hf_delete)
@@ -428,13 +430,59 @@ class App:
             files = hf.group_files([f for f in tree if f["name"].lower().endswith(".gguf") and hf.FILE_RE.match(Path(f["name"]).name)], hardware_info().get("ram_gb") or 0)
         except ProviderError as exc:
             raise HttpError(502, str(exc))
-        out: Dict[str, Any] = {"files": files, "support": [], "compat": support.sd_compat_warning(repo)}   # aviso: repositório que não é o convertido para a stable-diffusion.cpp
+        out: Dict[str, Any] = {"files": files, "support": [], "compat": support.sd_compat_warning(repo), "tiers": hf.tier_summary(files, hardware_info().get("ram_gb") or 0)}   # aviso: repositório que não é o convertido para a stable-diffusion.cpp
         if files and self._auto_support():
             main = next((f for f in files if f.get("recommended")), files[0])
             k = kind if kind in hf.GGUF_KINDS else ("text" if not support.family_of(main["name"]) else "image")
             info = support.plan(hf.kind_dir(self.store.models_dir, k), Path(main["name"]).name, k, repo, tree)
             out["support"] = [{"role": i["role"], "label": i["label"], "size": i["size"]} for i in info["items"]]
         req.json(out)
+
+    def r_hf_tiers(self, req: "Request") -> None:
+        """As faixas Q2/Q3/Q4/Q6/Q8 de um repositório GGUF (v0.81) e, com `alts=1`, os OUTROS repositórios do mesmo modelo que têm as faixas que faltam."""
+        repo = req.query.get("repo", [""])[0]
+        kind = req.query.get("kind", ["image"])[0] or "image"
+        if not hf.REPO_RE.match(repo or ""):
+            raise HttpError(400, "Repositório inválido (use o formato dono/nome).")
+        try:
+            hf.check_kind(kind)
+        except ProviderError as exc:
+            raise HttpError(400, str(exc))
+        try:
+            ram = hardware_info().get("ram_gb") or 0
+            tree = hf.repo_files(repo, self._hf_token())
+            files = hf.group_files([f for f in tree if f["name"].lower().endswith(".gguf") and hf.FILE_RE.match(Path(f["name"]).name)], ram)
+            tiers = hf.tier_summary(files, ram)
+            out: Dict[str, Any] = {"repo": repo, "tiers": tiers, "alternatives": []}
+            missing = [t["tier"] for t in tiers if not t["has"]]
+            if req.query.get("alts", [""])[0] in ("1", "true") and missing:
+                out["alternatives"] = hf.other_repos(repo, kind, missing, self._hf_token(), ram)
+            req.json(out)
+        except ProviderError as exc:
+            raise HttpError(502, str(exc))
+
+    def r_hf_requant(self, req: "Request") -> None:
+        """Cria uma faixa de quantização (Q2/Q3/Q4/Q6/Q8) a partir de um GGUF já baixado (`kind`, `name`, `tier`): tarefa em segundo plano."""
+        from .canvas import requant
+
+        body = req.body_json()
+        body = body if isinstance(body, dict) else {}
+        kind, name, tier = text(body.get("kind"), "", 8), text(body.get("name"), "", 260), text(body.get("tier"), "", 4).upper()
+        try:
+            pl = requant.plan(self.store.models_dir, kind, name, tier)   # recusa antes de começar o que não dá (já existe, bits demais, dividido em partes…)
+        except ProviderError as exc:
+            raise HttpError(400, str(exc))
+        running = self.jobs.running("requant")
+        if running:
+            raise HttpError(409, json.dumps({"job_id": running.id}))
+
+        def work(job: Job) -> None:
+            job.emit({"type": "start", "file": pl["dst"].name, "tier": tier})
+            path = requant.create(self.store.models_dir, kind, name, tier, lambda: job.cancelled, lambda m: job.emit({"type": "note", "message": m}))
+            job.emit({"type": "done", "name": path.name, "kind": kind})
+
+        job = self.jobs.start("requant", work, {"title": pl["dst"].name, "kind": kind})
+        req.json({"job_id": job.id})
 
     def r_hf_local(self, req: "Request") -> None:
         kind = req.query.get("kind", ["text"])[0] or "text"  # sem `kind`: só os de texto (o que o provedor de IA lista)
