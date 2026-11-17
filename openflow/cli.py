@@ -133,6 +133,7 @@ LIBS = {
     "docs": "extração de PDFs mais precisa",
     "media": "modelos locais de imagem, vídeo, som e voz (PyTorch, diffusers, transformers — vários GB)",
     "local": "modelos GGUF embutidos: texto, imagem e vídeo (llama-cpp-python e stable-diffusion-cpp-python; compilam código nativo)",
+    "quant": "comprimir ao carregar os modelos originais em Q8, Q6, Q4, Q3 ou Q2 (biblioteca optimum-quanto; roda em qualquer aparelho, até na CPU)",
     "voxcpm": "voz do VoxCPM2 (openbmb/VoxCPM2): fala em 30 idiomas, voz por descrição e clonagem (biblioteca voxcpm; precisa do Python 3.10 ou mais novo)",
 }
 MIN_PY = {"voxcpm": (3, 10)}   # extras que só existem a partir de uma versão do Python: «all» pula o que este Python não suporta
@@ -675,10 +676,37 @@ def _models(args: argparse.Namespace) -> int:
         return 0
     if args.action == "support":
         return _models_support(store)
+    if args.action == "quant":
+        return _models_quant(store, args)
     token = (store.get_settings().get("hf") or {}).get("token", "")
     explicit = args.which or os.environ.get("OPENFLOW_MODELS") or ""
     ask = _ask_terminal if getattr(args, "ask", False) and not explicit else None
     return preinstalled.install_selected(store, explicit or "all", token, ask=ask)
+
+
+def _models_quant(store, args: argparse.Namespace) -> int:
+    """`flow models quant`: sem opções, mostra a faixa de cada modelo GGUF baixado e quais ainda dá para criar; com `--name ARQUIVO --tier Q4` cria a faixa (Q2, Q3, Q4, Q6 ou Q8) a partir dele."""
+    from . import hf
+    from .canvas import quants, requant
+    from .providers import ProviderError
+
+    if args.name:
+        kind = args.kind or next((k for k in ("image", "video", "text") if any(m["name"] == args.name for m in hf.local_models(store.models_dir, k))), "")
+        try:
+            path = requant.create(store.models_dir, kind, args.name, (args.tier or "").upper(), lambda: False, lambda m: print("  " + m, flush=True))
+        except ProviderError as exc:
+            print("⚠  " + str(exc))
+            return 1
+        print(_("✓ Criado: {n}", n=path.name))
+        return 0
+    shown = 0
+    for kind in ("text", "image", "video"):
+        for m in hf.local_models(store.models_dir, kind):
+            can = [t for t in quants.TIERS if m.get("parts", 1) <= 1 and m.get("bits") and quants.NOMINAL[t] < m["bits"]]
+            print(f"· {m['name']:<48} {kind:<6} {m.get('quant') or '?':<8} " + (_("dá para criar: {t}", t=", ".join(can)) if can else _("(nada menor para criar)")))
+            shown += 1
+    print(_("Nenhum modelo GGUF baixado ainda.") if not shown else _("Para criar uma faixa:  flow models quant --name ARQUIVO.gguf --tier Q4"))
+    return 0
 
 
 def _models_support(store) -> int:
@@ -895,8 +923,11 @@ def main(argv=None) -> int:
     upd.add_argument("--extras", default="", help=_("bibliotecas a atualizar: all (padrão), none ou lista (docs,media,local)"))
     upd.add_argument("--force", action="store_true", help=_("reinstala o OpenFlow mesmo que já esteja na versão mais recente"))
     upd.add_argument("--rust", choices=("ask", "yes", "no"), default="", help=_("Rust (núcleo rápido do OpenFlow): yes = instala/atualiza sozinho (padrão), ask = pergunta, no = pula (também OPENFLOW_RUST)"))
-    mod = sub.add_parser("models", help=_("modelos locais: list | install (pré-instalados, com VAE, codificadores de texto e mmproj) | support (confere e baixa o que falta dos modelos instalados)"))
-    mod.add_argument("action", choices=("list", "install", "support"), nargs="?", default="list")
+    mod = sub.add_parser("models", help=_("modelos locais: list | install (pré-instalados, com VAE, codificadores de texto e mmproj) | support (confere e baixa o que falta dos modelos instalados) | quant (cria uma faixa Q2, Q3, Q4, Q6 ou Q8 a partir de um GGUF baixado)"))
+    mod.add_argument("action", choices=("list", "install", "support", "quant"), nargs="?", default="list")
+    mod.add_argument("--name", default="", help=_("quant: o arquivo GGUF baixado de origem"))
+    mod.add_argument("--tier", default="", help=_("quant: a faixa a criar (Q2, Q3, Q4, Q6 ou Q8)"))
+    mod.add_argument("--kind", default="", help=_("quant: text, image ou video (padrão: onde o arquivo estiver)"))
     mod.add_argument("--which", default="", help=_("all (padrão), none, text, image ou ids (também OPENFLOW_MODELS)"))
     mod.add_argument("--ask", action="store_true", help=_("pergunta no terminal (sim/não) antes de baixar o que falta; sem efeito se --which ou OPENFLOW_MODELS já disseram o que fazer"))
     mod.add_argument("--home", help=_("pasta de dados (padrão ~/.openflow)"))

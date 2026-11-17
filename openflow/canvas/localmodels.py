@@ -22,12 +22,17 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from ..providers.base import ProviderError
+from . import quants
 
-PRECISIONS = ("fp32", "fp16", "bf16")
-LABELS = {"fp32": "fp32 · original", "fp16": "fp16 · metade do tamanho", "bf16": "bf16 · metade do tamanho"}
+#: as faixas Q8…Q2 (v0.81): baixam os mesmos arquivos do fp16 e comprimem os pesos AO CARREGAR (a memória cai; o download não)
+QUANT_IDS = tuple(t.lower() for t in reversed(quants.TIERS))   # q8, q6, q4, q3, q2
+PRECISIONS = ("fp32", "fp16", "bf16") + QUANT_IDS
+LABELS = {"fp32": "fp32 · original", "fp16": "fp16 · metade do tamanho", "bf16": "bf16 · metade do tamanho", **{t.lower(): quants.LABELS[t] + " (ao carregar)" for t in quants.TIERS}}
 HINTS = {"fp32": "Maior e mais lento, mas funciona em qualquer computador (inclusive só com CPU).",
          "fp16": "Metade do tamanho e da memória; ideal com placa de vídeo (GPU). Em CPU pode ser lento ou falhar.",
-         "bf16": "Como o fp16, com a faixa de valores do fp32; pede um processador/GPU recente."}
+         "bf16": "Como o fp16, com a faixa de valores do fp32; pede um processador/GPU recente.",
+         **{t.lower(): "Baixa os mesmos arquivos do fp16 e comprime os pesos para ≈ {b} bits quando o modelo é carregado: o download é do tamanho do fp16, mas a memória usada cai bastante. Pede a biblioteca "
+                       "optimum-quanto (qualquer aparelho, até a CPU) ou bitsandbytes (placa NVIDIA).".format(b=quants.original_bits(t)) + (" " + quants.original_note(t) if quants.original_note(t) else "") for t in quants.TIERS}}
 WEIGHT_EXT = (".safetensors", ".bin", ".pt", ".pth", ".ckpt", ".msgpack", ".h5", ".onnx", ".onnx_data", ".tflite", ".mlmodel", ".gguf")
 SKIP_EXT = (".md", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".mp4", ".wav", ".mp3", ".flac")
 MARKER = "flow_precision.txt"
@@ -48,7 +53,7 @@ def select_files(files: List[Dict[str, Any]], precision: str) -> List[Dict[str, 
     names = [f["name"] for f in files]
     has_st = any(n.endswith(".safetensors") for n in names)
     diffusers_layout = "model_index.json" in names or "modular_model_index.json" in names   # o FLUX.3 usa o pipeline modular
-    low = precision in ("fp16", "bf16")
+    low = precision in ("fp16", "bf16") or precision in QUANT_IDS
 
     def is_variant(n: str) -> bool:
         return ".fp16." in n or ".bf16." in n
@@ -92,14 +97,36 @@ def _siblings(model: str, token: str) -> List[Dict[str, Any]]:
     return [{"name": s.rfilename, "size": int(getattr(s, "size", 0) or 0)} for s in (info.siblings or [])]
 
 
-def options(model: str, token: str = "", gpu: bool = False) -> Dict[str, Any]:
-    """As precisões possíveis para um modelo, com o tamanho do download de cada uma e a recomendada para este computador."""
+def is_quant(precision: str) -> bool:
+    """A precisão é uma das faixas Q8…Q2 (comprime ao carregar)?"""
+    return precision in QUANT_IDS
+
+
+def tier_of_precision(precision: str) -> str:
+    """«q4» → «Q4»; «» se não é uma faixa."""
+    return precision.upper() if precision in QUANT_IDS else ""
+
+
+def options(model: str, token: str = "", gpu: bool = False, ram_gb: float = 0.0) -> Dict[str, Any]:
+    """As precisões possíveis para um modelo, com o tamanho do download de cada uma e a recomendada para este computador. As faixas Q8…Q2 (v0.81) baixam o mesmo que o fp16 (`size`) e dizem quanto de
+    memória o modelo deve usar (`memory`); se nem o fp16 cabe na RAM, a recomendada é a maior faixa que cabe."""
     files = _siblings(model, token)
     out = []
+    fp16 = 0
     for p in PRECISIONS:
         chosen = select_files(files, p)
-        out.append({"id": p, "label": LABELS[p], "hint": HINTS[p], "size": sum(f["size"] for f in chosen), "files": len(chosen)})
+        size = sum(f["size"] for f in chosen)
+        if p == "fp16":
+            fp16 = size
+        o = {"id": p, "label": LABELS[p], "hint": HINTS[p], "size": size, "files": len(chosen)}
+        if p in QUANT_IDS:
+            o["memory"] = quants.estimate(fp16 or size, p.upper())
+            o["tier"] = p.upper()
+        out.append(o)
     rec = "fp16" if gpu else "fp32"
+    weak = quants.recommend_original(fp16, ram_gb).lower() if ram_gb else ""
+    if weak:   # nem o fp16 cabe na memória: a melhor faixa que cabe
+        rec = weak
     for o in out:
         o["recommended"] = o["id"] == rec
     return {"model": model, "options": out, "recommended": rec}
@@ -161,6 +188,18 @@ def downloaded_precision(model: str) -> str:
         p = marker.read_text(encoding="utf-8").strip()
         return p if p in PRECISIONS else ""
     return ""
+
+
+def components(model: str) -> Dict[str, Any]:
+    """Os componentes do pipeline baixado (`model_index.json`: nome → [biblioteca, classe]); {} se não é um pipeline do diffusers ou não está baixado."""
+    import json
+
+    snap = _snapshot(model)
+    try:
+        data = json.loads((snap / "model_index.json").read_text(encoding="utf-8")) if snap else {}
+    except (OSError, ValueError):
+        return {}
+    return {k: v for k, v in data.items() if isinstance(data, dict) and isinstance(v, list)} if isinstance(data, dict) else {}
 
 
 def has_fp16_variant(model: str) -> bool:
@@ -305,4 +344,6 @@ def fetch_files(model: str, names: List[str], token: str = "") -> List[Path]:
 def torch_dtype(precision: str) -> Any:
     import torch  # type: ignore
 
+    if precision in QUANT_IDS:   # as faixas comprimem os pesos; o cálculo segue em bfloat16 (seguro na CPU e nas placas recentes)
+        return torch.bfloat16
     return {"fp32": torch.float32, "fp16": torch.float16, "bf16": torch.bfloat16}[precision]

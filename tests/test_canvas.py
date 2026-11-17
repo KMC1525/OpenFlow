@@ -1295,7 +1295,7 @@ class CanvasApiTests(ServerCase):
             self.assertEqual(hub.downloaded, [])
             status, opts = self.c.json("GET", "/api/media/local/options?model=stabilityai/sd-turbo")
             self.assertEqual(status, 200)
-            self.assertEqual({o["id"] for o in opts["options"]}, {"fp32", "fp16", "bf16"})
+            self.assertEqual({o["id"] for o in opts["options"]}, {"fp32", "fp16", "bf16", "q8", "q6", "q4", "q3", "q2"})   # v0.81: as faixas Q8…Q2 entram na escolha
             self.assertEqual(self.c.json("GET", "/api/media/local/options?model=nada")[0], 400)
             self.assertEqual(self.c.json("GET", "/api/media/local/quants?model=nada")[0], 400)
             with mock.patch("openflow.providers.http.get_json", return_value=[{"id": "c/m-fp8", "usedStorage": 7, "tags": []}]):

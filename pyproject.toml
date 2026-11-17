@@ -29,10 +29,12 @@ local = ["llama-cpp-python>=0.2.90", "stable-diffusion-cpp-python"]
 docs = ["pypdf>=4.0"]
 # Modelos locais do Hugging Face (imagem, vídeo, som, voz e transcrição)
 media = ["torch", "torchvision", "diffusers>=0.30", "transformers>=4.44", "accelerate", "safetensors", "sentencepiece", "numpy", "pillow", "gguf", "av"]
+# Comprimir ao carregar os modelos originais (faixas Q8, Q6, Q4, Q3 e Q2; v0.81): roda em qualquer aparelho, até na CPU
+quant = ["optimum-quanto"]
 # Voz do VoxCPM2 (openbmb/VoxCPM2): precisa do Python 3.10 ou mais novo
 voxcpm = ["voxcpm; python_version >= '3.10'"]
 # Tudo de uma vez (é o que os instaladores e o `flow update` usam por padrão)
-all = ["pypdf>=4.0", "torch", "torchvision", "diffusers>=0.30", "transformers>=4.44", "accelerate", "safetensors", "sentencepiece", "numpy", "pillow", "gguf", "av", "llama-cpp-python>=0.2.90", "stable-diffusion-cpp-python", "voxcpm; python_version >= '3.10'"]
+all = ["pypdf>=4.0", "torch", "torchvision", "diffusers>=0.30", "transformers>=4.44", "accelerate", "safetensors", "sentencepiece", "numpy", "pillow", "gguf", "av", "llama-cpp-python>=0.2.90", "stable-diffusion-cpp-python", "optimum-quanto", "voxcpm; python_version >= '3.10'"]
 
 [project.urls]
 Homepage = "https://github.com/KMC1525/OpenFlow"

@@ -4,6 +4,8 @@ import { saveSettings } from '../main.js';
 import { checkbox, confirmDialog, debounce, fmtBytes, fmtDate, fmtEta, h, icon, modal, toast } from '../ui.js';
 import { GGUF_KINDS } from '../model_labels.js';
 
+const TIERS = [['Q8', 8], ['Q6', 6], ['Q4', 4], ['Q3', 3], ['Q2', 2]];   // as cinco faixas (v0.81); só dá para criar uma faixa com MENOS bits que o arquivo
+
 // Biblioteca (v0.27), no estilo do Google Drive: pastas e subpastas (virtuais: nada muda no disco) para modelos de IA e arquivos gerados, busca em todas as pastas, arrastar e soltar para organizar,
 // a lista de downloads e o catálogo para baixar mais modelos. No canvas, a aba «Biblioteca» do painel da direita arrasta os arquivos para o fluxo.
 const LS = (k, v) => { try { if (v === undefined) return localStorage.getItem('openflow.lib.' + k); localStorage.setItem('openflow.lib.' + k, v); } catch (e) { return null; } return null; };
@@ -191,12 +193,24 @@ export default async function render(root, ctx) {
         else { await saveSettings({ media: { models: { gguf_local: { [m.kind]: m.name } }, active: { [m.kind]: 'gguf_local' } } }); toast(m.kind === 'image' ? t('Usando para imagens') : t('Usando para vídeos'), 'ok'); }
       } catch (e) { toast(e.message, 'err'); }
     };
+    // v0.81: cria no disco uma faixa menor (Q2…Q8) a partir deste arquivo (sd-cli / llama.cpp, em segundo plano)
+    const makeTier = async (q) => {
+      let jid; try { jid = (await api('/api/hf/requant', { method: 'POST', body: { kind: m.kind, name: m.name, tier: q } })).job_id; } catch (e) { return toast(e.message, 'err'); }
+      toast(t('Criando {f}…', { f: m.name + ' → ' + q }));
+      events('/api/jobs/' + jid + '/events', (ev) => {
+        if (ev.type === 'done') { toast(t('Faixa criada: {f}', { f: ev.name }), 'ok'); loadItems(); }
+        else if (ev.type === 'error') toast(ev.message, 'err');
+        else if (ev.type === 'cancelled') toast(t('Criar faixa cancelado'));
+      });
+    };
+    const lower = ['text', 'image', 'video'].includes(m.kind) && m.parts <= 1 && m.bits ? TIERS.filter(([, b]) => b < m.bits) : [];
     return h('div', { class: 'lib-card model', 'data-model': m.name, draggable: 'true', ondragstart: dragStart({ keys: [m.key] }) },
       h('div', { class: 'th ico' }, icon(m.kind === 'text' ? 'type' : m.kind === 'image' ? 'image' : m.kind === 'video' ? 'video' : 'audio', 30)),
       h('div', { class: 'meta' }, h('div', { class: 'nm mono', title: m.name }, m.name),
         h('div', { class: 'dim small' }, [kindLabel, fmtBytes(m.size), m.parts > 1 ? t('{n} partes', { n: m.parts }) : ''].filter(Boolean).join(' · ')), m.quant ? h('span', { class: 'chip solid' }, m.quant) : null,
         m.path ? h('div', { class: 'dim small' }, t('em {p}', { p: m.path })) : null),
       menu([m.kind === 'text' || m.kind === 'image' || m.kind === 'video' ? [t('Usar'), useIt] : null, [t('Mover para…'), () => moveDialog([m.key], [])],
+        ...lower.map(([q]) => [t('Criar faixa {q}', { q }), () => makeTier(q)]),
         [t('Apagar'), async () => {
           if (!(await confirmDialog(t('Apagar o arquivo {n}?', { n: m.name })))) return;
           try { await api('/api/hf/local/' + encodeURIComponent(m.name) + '?kind=' + m.kind, { method: 'DELETE' }); loadItems(); } catch (e) { toast(e.message, 'err'); }

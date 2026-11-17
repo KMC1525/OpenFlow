@@ -87,7 +87,26 @@ export function modelSearchBar(c) {
         if (!r.files.length) return fill(slot, h('div', { class: 'muted small' }, t('Este repositório não tem arquivos GGUF utilizáveis.')));
         const extras = () => [r.compat ? h('div', { class: 'errbox', style: { marginBottom: '8px' } }, t(r.compat.text)) : null,
           (r.support || []).length ? h('div', { class: 'comes small', style: { marginBottom: '6px' } }, icon('layers', 14), ' ', t('Vem junto, automaticamente:'), ' ', r.support.map((x) => h('span', { class: 'chip on', title: x.label }, t(ROLE_LABEL[x.role] || x.role) + (x.size ? ' · ' + bytes(x.size) : '')))) : null];
-        const draw = () => fill(slot, ...extras(), h('div', { class: 'muted small', style: { marginBottom: '6px' } }, t('{n} quantização(ões): menos bits = arquivo menor e mais rápido, com algum custo de qualidade.', { n: r.files.length })),
+        // v0.81: as cinco faixas (Q2, Q3, Q4, Q6, Q8) de relance; as que o repositório não tem aparecem apagadas, com a saída (criar a partir de um arquivo baixado, usar na hora ou outro repositório)
+        const tierBox = h('div', { class: 'tiers', dataset: { tiers: '1' }, style: { marginBottom: '8px' } });
+        const paintTiers = (alts) => {
+          const missing = (r.tiers || []).filter((x) => !x.has).map((x) => x.tier);
+          fill(tierBox, h('div', { class: 'row', style: { gap: '6px', flexWrap: 'wrap', alignItems: 'center' } }, h('span', { class: 'muted small' }, t('Faixas:')),
+            (r.tiers || []).map((x) => h('button', { type: 'button', class: 'chip' + (x.has ? (x.recommended ? ' on' : '') : ' warn'), dataset: { tier: x.tier, has: x.has ? '1' : '0' }, style: x.has ? {} : { opacity: '.55' },
+              title: x.has ? t('Este repositório tem {q} ({s}).', { q: x.quant || x.tier, s: bytes(x.size) }) : t('Este repositório não tem {q}.', { q: x.tier }),
+              onclick: () => { const row = x.has ? slot.querySelector('.hub-q[data-file="' + CSS.escape(x.name) + '"]') : null; if (row) row.scrollIntoView({ block: 'nearest' }); } }, x.tier + (x.has ? ' · ' + bytes(x.size) : '')))),
+            missing.length ? h('div', { class: 'dim small', style: { marginTop: '4px' } }, t('Faltam: {q}. Crie uma faixa menor a partir de um arquivo baixado (Biblioteca → Modelos → «Criar faixa»), use-a na hora no nó (campo «Quantização ao carregar») ou procure outros repositórios deste modelo.', { q: missing.join(', ') })) : null,
+            missing.length && !alts ? h('button', { class: 'btn sm', type: 'button', dataset: { act: 'tiers-alts' }, style: { marginTop: '4px' }, onclick: async (ev) => {
+              ev.currentTarget.disabled = true; fill(tierBox, h('div', { class: 'muted small' }, t('Procurando outros repositórios do mesmo modelo…')));
+              let a = []; try { a = (await api('/api/hf/tiers?alts=1&repo=' + encodeURIComponent(repo) + '&kind=' + encodeURIComponent(kind))).alternatives || []; } catch (e) { toast(e.message, 'err'); }
+              paintTiers(a);
+            } }, icon('search', 13), t('Procurar em outros repositórios')) : null,
+            alts ? (alts.length ? alts.map((a) => h('div', { class: 'hub-q qv', dataset: { alt: a.repo } }, h('div', { class: 'grow' }, h('b', { class: 'mono small' }, a.repo), h('div', { class: 'dim small' }, a.missing_covered.map((q) => t('tem {q}', { q })).join(' · '))),
+              h('button', { class: 'btn sm', type: 'button', onclick: () => { st.results = [{ id: a.repo, downloads: a.downloads, likes: 0 }].concat((st.results || []).filter((x) => x.id !== a.repo)); st.open = a.repo; paint(); } }, t('Abrir'))))
+              : h('div', { class: 'dim small' }, t('Nenhum outro repositório deste modelo tem as faixas que faltam.'))) : null);
+        };
+        paintTiers(null);
+        const draw = () => fill(slot, ...extras(), tierBox, h('div', { class: 'muted small', style: { marginBottom: '6px' } }, t('{n} quantização(ões): menos bits = arquivo menor e mais rápido, com algum custo de qualidade.', { n: r.files.length })),
           r.files.map((f) => {
             const row = h('div', { class: 'hub-q', dataset: { quant: f.quant || '', file: f.name } });
             const mine = have.has(f.name.split('/').pop());
@@ -111,7 +130,7 @@ export function modelSearchBar(c) {
         const draw = (cur) => fill(slot, blocked ? h('div', { class: 'errbox', dataset: { blocked: '1' }, style: { marginBottom: '8px' } }, meta.compat.reason) : null, !state.libs ? h('div', { class: 'errbox', style: { marginBottom: '8px' } }, t('Instale as bibliotecas dos modelos locais para baixar:') + ' pip install "openflow[media]"  (' + t('ou rode') + ' flow libs)') : null,
           h('div', { class: 'muted small', style: { marginBottom: '6px' } }, t('Precisão do download: menos bits = menor; o fp16 pede placa de vídeo.')),
           o.options.map((p) => { const row = h('div', { class: 'hub-q', dataset: { quant: p.id } });
-            fill(row, h('div', { class: 'grow' }, h('div', { class: 'row', style: { gap: '8px' } }, h('b', null, p.id), p.recommended ? h('span', { class: 'chip on' }, t('Recomendada')) : null, cur === p.id ? h('span', { class: 'chip on' }, t('baixado')) : null), h('div', { class: 'dim small' }, t(PREC_HINT[p.id] || ''))),
+            fill(row, h('div', { class: 'grow' }, h('div', { class: 'row', style: { gap: '8px' } }, h('b', null, p.id), p.recommended ? h('span', { class: 'chip on' }, t('Recomendada')) : null, cur === p.id ? h('span', { class: 'chip on' }, t('baixado')) : null), h('div', { class: 'dim small' }, t(PREC_HINT[p.id] || '')), p.memory ? h('div', { class: 'dim small' }, t('Memória ≈ {n}', { n: bytes(p.memory) })) : null),
               h('span', { class: 'chip solid' }, bytes(p.size)),
               cur === p.id ? h('button', { class: 'btn sm primary', type: 'button', dataset: { act: 'use' }, disabled: blocked, title: blocked ? t('O OpenFlow ainda não roda este modelo') : '', onclick: () => useModel('local_hf', repo) }, icon('check', 13), t('Usar'))
                 : h('button', { class: 'btn sm', type: 'button', dataset: { act: 'download' }, disabled: !state.libs, onclick: async () => {

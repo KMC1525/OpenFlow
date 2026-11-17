@@ -2,6 +2,21 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.81.0] — 2026-11-17
+
+### Q2, Q3, Q4, Q6 and Q8 for every model
+The five quantization tiers (≈ 2, 3, 4, 6 and 8 bits per weight: fewer bits = smaller file and memory, lower quality) now exist for **every** OpenFlow model, in three ways — choose, create and use:
+- **Choose (GGUF — text, image, video):** a repository's list shows the five tiers at a glance, each with the recommended file (Q4_K_M before Q4_0…), its size, a "Recommended" mark (the largest tier that fits 60 % of your RAM) and, dimmed, the ones the repository does NOT have. For the missing ones, the **"Look in other repositories"** button finds other repositories of the same model that have those tiers (it only searches when you ask).
+- **Choose (original format — diffusers/transformers):** the precision choice gained Q8, Q6, Q4, Q3 and Q2 next to fp32/fp16/bf16. They download the same files as fp16 and **compress the weights on load** (bitsandbytes on an NVIDIA GPU; otherwise optimum-quanto, which runs on any device, even the CPU): the download is fp16-sized, but memory drops (the list says how much: Q4 ≈ 29 % of fp16). If even fp16 does not fit your RAM, the recommended one becomes the largest tier that fits. The original format only has 8, 4 and 2 bits: **Q6 uses 8 bits and Q3 uses 4** (the node says so). Applies to image and video models; voice, sound, transcription and 3D run uncompressed (and say so). Install the library with `flow libs --extras quant`.
+- **Create the missing tier:** from an already downloaded GGUF, OpenFlow generates the Q2, Q3, Q4, Q6 or Q8 (Library → model menu → "Create tier Q…", or `flow models quant --name FILE.gguf --tier Q4`): image and video through `sd-cli -M convert --type …`, text through llama.cpp's `llama_model_quantize` (in a separate process, cancellable). The source is the file with the MOST bits you have; it refuses files that are already that small, files split into parts and a disk without space; the file only gets its final name when complete.
+- **Use on the fly (image and video GGUF):** the new node field **"Quantization on load"** (writes `extra.quant`: Q8, Q6, Q4, Q3 or Q2) uses any file at a tier smaller than its own — stable-diffusion.cpp recompresses the weights on load (`wtype` / `--type`). Asking for a tier larger than the file's does nothing (and says so).
+- The downloaded models list (Library and API) now carries each file's `bits` and `tier`; nothing that existed changes.
+
+### Not verified yet
+- **None of this ran with the real programs and models** (Hugging Face is blocked where this was developed and there is no sd-cli, llama.cpp, optimum-quanto or bitsandbytes here): the tests use simulations with the libraries' real signatures (sd-cli's `--type`/`convert` and the library's `wtype` were checked against the stable-diffusion.cpp 0.4.7 source; `PipelineQuantizationConfig` against diffusers 0.43). I do not know each tier's quality on each model, nor whether a specific model survives Q2/Q3 without ruining the image.
+- Recompressing a file that is already compressed (Q8 → Q4) loses more than compressing the F16: that is why the source is always the one with the most bits. `convert` of a GGUF that holds only the diffusion model (no VAE/text) uses the file as `-m`; if an sd-cli version requires `--diffusion-model`, creation fails with its message.
+- diffusers' `QuantoConfig` is marked deprecated (removed in 1.0) and transformers' changes signature between versions: if compression on load fails on a new version, the error shows the cause and the model is not loaded uncompressed (it would blow the memory of exactly whoever chose the tier).
+
 ## [0.80.0] — 2026-11-17
 
 ### Dubbing with openbmb/VoxCPM2 — each person's voice, automatically

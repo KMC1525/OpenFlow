@@ -2,6 +2,21 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.81.0] — 2026-11-17
+
+### Q2, Q3, Q4, Q6 e Q8 para todos os modelos
+As cinco faixas de quantização (≈ 2, 3, 4, 6 e 8 bits por peso: menos bits = arquivo e memória menores, qualidade menor) agora existem para **todo** modelo do OpenFlow, de três jeitos — escolher, criar e usar:
+- **Escolher (GGUF — texto, imagem, vídeo):** a lista de um repositório mostra as cinco faixas de relance, cada uma com o arquivo recomendado (Q4_K_M antes do Q4_0…), o tamanho, a marca «Recomendada» (a maior faixa que cabe em 60 % da sua RAM) e, apagadas, as que o repositório NÃO tem. Nas que faltam, o botão **«Procurar em outros repositórios»** acha outros repositórios do mesmo modelo que têm essas faixas (só procura quando você pede).
+- **Escolher (formato original — diffusers/transformers):** a escolha de precisão ganhou Q8, Q6, Q4, Q3 e Q2 ao lado de fp32/fp16/bf16. Elas baixam os mesmos arquivos do fp16 e **comprimem os pesos ao carregar** (bitsandbytes na placa NVIDIA; senão optimum-quanto, que roda em qualquer aparelho, até na CPU): o download é do tamanho do fp16, mas a memória cai (a lista diz quanto: Q4 ≈ 29 % do fp16). Se nem o fp16 cabe na sua RAM, a recomendada passa a ser a maior faixa que cabe. O formato original só tem 8, 4 e 2 bits: **Q6 usa 8 bits e Q3 usa 4** (o nó avisa). Vale para modelos de imagem e vídeo; voz, som, transcrição e 3D rodam sem compressão (e avisam). Instale a biblioteca com `flow libs --extras quant`.
+- **Criar a faixa que falta:** a partir de um GGUF já baixado, o OpenFlow gera o Q2, Q3, Q4, Q6 ou Q8 (Biblioteca → menu do modelo → «Criar faixa Q…», ou `flow models quant --name ARQUIVO.gguf --tier Q4`): imagem e vídeo pelo `sd-cli -M convert --type …`, texto pelo `llama_model_quantize` do llama.cpp (num processo à parte, com cancelamento). A origem é o arquivo de MAIS bits que você tiver; recusa arquivos que já são tão pequenos, divididos em partes e disco sem espaço; o arquivo só ganha o nome final quando está completo.
+- **Usar na hora (GGUF de imagem e vídeo):** o campo novo **«Quantização ao carregar»** do nó (grava `extra.quant`: Q8, Q6, Q4, Q3 ou Q2) usa qualquer arquivo numa faixa menor que a dele — a stable-diffusion.cpp recomprime os pesos ao carregar (`wtype` / `--type`). Pedir uma faixa maior que a do arquivo não faz nada (e avisa).
+- A lista de modelos baixados (Biblioteca e API) agora traz `bits` e `tier` de cada arquivo; nada do que já existia muda.
+
+### Ainda não verificado
+- **Nada disso rodou com os programas e modelos de verdade** (o Hugging Face está bloqueado onde isto foi desenvolvido e não há sd-cli, llama.cpp, optimum-quanto nem bitsandbytes aqui): os testes usam simulações com a assinatura real das bibliotecas (o `--type`/`convert` do sd-cli e o `wtype` da biblioteca foram conferidos no código-fonte da stable-diffusion.cpp 0.4.7; o `PipelineQuantizationConfig` no diffusers 0.43). Não sei a qualidade de cada faixa em cada modelo, nem se um modelo específico aguenta o Q2/Q3 sem estragar a imagem.
+- Recomprimir um arquivo que já é comprimido (Q8 → Q4) perde mais que comprimir o F16: por isso a origem é sempre o de mais bits. O `convert` de um GGUF que contém só o modelo de difusão (sem VAE/texto) usa o arquivo como `-m`; se uma versão do sd-cli exigir `--diffusion-model`, a criação falha com a mensagem dele.
+- O `QuantoConfig` do diffusers está marcado como obsoleto (sai na 1.0) e o do transformers muda de assinatura entre versões: se a compressão ao carregar falhar numa versão nova, o erro mostra a causa e o modelo não é carregado sem comprimir (estouraria a memória justo de quem escolheu a faixa).
+
 ## [0.80.0] — 2026-11-17
 
 ### Dublagem com o openbmb/VoxCPM2 — a voz de cada pessoa, sozinha

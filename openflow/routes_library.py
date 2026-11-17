@@ -191,7 +191,7 @@ class LibraryRoutes:
         out = []
         for m in hf.local_models(self.store.models_dir, "all"):
             out.append({"key": f"model:{m['kind']}/{m['name']}", "scope": "models", "kind": m["kind"], "name": m["name"], "size": m.get("size", 0), "quant": m.get("quant", ""),
-                        "parts": m.get("parts", 1), "mtime": m.get("mtime", 0)})
+                        "bits": m.get("bits", 0), "tier": m.get("tier", ""), "parts": m.get("parts", 1), "mtime": m.get("mtime", 0)})
         return out
 
     def _files(self, kind: str, source: str) -> List[Dict[str, Any]]:

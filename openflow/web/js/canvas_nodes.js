@@ -194,7 +194,11 @@ function providerBlock(c, n, cap, resolutionField) {
   const defId = c.prov.active[cap] || 'demo';
   const eff = c.prov.providers.find((p) => p.id === (n.params.provider || defId));
   const warn = eff && eff.id === 'demo' ? h('div', { class: 'dim small' }, t('Demo: resultado simples, sem IA real.')) : null;
-  return [lab(t('Modelo'), modelPicker(c, n, cap)), warn, resolutionField || null];
+  // v0.81: usa o arquivo GGUF numa faixa menor que a dele (Q2…Q8): a stable-diffusion.cpp recomprime os pesos ao carregar. O valor vai em «extra.quant».
+  const quantField = (cap === 'image' || cap === 'video') && eff && eff.id === 'gguf_local'
+    ? [lab(t('Quantização ao carregar'), select([['', t('Automática (a do arquivo)')], ...['Q8', 'Q6', 'Q4', 'Q3', 'Q2'].map((q) => [q, q])], String((n.params.extra || {}).quant || ''), (v) => { const ex = { ...(n.params.extra || {}) }; if (v) ex.quant = v; else delete ex.quant; c.change(n, 'extra', ex, true); })),
+      (n.params.extra || {}).quant ? h('div', { class: 'dim small' }, t('Só vale para uma faixa menor que a do arquivo: a stable-diffusion.cpp recomprime os pesos ao carregar (a carga demora mais, a memória cai).')) : null] : [];
+  return [lab(t('Modelo'), modelPicker(c, n, cap)), warn, resolutionField || null, ...quantField];
 }
 
 function fileThumbs(c, n) {

@@ -16,6 +16,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
+from .canvas import quants
 from .providers import http
 from .providers.base import ProviderError
 
@@ -254,6 +255,7 @@ def group_files(raw: List[Dict[str, Any]], ram_gb: float = 0) -> List[Dict[str, 
             continue
         parts = [g["parts"][k] for k in sorted(g["parts"])]
         out.append({"name": parts[0]["name"], "files": [p["name"] for p in parts], "sizes": {p["name"]: p["size"] for p in parts}, "size": sum(p["size"] for p in parts), "parts": len(parts), **parse_quant(parts[0]["name"])})
+        out[-1]["tier"] = quants.tier_of(out[-1]["quant"])   # Q2/Q3/Q4/Q6/Q8 (v0.81); «» para F16, Q5…
     out.sort(key=lambda f: (f["size"], f["name"]))
     limit = ram_gb * 0.6 * 1024 ** 3
     for f in out:
@@ -269,6 +271,45 @@ def group_files(raw: List[Dict[str, Any]], ram_gb: float = 0) -> List[Dict[str, 
     if pick:
         pick["recommended"] = True
     return out
+
+
+def tier_summary(files: List[Dict[str, Any]], ram_gb: float = 0.0) -> List[Dict[str, Any]]:
+    """As faixas Q2/Q3/Q4/Q6/Q8 de uma lista já agrupada (`group_files`): quais o repositório tem e qual arquivo serve para cada uma."""
+    return quants.summary(files, ram_gb)
+
+
+def base_name(repo: str) -> str:
+    """O nome do modelo sem o dono e sem «-GGUF» («unsloth/Z-Image-Turbo-GGUF» → «Z-Image-Turbo»), para achar o mesmo modelo em outros repositórios."""
+    name = repo.split("/", 1)[-1]
+    return re.sub(r"[-_.]?(gguf|quantized|quants?)$", "", name, flags=re.I).strip("-_. ") or name
+
+
+def other_repos(repo: str, kind: str, missing: List[str], token: str = "", ram_gb: float = 0.0, limit: int = 6) -> List[Dict[str, Any]]:
+    """Outros repositórios GGUF do MESMO modelo que têm alguma das faixas que faltam (`missing`, ex. ["Q2", "Q3"]): [{repo, downloads, tiers: [as que têm], missing_covered: [as que faltavam e ele tem]}], os mais
+    baixados primeiro. Cada candidato custa uma consulta (em paralelo, com cache); erros de um candidato só o deixam de fora."""
+    name = base_name(repo)
+    try:
+        found = search(name, token, limit=14, kind=kind)
+    except ProviderError:
+        return []
+    key = re.sub(r"[^a-z0-9]", "", name.lower())
+    cands = [m for m in found if m["id"] != repo and key and key in re.sub(r"[^a-z0-9]", "", m["id"].split("/", 1)[-1].lower())][:limit]
+
+    def one(m: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        try:
+            tree = repo_files(m["id"], token)
+            files = group_files([f for f in tree if f["name"].lower().endswith(".gguf") and FILE_RE.match(Path(f["name"]).name)], ram_gb)
+        except ProviderError:
+            return None
+        tiers = [t["tier"] for t in tier_summary(files, ram_gb) if t["has"]]
+        covered = [t for t in missing if t in tiers]
+        return {"repo": m["id"], "downloads": int(m.get("downloads") or 0), "tiers": tiers, "missing_covered": covered} if covered else None
+
+    if not cands:
+        return []
+    with ThreadPoolExecutor(max_workers=min(6, len(cands))) as ex:
+        rows = [r for r in ex.map(one, cands) if r]
+    return sorted(rows, key=lambda r: (-len(r["missing_covered"]), -r["downloads"]))
 
 
 def repo_files(repo: str, token: str = "") -> List[Dict[str, Any]]:
@@ -331,6 +372,7 @@ def local_models(models_dir: Path, kind: str = "text") -> List[Dict[str, Any]]:
         if "mmproj" in p.name.lower():
             continue
         out.append({"name": p.name, "kind": kind, "size": sum(x.stat().st_size for x in parts), "parts": len(parts), "mtime": max(x.stat().st_mtime for x in parts), **parse_quant(p.name)})
+        out[-1]["tier"] = quants.tier_of(out[-1]["quant"])
     return out
 
 

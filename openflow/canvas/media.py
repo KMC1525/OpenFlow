@@ -36,7 +36,7 @@ from .. import perf as _perf
 from ..util import hardware_info
 from ..providers.base import ProviderError
 from . import procedural as proc
-from . import gguf_info, lowmem, mesh3d, sdcli, support, voxcpm
+from . import gguf_info, lowmem, mesh3d, quants, sdcli, support, voxcpm
 
 CAP_LABELS = {"image": "imagens", "video": "vídeos", "sound": "sons e músicas", "voice": "vozes", "stt": "transcrição de áudio", "model3d": "modelos 3D"}
 Ref = Tuple[bytes, str]  # (bytes, mime) de uma imagem de referência
@@ -810,8 +810,9 @@ class LocalHFMedia(MediaProvider):
             pass  # sem as bibliotecas de modelos locais: `_ready` mostra a mensagem de instalação
         return want
 
-    def _ready(self, model: str) -> Dict[str, Any]:
-        """Argumentos de carregamento do modelo (precisão escolhida, só arquivos locais). Recusa modelos que ainda não foram baixados."""
+    def _ready(self, model: str, quantizes: bool = False) -> Dict[str, Any]:
+        """Argumentos de carregamento do modelo (precisão escolhida, só arquivos locais). Recusa modelos que ainda não foram baixados. `quantizes`: quem chama sabe comprimir na faixa Q8…Q2 (imagem e vídeo
+        pelo diffusers); os outros modelos (voz, som, transcrição, 3D) rodam sem compressão e o nó avisa."""
         from . import localmodels as lm
 
         _TLS.ctl = self.ctl
@@ -819,8 +820,10 @@ class LocalHFMedia(MediaProvider):
         prec = lm.downloaded_precision(model)
         if not prec:
             raise ProviderError(f'O modelo local "{model}" ainda não foi baixado. Em Configuração → Mídia, escolha a precisão (quantização) e baixe-o antes de usar.', status=424)
-        low = prec in ("fp16", "bf16")
+        low = prec in ("fp16", "bf16") or lm.is_quant(prec)
         self.ctl.note(f"Modelo local {model} ({prec})")
+        if lm.is_quant(prec) and not quantizes:
+            self.ctl.note(f"A faixa {prec.upper()} só comprime modelos de imagem e vídeo: «{model}» roda sem compressão (nos pesos do fp16).")
         dtype = lm.torch_dtype(prec)
         try:   # v0.72: fp16 não roda na CPU, e o FLUX/Qwen-Image geram imagem preta em fp16: o tipo vale para o aparelho em uso
             (torch,) = _local_import("torch")
@@ -830,7 +833,42 @@ class LocalHFMedia(MediaProvider):
             dtype = real
         except Exception:  # noqa: BLE001
             pass
-        return {"precision": prec, "dtype": dtype, "variant": "fp16" if low and lm.has_fp16_variant(model) else None}
+        return {"precision": prec, "dtype": dtype, "variant": "fp16" if low and lm.has_fp16_variant(model) else None, "tier": lm.tier_of_precision(prec)}
+
+    def _quant_kw(self, model: str, ready: Dict[str, Any], diffusers: Any) -> Dict[str, Any]:
+        """A faixa Q8…Q2 escolhida no download (v0.81): os argumentos de `from_pretrained` que comprimem o modelo de difusão e os codificadores de texto AO CARREGAR (bitsandbytes na placa NVIDIA, senão optimum-quanto, que
+        roda em qualquer aparelho). Sem faixa, nada. Sem a biblioteca, o erro diz qual instalar (carregar sem comprimir estouraria a memória justo de quem escolheu a faixa)."""
+        import importlib.util as iu
+
+        tier = ready.get("tier") or ""
+        if not tier:
+            return {}
+        bits = quants.original_bits(tier)
+        if quants.original_note(tier):
+            self.ctl.note(quants.original_note(tier))
+
+        def has(name: str) -> bool:
+            try:
+                return iu.find_spec(name) is not None
+            except (ImportError, ValueError):
+                return False
+        dev, _ = _device()
+        backend = quants.backend_for(bits, dev == "cuda", has("bitsandbytes"), has("optimum.quanto"))
+        if not backend:
+            raise ProviderError(f'O modelo {model} foi baixado na faixa {tier}, que comprime os pesos ao carregar, mas falta a biblioteca de compressão. {quants.install_hint(bits, dev == "cuda")}')
+        from . import localmodels as lm
+
+        parts = quants.quantizable(lm.components(model))
+        if not parts:
+            self.ctl.note(f"{model} não tem um componente que dê para comprimir ({tier}): carregando sem compressão.")
+            return {}
+        try:
+            (tf,) = _local_import("transformers")
+        except Exception:  # noqa: BLE001 — sem transformers só o modelo de difusão é comprimido
+            tf = None
+        configs = quants.build_configs(backend, bits, ready["dtype"], diffusers, tf)
+        self.ctl.note(f"Comprimindo para {tier} ({bits} bits, {'bitsandbytes' if backend == 'bnb' else 'optimum-quanto'}) ao carregar: {', '.join(sorted(parts))}.")
+        return {"quantization_config": diffusers.PipelineQuantizationConfig(quant_mapping=quants.pipeline_mapping(parts, configs))}
 
     @staticmethod
     def _transformer_only(model: str) -> bool:
@@ -843,12 +881,12 @@ class LocalHFMedia(MediaProvider):
             raise ProviderError(f'«{model}» traz só o transformador quantizado (sem o codificador de texto e o VAE): o diffusers do OpenFlow carrega repositórios completos. Use os arquivos .gguf deste repositório pelo provedor «GGUF local» (barra de pesquisa de modelos do Canvas → Q4_K_M, Q5_K_M…): o OpenFlow baixa junto o VAE e o codificador Qwen3-VL-8B.')
         (diffusers,) = _local_import("diffusers")
         dev, _ = _device()
-        ready = self._ready(model)
+        ready = self._ready(model, quantizes=True)
 
         def load() -> Any:
             if self._is_modular(model):
                 return _slim(self._load_modular(diffusers, model, ready), dev)
-            kw: Dict[str, Any] = {"torch_dtype": ready["dtype"], "local_files_only": True}
+            kw: Dict[str, Any] = {"torch_dtype": ready["dtype"], "local_files_only": True, **self._quant_kw(model, ready, diffusers)}
             if ready["variant"]:
                 kw["variant"] = ready["variant"]
             try:
@@ -1427,8 +1465,8 @@ class LocalHFMedia(MediaProvider):
         if not ff:
             raise ProviderError("O vídeo local precisa do ffmpeg para montar o arquivo (instale-o).")
         dev, _ = _device()
-        ready = self._ready(model)
-        vkw = {"torch_dtype": ready["dtype"], "local_files_only": True, **({"variant": ready["variant"]} if ready["variant"] else {})}
+        ready = self._ready(model, quantizes=True)
+        vkw = {"torch_dtype": ready["dtype"], "local_files_only": True, **({"variant": ready["variant"]} if ready["variant"] else {}), **self._quant_kw(model, ready, diffusers)}
         pipe = _local_load("video", model, lambda: _slim(_load_pipeline(lambda **k: diffusers.DiffusionPipeline.from_pretrained(model, **k), vkw, self.ctl.note), dev))
         w, h = size_of_aspect(aspect, long_side or (704 if dev != "cpu" else 384))
         w, h = w // 32 * 32 or 32, h // 32 * 32 or 32
@@ -1949,6 +1987,19 @@ class GGUFMedia(MediaProvider):
             kw["model_path"] = str(path)
         return kw
 
+    def _with_quant(self, load: Dict[str, Any], path: Path, want: Any) -> Dict[str, Any]:
+        """O campo «quant» do nó (Q2…Q8, v0.81): usa o arquivo numa faixa MENOR que a dele, pedindo à stable-diffusion.cpp que recomprima os pesos ao carregar (`wtype`/`--type`)."""
+        from .. import hf as _hf
+
+        tier = quants.wanted(want)
+        if str(want or "").strip() and not tier:
+            self.ctl.note(f"«quant: {want}» não é uma faixa conhecida (use Q2, Q3, Q4, Q6 ou Q8): ignorei.")
+            return load
+        load, note = quants.with_weight_type(load, _hf.parse_quant(path.name).get("quant", ""), tier)
+        if note:
+            self.ctl.note(note)
+        return load
+
     def _cancelled(self) -> bool:
         try:
             self.ctl.check()
@@ -2148,6 +2199,7 @@ class GGUFMedia(MediaProvider):
         extra = {**base.get("run", {}), **(extra or {})}
         user_load = extra.pop("load", None) or {}
         load = {**base.get("load", {}), **user_load}
+        load = self._with_quant(load, path, extra.pop("quant", ""))
         fam_img = support.family_of(path.name)
         if fam_img and fam_img.get("negative_default") and not (negative or "").strip():   # a receita do modelo pede um negativo de UM espaço: negativo vazio desliga o CFG verdadeiro
             negative = fam_img["negative_default"]
@@ -2277,6 +2329,7 @@ class GGUFMedia(MediaProvider):
             base = {"load": {"diffusion_model_path": "@model", **found, **fam.get("options", {})}, "run": support.run_for(fam, path.name)}
         extra = {**base.get("run", {}), **extra}
         vload = {**base.get("load", {}), **(extra.pop("load", None) or {})}
+        vload = self._with_quant(vload, path, extra.pop("quant", ""))
         if fam and (fam.get("video") or {}).get("container"):   # MiniMax H3…: VAE de áudio, `--backend te=cpu` e a trilha estéreo só existem no sd-cli (a biblioteca Python não os tem)
             if not self._cli_fallback(_SDUnsupportedModel(path.name)):
                 raise self._no_cli_error(path)
