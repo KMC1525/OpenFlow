@@ -2,6 +2,18 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.76.0] — 2026-11-17
+
+### Fixed — «AudioVAE checkpoint not found» in Dubbing (and Voice) with openbmb/VoxCPM2
+- **The cause, in the image:** *«Unexpected error: AudioVAE checkpoint not found. Expected either …/audiovae.safetensors or …/audiovae.pth»*. VoxCPM2 needs its **audio codec** (`audiovae.pth`, ≈ 377 MB), and the download's file selector **dropped** it when the repository has `.safetensors`. v0.71 fixed the download, but whoever downloaded the model earlier (the selector shows «openbmb/VoxCPM2 · fp16») was left with an incomplete folder, and the library failed with the raw error.
+- **OpenFlow now notices the gap and completes it by itself:** before loading VoxCPM, if the model folder has neither `audiovae.pth` nor `audiovae.safetensors`, it downloads **only that file** from the same repository you already chose, with a notice on the node («Model … was downloaded without the audio codec…: downloading just that file now»), once. Without a network, the error says what to do («Download the model again in Settings → Media (only that file is missing) or put audiovae.pth in the folder …») instead of «Unexpected error».
+- **VoxCPM load errors with a useful message:** any library failure while loading the model now becomes «VoxCPM could not load «…»: <the error>. If the model was downloaded incomplete, download it again in Settings → Media.»
+- This applies to the Voice node and to Dubbing (same path), with the model on the node itself or on the connected voices.
+
+### Not yet verified
+- **No real download was made** (Hugging Face is blocked where this was developed): the fix was tested with the network and the library simulated (the Dubbing from the image, with «Alternate between voices», «Replace with the dub» and «Speed up speech», completes the download and generates the dub). Whether `audiovae.pth` really downloads, and whether VoxCPM2 then loads, depends on the network and the library on your machine.
+- Only VoxCPM had an essential file dropped by the selector; if another local model shows up with an incomplete folder, the error is still the one from its library.
+
 ## [0.75.0] — 2026-11-17
 
 ### Tested — Voice and Dubbing with openbmb/VoxCPM2, node chains, GGUF models and audio models

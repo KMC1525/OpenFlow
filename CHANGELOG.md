@@ -2,6 +2,18 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.76.0] — 2026-11-17
+
+### Corrigido — «AudioVAE checkpoint not found» na Dublagem (e na Voz) com o openbmb/VoxCPM2
+- **A causa, na imagem:** *«Erro inesperado: AudioVAE checkpoint not found. Expected either …/audiovae.safetensors or …/audiovae.pth»*. O VoxCPM2 precisa do **codec de áudio** (`audiovae.pth`, ≈ 377 MB), e o seletor de arquivos do download o **descartava** quando o repositório tem `.safetensors`. A v0.71 corrigiu o download, mas quem baixou o modelo antes (o seletor mostra «openbmb/VoxCPM2 · fp16») ficou com uma pasta incompleta, e a biblioteca falhava com o erro cru.
+- **Agora o OpenFlow percebe a falta e completa sozinho:** antes de carregar o VoxCPM, se a pasta do modelo não tem `audiovae.pth` nem `audiovae.safetensors`, ele baixa **só esse arquivo** do mesmo repositório que você já escolheu, com um aviso no nó («O modelo … foi baixado sem o codec de áudio…: baixando só esse arquivo agora»), uma vez só. Sem rede, o erro diz o que fazer («Baixe o modelo de novo em Configuração → Mídia (só esse arquivo falta) ou coloque o audiovae.pth na pasta …») em vez de «Erro inesperado».
+- **Erros de carregamento do VoxCPM com mensagem útil:** qualquer falha da biblioteca ao carregar o modelo agora vira «O VoxCPM não conseguiu carregar «…»: <o erro>. Se o modelo foi baixado incompleto, baixe-o de novo em Configuração → Mídia.»
+- Isso vale para o nó Voz e para a Dublagem (que usa o mesmo caminho), com o modelo no próprio nó ou nas vozes ligadas.
+
+### Ainda não verificado
+- **Nenhum download real foi feito** (o Hugging Face está bloqueado onde isto foi desenvolvido): o conserto foi testado com a rede e a biblioteca simuladas (a Dublagem da imagem, com «Alternar entre as vozes», «Trocar pela dublagem» e «Acelerar a fala», completa o download e gera a dublagem). Que o arquivo `audiovae.pth` baixe de verdade, e que o VoxCPM2 carregue depois, depende da rede e da biblioteca na sua máquina.
+- Só o VoxCPM tinha um arquivo essencial descartado pelo seletor; se outro modelo local aparecer com uma pasta incompleta, o erro continua sendo o da biblioteca dele.
+
 ## [0.75.0] — 2026-11-17
 
 ### Testado — Voz e Dublagem com o openbmb/VoxCPM2, cadeias de nós, modelos GGUF e modelos de áudio
