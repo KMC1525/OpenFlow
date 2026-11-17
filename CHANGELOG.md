@@ -2,6 +2,24 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.75.0] — 2026-11-17
+
+### Testado — Voz e Dublagem com o openbmb/VoxCPM2, cadeias de nós, modelos GGUF e modelos de áudio
+- **Voz e Dublagem com VoxCPM2, de ponta a ponta** (`tests/test_voxcpm_nodes_v075.py`, 20 testes): o nó, o motor e o provedor local são os de verdade; só a biblioteca `voxcpm` (e o torch/download) é simulada, com uma voz de 48 kHz cuja duração acompanha o texto. Voz: fala comum, voz criada por descrição (com e sem Style Prompt do projeto, e o «(…)» escrito à mão), clonagem controlável e clonagem fiel com áudio **e com vídeo** de referência, texto longo em trechos, velocidade, cache (só refaz o que mudou, sem recarregar o modelo) e as mensagens de erro (modelo não baixado, biblioteca ausente, falta de memória). Dublagem: a voz do próprio nó, **um personagem com voz criada e outro clonado de uma referência**, áudio e vídeo de origem, as misturas «trocar» e «manter baixinho», «acelerar para caber», atribuição alternada, falas longas e cache por personagem. Nenhum defeito do OpenFlow apareceu nesse caminho.
+- **Cadeias de nós** (`tests/test_chains_v075.py`): gerar → filtrar → escrever na imagem → **editar** → redimensionar → animar → visual → reenquadrar → exportar, e a cadeia de texto e áudio (refinar → voz → efeito → efeito sonoro → misturar). Conferidos: a ordem, o cache (nada roda de novo; mudou um elo, rodam ele e quem depende dele, e só eles), as marcas de «desatualizado», rodar só um destino, e a falha no meio (só o que depende dela deixa de rodar). Os 5 modelos de projeto (templates) rodam do começo ao fim e ficam atualizados.
+- **Modelos GGUF** (`tests/test_gguf_matrix_v075.py`): 15 nomes de arquivo típicos (FLUX.1 dev/schnell/Kontext/Krea, FLUX.2 dev/klein 4B/9B, Qwen-Image, Edit, Lightning e 2.1, Z-Image Turbo e base) são reconhecidos, carregam com os arquivos de apoio certos, geram com os passos e o CFG da família e editam do jeito de cada uma (várias referências × imagem → imagem), com a biblioteca simulada.
+- **Modelos de áudio** (`tests/test_audio_models_matrix_v075.py`): cada voz sugerida (Bark, MMS-TTS, VoxCPM2, Orpheus, CSM), cada som sugerido (MusicGen, AudioLDM, Stable Audio) e cada transcrição sugerida (Whisper) vai pelo caminho certo; 46 nomes reais de modelos são classificados como voz, som, transcrição ou imagem/vídeo.
+
+### Corrigido — o que os testes acharam
+- **MusicLDM não era reconhecido como modelo de som:** a v0.68 o passou a rodar, mas o filtro por tipo não o conhecia; ele aparecia nas listas de imagem e vídeo e a proteção contra modelo do tipo errado não valia para ele.
+- **Modelos de imagem sumiam das listas por causa do nome da organização:** `yuewen/…` ou `tango-labs/…` eram tomados por modelos de música (YuE, Tango). Agora só o nome do modelo conta («m-a-p/YuE-…», «declare-lab/tango-2» continuam sendo música).
+- **Qwen-Image e Qwen-Image-Edit (GGUF) podiam pegar o VAE do Qwen-Image 2.1** quando os dois estão na mesma pasta (o padrão achava «qwen…image…vae»): o 2.1 tem outro espaço latente e as imagens saíam estragadas. O padrão agora exclui o VAE do 2.1.
+- **Qwen-Image Lightning (GGUF)** rodava com CFG 2,5 e os passos de sempre; agora usa 8 passos (ou 4, se o nome diz «4steps») e CFG 1.
+
+### Ainda não verificado
+- **Nenhum modelo real foi executado** (o Hugging Face está bloqueado onde isto foi desenvolvido): VoxCPM2, GGUF e os modelos de áudio foram exercitados com bibliotecas simuladas, o que prova que o pedido certo chega ao lugar certo, não a qualidade da voz, da imagem ou do som.
+- A suíte nova roda em cerca de 1 minuto; os nós de imagem e vídeo do Hugging Face local (diffusers) seguem cobertos pelos testes da v0.74.
+
 ## [0.74.0] — 2026-11-17
 
 ### Testado — todos os nós e a compatibilidade dos modelos
