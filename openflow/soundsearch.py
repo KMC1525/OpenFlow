@@ -110,7 +110,7 @@ def _diffusers_like(row: Dict[str, Any]) -> bool:
 
 _FAMILIES = {
     "sound": ("MusicGen, AudioLDM, MusicLDM e Stable Audio", re.compile(r"musicgen|audioldm|musicldm|stable-audio", re.I)),
-    "voice": ("Bark, MMS-TTS (VITS), Orpheus ou CSM", re.compile(r"(^|[/_-])bark|mms-tts|(^|[/_-])vits|orpheus|(^|[/_-])csm", re.I)),
+    "voice": ("Bark, MMS-TTS (VITS), Orpheus, CSM ou VoxCPM", re.compile(r"(^|[/_-])bark|mms-tts|(^|[/_-])vits|orpheus|(^|[/_-])csm|voxcpm", re.I)),
     "stt": ("Whisper", re.compile(r"whisper", re.I)),
 }
 
@@ -119,6 +119,9 @@ def compat(cap: str, topic: str, row: Dict[str, Any]) -> Dict[str, str]:
     """O selo do resultado: {"level": "ok"|"no", "reason": texto}. «ok» = o OpenFlow tem suporte a esta FAMÍLIA de modelo (não quer dizer que este repositório específico foi testado); «no» = o OpenFlow ainda não roda."""
     mid, tags, lib, _tag = _facts(row)
     fam = _FAMILIES.get(cap)
+    if cap == "voice" and topic in ("tts", "clone", "design") and re.search(r"voxcpm", mid, re.I) and not tags & {"gguf", "onnx", "tflite"} and lib in ("voxcpm", "", "pytorch"):
+        what = {"tts": "fala em vários idiomas", "clone": "clona a voz de um áudio de referência (entrada «Voz de referência» do nó Voz)", "design": "cria a voz pela descrição («Como é a voz» do nó Voz)"}[topic]
+        return {"level": "ok", "reason": f"Família VoxCPM: o OpenFlow tem suporte ({what}; usa a biblioteca voxcpm: pip install voxcpm)."}
     ok_topic = (cap, topic) in (("sound", "music"), ("sound", "sfx"), ("voice", "tts"), ("stt", "asr"))
     if not ok_topic:
         what = {"clone": "trocar ou clonar vozes", "design": "criar vozes por descrição", "dub": "dublar fala em outro idioma", "tools": "separar ou melhorar áudio"}.get(topic, "este tipo de tarefa")

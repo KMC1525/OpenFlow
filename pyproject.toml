@@ -29,6 +29,8 @@ local = ["llama-cpp-python>=0.2.90", "stable-diffusion-cpp-python"]
 docs = ["pypdf>=4.0"]
 # Modelos locais do Hugging Face (imagem, vídeo, som, voz e transcrição)
 media = ["torch", "torchvision", "diffusers>=0.30", "transformers>=4.44", "accelerate", "safetensors", "sentencepiece", "numpy", "pillow", "gguf", "av"]
+# Voz do VoxCPM2 (openbmb/VoxCPM2). Fica fora do «all»: traz muitas dependências próprias (Python 3.10 ou mais novo)
+voxcpm = ["voxcpm"]
 # Tudo de uma vez (é o que os instaladores e o `flow update` usam por padrão)
 all = ["pypdf>=4.0", "torch", "torchvision", "diffusers>=0.30", "transformers>=4.44", "accelerate", "safetensors", "sentencepiece", "numpy", "pillow", "gguf", "av", "llama-cpp-python>=0.2.90", "stable-diffusion-cpp-python"]
 

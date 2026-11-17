@@ -39,7 +39,7 @@ class KindTests(unittest.TestCase):
         m = modelkind.mismatch("voice", "openai/whisper-small")
         self.assertIn("«openai/whisper-small» é um modelo de transcrição", m)
         self.assertIn("não de voz", m)
-        self.assertIn("Bark, MMS-TTS, Orpheus ou CSM", m)
+        self.assertIn("Bark, MMS-TTS, Orpheus, CSM ou VoxCPM", m)
         self.assertIn("MusicGen", modelkind.mismatch("sound", "suno/bark-small"))
         self.assertIn("Whisper", modelkind.mismatch("stt", "facebook/musicgen-small"))
         self.assertEqual(modelkind.mismatch("voice", "suno/bark-small"), "")                 # o tipo certo

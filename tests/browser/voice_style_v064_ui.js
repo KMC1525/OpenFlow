@@ -10,12 +10,14 @@ run('voice_style_v064', async ({ api, open, check }) => {
     { id: 'd', type: 'dub', x: 520, y: 40, params: { language: 'keep' } }], edges: [] } });
   await page.evaluate((id) => { location.hash = '#/project/' + id; }, cv.id); await page.waitForSelector('.cv-node[data-id="d"]', { timeout: 10000 }); await page.waitForTimeout(700);
   const boxes = page.locator('.cv-node[data-id="v"] textarea');
-  check('voz:duas-caixas-de-texto', (await boxes.count()) === 2);
+  check('voz:tres-caixas-de-texto', (await boxes.count()) === 3);   // v0.71: a terceira é o texto da voz de referência (VoxCPM2)
   const first = await boxes.nth(0).getAttribute('placeholder'), second = await boxes.nth(1).getAttribute('placeholder');
   check('voz:primeira-caixa-e-o-texto-falado', /vai dizer|will say/i.test(first || ''));
   check('voz:segunda-caixa-e-a-descricao', /grave|deep/i.test(second || ''));
   const y1 = (await boxes.nth(0).boundingBox()).y, y2 = (await boxes.nth(1).boundingBox()).y;
   check('voz:descricao-fica-abaixo-do-texto', y2 > y1);
+  const third = await boxes.nth(2).getAttribute('placeholder');
+  check('voz:terceira-caixa-e-o-texto-da-referencia', /VoxCPM2/.test(third || '') && /reference|referência/i.test(third || ''));
   check('voz:rotulo-como-e-a-voz', /Como é a voz|What the voice is like/.test(await page.locator('.cv-node[data-id="v"] .bd').innerText()));
   check('dublagem:tem-a-mesma-caixa', /Como é a voz|What the voice is like/.test(await page.locator('.cv-node[data-id="d"] .bd').innerText()));
   // digita a descrição: é salva no projeto

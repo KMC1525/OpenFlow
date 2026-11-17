@@ -284,6 +284,13 @@ def mux(eng: Any, src_path: Path, kind: str, track: Path, out: Path, mode: str, 
     raise last or ProviderError("O ffmpeg não conseguiu juntar a dublagem ao vídeo.")
 
 
+def _reference_of(eng: Any, canvas: Dict[str, Any], vn: Dict[str, Any]) -> Optional[Tuple[bytes, str]]:
+    """A voz de referência ligada a um nó Voz (v0.71), como (bytes, mime), para clonar a voz de um personagem na Dublagem; None se não há."""
+    a = next((x for x in eng.inputs(canvas, vn, "reference")["assets"] if x["kind"] in ("audio", "video")), None)
+    data = eng._asset_bytes(a) if a else None
+    return (data, a["mime"]) if data else None
+
+
 def voice_profiles(eng: Any, canvas: Dict[str, Any], node: Dict[str, Any], warnings: Optional[List[str]] = None) -> List[Dict[str, Any]]:
     """As vozes ligadas à porta «Vozes» da Dublagem (v0.63), na ordem das conexões. Cada nó Voz vira um perfil: o nome do personagem (o título do nó, ou o nome da voz, ou «Voz 1», «Voz 2»…), o provedor e o
     modelo dele, a voz, a velocidade e o estilo. O que não é um nó Voz é ignorado (com aviso)."""
@@ -302,7 +309,8 @@ def voice_profiles(eng: Any, canvas: Dict[str, Any], node: Dict[str, Any], warni
         n = len(out) + 1
         aliases = [a for a in (title, str(vp.get("voice") or "").strip(), f"Voz {n}") if a]
         out.append({"id": vn["id"], "name": aliases[0], "aliases": aliases, "pid": pid, "model": vp.get("model") or media_config(eng.settings, pid)["models"].get("voice", ""), "model_override": vp.get("model", ""),
-                    "voice": vp.get("voice", ""), "voice_style": str(vp.get("voice_style") or ""), "speed": vp.get("speed", 1.0), "extra": vp.get("extra") or {}, "style": eng.styles_for(canvas, vn), "node": vn})
+                    "voice": vp.get("voice", ""), "voice_style": str(vp.get("voice_style") or ""), "speed": vp.get("speed", 1.0), "extra": vp.get("extra") or {}, "style": eng.styles_for(canvas, vn), "node": vn,
+                    "reference": _reference_of(eng, canvas, vn), "reference_text": str(vp.get("reference_text") or "")})
     return out
 
 
@@ -318,7 +326,8 @@ def profile_signature(eng: Any, canvas: Dict[str, Any], node: Dict[str, Any]) ->
         vp = vn["params"]
         pid = pick_provider(eng.settings, "voice", vp.get("provider", ""))
         sig.append([vn["id"], vn.get("title", ""), pid, vp.get("model") or media_config(eng.settings, pid)["models"].get("voice", ""), vp.get("voice", ""), vp.get("voice_style", ""), vp.get("speed", 1.0),
-                    json.dumps(vp.get("extra") or {}, sort_keys=True), eng.styles_for(canvas, vn, need_digest=False).signature(), eng.style_ids(canvas, vn)])
+                    json.dumps(vp.get("extra") or {}, sort_keys=True), eng.styles_for(canvas, vn, need_digest=False).signature(), eng.style_ids(canvas, vn),
+                    [a["id"] for a in eng.inputs(canvas, vn, "reference")["assets"]], vp.get("reference_text", "")])
     return sig
 
 
@@ -367,13 +376,18 @@ def run_dub(eng: Any, canvas: Dict[str, Any], node: Dict[str, Any]) -> Dict[str,
     spoken: List[Dict[str, Any]] = []
     counts = [0] * len(profiles)
     built: Dict[str, Any] = {}
+    cloned_warned: List[str] = []
     for i, (s, (vi, line)) in enumerate(zip(segs, who)):
         eng._check()
         eng.ctl.note(f"Dublando {i + 1} de {len(segs)}…")
         v = profiles[vi]
         prov = v.get("prov") or built.setdefault(v["pid"], build_media(eng.settings, v["pid"], eng.ctl, eng.store.models_dir))
         instructions = voicestyle.compose(v.get("voice_style", ""), v["style"].render(line) if v.get("style") is not None else "")
-        clips.append((s, prov.voice(line[:MAX_SPEECH], voice=v["voice"], speed=v["speed"], model=v["model_override"], extra=v["extra"], instructions=instructions)))
+        ref = v.get("reference") if v.get("reference") and prov.clones_voice(v["model_override"] or v["model"]) else None
+        if v.get("reference") and not ref and v["name"] not in cloned_warned:
+            cloned_warned.append(v["name"])
+            warnings.append(f"«{v['name'] or 'Voz'}»: o modelo de voz não clona voz, então a «Voz de referência» foi ignorada.")
+        clips.append((s, prov.voice(line[:MAX_SPEECH], voice=v["voice"], speed=v["speed"], model=v["model_override"], extra=v["extra"], instructions=instructions, **({"reference": ref, "reference_text": v.get("reference_text", "")} if ref else {}))))
         spoken.append(sub.seg(s["start"], s["end"], (v["name"] + ": " if len(profiles) > 1 and v["name"] else "") + line))
         counts[vi] += 1
     if len(profiles) > 1:
