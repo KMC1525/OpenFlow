@@ -2,6 +2,19 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.79.0] — 2026-11-17
+
+### Caçando bugs 2 — o que foi procurado
+- **Mídia estragada:** imagens e vídeos truncados, vazios, com extensão errada e lixo binário entrando em todos os nós de vídeo/áudio/imagem e na exportação; imagens de tamanhos estranhos (1×1, dimensões ímpares, 4000×50, RGBA, paleta, cinza com transparência) na exportação e no «Imagens em vídeo».
+- O motor aguentou quase tudo; o que apareceu está abaixo.
+
+### Corrigido
+- **Exportar / «Imagens em vídeo» travava para sempre com uma imagem truncada ou corrompida:** o ffmpeg, com a imagem repetida (`-loop 1`), não desiste de um quadro que não decodifica e ficava girando até o usuário parar o programa. Agora a imagem é conferida antes e o nó para na hora com «A imagem «…» está corrompida ou incompleta (o ffmpeg não conseguiu ler). Envie o arquivo de novo.». Imagens e GIFs válidos seguem iguais (o GIF continua usando o primeiro quadro).
+
+### Ainda não verificado
+- Nenhum modelo real foi baixado ou executado (o Hugging Face está bloqueado onde isto foi desenvolvido).
+- A caça não esgota o programa: foram os caminhos descritos acima. Sem o ffmpeg instalado, a conferência da imagem é pulada (o nó já exige o ffmpeg para exportar).
+
 ## [0.78.0] — 2026-11-17
 
 ### Caçando bugs — o que foi procurado

@@ -79,9 +79,26 @@ def _run(cmd: List[str], ctl: Ctl, timeout: int = 3600) -> Tuple[int, str]:
         return proc.returncode, err.read().decode("utf-8", "replace")[-1500:]
 
 
+def check_image(path: Path) -> None:
+    """Confere que a imagem decodifica (v0.79). Com `-loop 1`, o ffmpeg NÃO desiste de uma imagem truncada/corrompida: tenta de novo para sempre e a exportação (ou o vídeo de imagens) fica horas «rodando». Aqui um quadro é lido
+    sem o laço, em segundos, e a imagem ruim vira uma mensagem clara."""
+    ff = shutil.which("ffmpeg")
+    if not ff:
+        return
+    try:
+        r = subprocess.run([ff, "-v", "error", "-i", str(path), "-frames:v", "1", "-f", "null", "-"], capture_output=True, timeout=60)
+    except subprocess.TimeoutExpired:
+        raise ProviderError(f"Não consegui ler a imagem «{Path(path).name}» (demorou demais): o arquivo deve estar corrompido. Envie-o de novo.") from None
+    except OSError:
+        return
+    if r.returncode != 0:
+        raise ProviderError(f"A imagem «{Path(path).name}» está corrompida ou incompleta (o ffmpeg não conseguiu ler). Envie o arquivo de novo.")
+
+
 def still_path(path: Any, tmpdir: Any, ctl: Ctl, tag: Any = 0) -> Path:
     """Uma imagem pronta para virar clipe parado (`-loop 1 -framerate`): o demuxer de GIF não aceita essas opções (o ffmpeg falha com «Option not found»), então o GIF entra pelo primeiro quadro em PNG."""
     p = Path(path)
+    check_image(p)
     if p.suffix.lower() != ".gif":
         return p
     ff = shutil.which("ffmpeg")
