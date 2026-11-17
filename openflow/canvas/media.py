@@ -929,6 +929,20 @@ class LocalHFMedia(MediaProvider):
         m = res[0] if isinstance(res, (list, tuple)) else res
         return mesh3d.as_lists(m.vertices, m.faces)
 
+    def _with_speed(self, media: Media, speed: float) -> Media:
+        """A velocidade do nó Voz nos modelos locais (v0.68; antes só a voz de demonstração a usava): muda o ritmo sem mudar o tom (`atempo` do ffmpeg, de 0,5× a 2×). Sem ffmpeg, a fala fica na velocidade do modelo."""
+        try:
+            sp = float(speed)
+        except (TypeError, ValueError):
+            return media
+        if abs(sp - 1.0) < 0.02:
+            return media
+        out = proc.change_tempo(media.data, max(0.5, min(2.0, sp)))
+        if out is None:
+            self.ctl.note("Sem o ffmpeg a velocidade da voz não muda (instale o ffmpeg para usá-la com modelos locais).")
+            return media
+        return Media(out, "audio/wav")
+
     def _expect(self, cap: str, model: str) -> None:
         """Modelo de outro tipo no campo errado (o Whisper como voz…): mensagem clara em vez de um erro da biblioteca no meio do caminho (v0.67)."""
         from . import modelkind
@@ -940,6 +954,10 @@ class LocalHFMedia(MediaProvider):
     def sound(self, prompt, *, kind="sfx", duration=5, model="", extra=None, seed=0):
         model = self._pick("sound", model, "facebook/musicgen-small")
         self._expect("sound", model)
+        from . import soundmodels
+
+        if soundmodels.uses_diffusers(model):   # v0.68: AudioLDM/AudioLDM2/MusicLDM e Stable Audio (Open e 3) pelo diffusers
+            return self._sound_diffusers(prompt, duration, model, extra, seed)
         (tf,) = _local_import("transformers")
         ready = self._ready(model)
         pipe = _local_load("sound", model, lambda: _hf_pipeline(tf, "text-to-audio", model, ready["dtype"]))
@@ -948,6 +966,42 @@ class LocalHFMedia(MediaProvider):
         self.ctl.note("Gerando som localmente…")
         res = pipe(prompt, forward_params={"do_sample": True, "max_new_tokens": int(max(1, min(30, duration)) * 50), **(extra or {})})
         return Media(_wav_from_array(res["audio"], res["sampling_rate"]), "audio/wav")
+
+    def _sound_diffusers(self, prompt: str, duration: float, model: str, extra: Optional[Dict[str, Any]], seed: int) -> Media:
+        """Sons e músicas pelos pipelines de áudio do diffusers (AudioLDM, AudioLDM2, MusicLDM, Stable Audio Open e 3): `DiffusionPipeline` lê o `model_index.json` do repositório e devolve a classe certa."""
+        from . import soundmodels
+
+        (diffusers,) = _local_import("diffusers")
+        (torch,) = _local_import("torch")
+        ready = self._ready(model)
+        dev = "cuda" if torch.cuda.is_available() and _perf.device() != "cpu" else "cpu"
+        if dev == "cuda":
+            _pick_cuda(torch)
+
+        def load() -> Any:
+            old = os.environ.get("HF_HUB_OFFLINE")
+            os.environ["HF_HUB_OFFLINE"] = "1"   # nada é baixado em silêncio
+            try:
+                return diffusers.DiffusionPipeline.from_pretrained(model, torch_dtype=ready["dtype"], local_files_only=True).to(dev)
+            finally:
+                if old is None:
+                    os.environ.pop("HF_HUB_OFFLINE", None)
+                else:
+                    os.environ["HF_HUB_OFFLINE"] = old
+
+        pipe = _local_load("sound", model, load)
+        note = soundmodels.limit_note(model, float(duration))
+        if note:
+            self.ctl.note(note)
+        self.ctl.note("Gerando som localmente (diffusers)…")
+        gen = torch.Generator("cpu").manual_seed(int(seed) if seed else int(time.time() * 1000) % (2 ** 31))
+        out = pipe(prompt, generator=gen, **soundmodels.call_kwargs(type(pipe).__name__, float(duration), extra))
+        audio = out.audios[0]
+        arr = audio.detach().cpu().float().numpy() if hasattr(audio, "detach") else audio
+        rate = soundmodels.sampling_rate(pipe)
+        if not rate:
+            raise ProviderError(f'Não achei a taxa de amostragem do áudio de «{model}» (o pipeline {type(pipe).__name__} não tem vae/vocoder com «sampling_rate»).')
+        return Media(_wav_from_array(arr, rate), "audio/wav")
 
     def _voice_orpheus(self, text: str, voice: str, model: str, extra: Optional[Dict[str, Any]], description: str = "") -> Media:
         """Orpheus (unsloth/orpheus-3b-0.1-ft…): o LLM gera tokens de áudio e o SNAC (`hubertsiuzdak/snac_24khz`, baixado em Modelos locais) os decodifica em 24 kHz."""
@@ -1034,15 +1088,15 @@ class LocalHFMedia(MediaProvider):
         model = self._pick("voice", model, "suno/bark-small")
         self._expect("voice", model)
         if re.search(r"orpheus", model, re.I):
-            return self._voice_orpheus(text, voice, model, extra, instructions)
+            return self._with_speed(self._voice_orpheus(text, voice, model, extra, instructions), speed)
         if re.search(r"(^|/)csm-1b", model, re.I):
-            return self._voice_csm(text, voice, model, extra)
+            return self._with_speed(self._voice_csm(text, voice, model, extra), speed)
         (tf,) = _local_import("transformers")
         ready = self._ready(model)
         pipe = _local_load("voice", model, lambda: _hf_pipeline(tf, "text-to-speech", model, ready["dtype"]))
         self.ctl.note("Sintetizando voz localmente…")
         res = pipe(text, **(extra or {}))
-        return Media(_wav_from_array(res["audio"], res["sampling_rate"]), "audio/wav")
+        return self._with_speed(Media(_wav_from_array(res["audio"], res["sampling_rate"]), "audio/wav"), speed)
 
     def voice_style_note(self, model=""):
         if re.search(r"orpheus", self.model_for("voice", model) or model or "", re.I):
@@ -2034,7 +2088,8 @@ MEDIA_PRESETS: Dict[str, Dict[str, Any]] = {   # v0.35: só o Demo (offline) e o
         "label": "Hugging Face local (embutido)", "kind": "local_hf", "caps": ["image", "video", "sound", "voice", "stt", "model3d"], "local": True,
         "models": {"image": "stabilityai/sd-turbo", "video": "Lightricks/LTX-Video", "sound": "facebook/musicgen-small", "voice": "suno/bark-small", "stt": "openai/whisper-small", "model3d": "openai/shap-e"},
         "suggest": {"model3d": mesh3d.SUGGEST, "image": ["stabilityai/sd-turbo", "stabilityai/sdxl-turbo", "black-forest-labs/FLUX.1-schnell", "unsloth/Z-Image-Turbo", "unsloth/FLUX.2-klein-4B", "unsloth/FLUX.1-schnell"], "video": ["Lightricks/LTX-Video"],
-                    "sound": ["facebook/musicgen-small"], "voice": ["suno/bark-small", "facebook/mms-tts-por", "unsloth/orpheus-3b-0.1-ft", "unsloth/csm-1b"],
+                    "sound": ["facebook/musicgen-small", "facebook/musicgen-medium", "facebook/musicgen-stereo-small", "cvssp/audioldm2", "cvssp/audioldm2-music", "stabilityai/stable-audio-open-1.0", "stabilityai/stable-audio-3-small-sfx"],
+                    "voice": ["suno/bark-small", "facebook/mms-tts-por", "facebook/mms-tts-eng", "facebook/mms-tts-spa", "unsloth/orpheus-3b-0.1-ft", "unsloth/csm-1b"],
                     "stt": ["openai/whisper-small", "openai/whisper-large-v3-turbo", "unsloth/whisper-large-v3-turbo", "unsloth/whisper-small", "unsloth/whisper-base"]},
         "hint": 'Roda modelos do Hugging Face dentro do OpenFlow. Requer:  pip install "openflow[media]". Antes de usar, escolha a precisão (quantização) e baixe cada modelo aqui mesmo — nada é baixado em silêncio. Vídeo exige GPU.',
     },

@@ -2,6 +2,18 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.68.0] — 2026-11-17
+
+### Melhorado — modelos locais de som e voz do Hugging Face
+- **Sons, músicas e efeitos por mais famílias:** além do MusicGen, o nó Música/Efeito agora roda **AudioLDM, AudioLDM 2, MusicLDM, Stable Audio Open e Stable Audio 3** (pelos pipelines de áudio do `diffusers`; instale com `pip install diffusers`). Cada família recebe os argumentos próprios (tempo em `audio_length_in_s`, `audio_end_in_s` ou `duration`), a taxa de amostragem é lida do próprio modelo e o resultado sai em WAV (estéreo quando o modelo é estéreo). Pedidos acima do limite do modelo (AudioLDM 30 s, Stable Audio Open 47 s, Stable Audio 3 190 s) são cortados no limite e o nó avisa.
+- **Velocidade da voz em modelos locais:** o campo «Velocidade» só funcionava na voz de demonstração. Agora vale também para Bark, MMS-TTS, Orpheus e CSM, ajustando o ritmo **sem mudar o tom** (ffmpeg `atempo`, de 0,5× a 2×). Sem ffmpeg, a voz sai na velocidade original e o nó avisa.
+- **Barra de pesquisa de sons:** AudioLDM/MusicLDM e Stable Audio passam a aparecer como compatíveis («ok») para sons e músicas; modelos em GGUF, ONNX ou TFLite continuam marcados como incompatíveis. As sugestões do Hugging Face local ganharam AudioLDM 2, Stable Audio Open/3 e as vozes MMS-TTS (pt/en/es).
+
+### Ainda não verificado
+- Nenhum modelo foi executado: o Hugging Face está bloqueado no ambiente de desenvolvimento. Os argumentos de cada pipeline foram conferidos lendo o código do `diffusers` 0.43 e do `transformers` 5.23, e os testes usam `diffusers`/`torch` simulados (o ffmpeg e o numpy são reais). Que AudioLDM 2 ou Stable Audio gerem o som de verdade, e com boa qualidade, não foi testado.
+- O formato do repositório do Stable Audio 3 para o `diffusers` foi assumido a partir da documentação do `diffusers`.
+- Fora do escopo: SpeechT5 (exige vetor de locutor), transcrição que não seja Whisper, Parler-TTS, Dia e Kokoro.
+
 ## [0.67.0] — 2026-11-16
 
 ### Corrigido — «could not convert string to float: 'E aí e aí e aí…»» na Dublagem

@@ -2,6 +2,18 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.68.0] — 2026-11-17
+
+### Improved — local Hugging Face sound and voice models
+- **Sounds, music and effects from more families:** besides MusicGen, the Music/Effect node now runs **AudioLDM, AudioLDM 2, MusicLDM, Stable Audio Open and Stable Audio 3** (through the `diffusers` audio pipelines; install with `pip install diffusers`). Each family gets its own arguments (duration as `audio_length_in_s`, `audio_end_in_s` or `duration`), the sampling rate is read from the model, and the result is WAV (stereo when the model is stereo). Requests above a model's limit (AudioLDM 30 s, Stable Audio Open 47 s, Stable Audio 3 190 s) are capped and the node says so.
+- **Voice speed on local models:** the «Speed» field only worked on the demo voice. It now also applies to Bark, MMS-TTS, Orpheus and CSM, changing the pace **without changing the pitch** (ffmpeg `atempo`, 0.5×–2×). Without ffmpeg the voice keeps its original speed and the node says so.
+- **Sound search bar:** AudioLDM/MusicLDM and Stable Audio now show as compatible («ok») for sounds and music; GGUF, ONNX and TFLite models stay marked incompatible. The local Hugging Face suggestions gained AudioLDM 2, Stable Audio Open/3 and the MMS-TTS voices (pt/en/es).
+
+### Not yet verified
+- No model was run: Hugging Face is blocked in the development environment. Each pipeline's arguments were checked by reading the `diffusers` 0.43 and `transformers` 5.23 sources, and the tests use simulated `diffusers`/`torch` (ffmpeg and numpy are real). Whether AudioLDM 2 or Stable Audio really generate the sound, and how well, was not tested.
+- The Stable Audio 3 repository layout for `diffusers` was assumed from the `diffusers` documentation.
+- Out of scope: SpeechT5 (needs a speaker vector), non-Whisper transcription, Parler-TTS, Dia and Kokoro.
+
 ## [0.67.0] — 2026-11-16
 
 ### Fixed — «could not convert string to float: 'E aí e aí e aí…'» in Dubbing
