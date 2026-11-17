@@ -2,6 +2,19 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.79.0] — 2026-11-17
+
+### Bug hunt 2 — what was searched
+- **Broken media:** truncated, empty, wrongly-named and binary-garbage images and videos fed to every video/audio/image node and to export; odd image sizes (1×1, odd dimensions, 4000×50, RGBA, palette, grey+alpha) in export and "Images to video".
+- The engine held up to almost everything; what turned up is below.
+
+### Fixed
+- **Export / "Images to video" hung forever on a truncated or corrupt image:** ffmpeg, looping the still (`-loop 1`), never gives up on a frame that will not decode and spun until the user killed the program. The image is now checked first and the node stops at once with "Image «…» is corrupt or incomplete (ffmpeg could not read it). Upload the file again." (the message is in Portuguese in the app, English in the terminal's translated layer where applicable). Valid images and GIFs are unchanged (a GIF still uses its first frame).
+
+### Not verified yet
+- No real model was downloaded or run (Hugging Face is blocked where this was developed).
+- The hunt does not exhaust the program: it covered the paths above. Without ffmpeg installed the image check is skipped (the node already needs ffmpeg to export).
+
 ## [0.78.0] — 2026-11-17
 
 ### Bug hunt — what was searched
