@@ -2,6 +2,19 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.73.0] — 2026-11-17
+
+### Improved — internal system prompts of Style Folder and Style Prompt
+OpenFlow now instructs the AI on its own (the user neither sees nor edits these texts, which live in `canvas/styles.py`) so the project's general style is described and applied more precisely.
+- **Style Folder — describing the folders:** the system prompt that describes the reference images and folders was rewritten with precision rules. The general style talks only about what holds for every image (technique, palette with concrete colors, light, composition), character/scenery/object sheets carry only **fixed, visual** traits, with no action, momentary emotion or plot, and do not repeat the general style; when in doubt it omits (does not invent); if the images diverge, what repeats wins; if a note of yours contradicts the images, the note wins. The AI's answer is now read **from the first line of the format**, so a «Sure! Here is…» before the guide does not become style.
+- **Style Prompt — new:** a long running text (140 characters or more, without the «GENERAL STYLE / CHARACTER…» headings) is rewritten by the AI, internally, in the fixed format: what holds for everything goes to general style, each character/scenery/object becomes a sheet, prohibitions («never…») go to consistency. Rules: it does not invent, keeps names, @mentions and terms exactly, does not create entities. Per-prompt relevance therefore also works on running text: a style with four characters only sends the prompt the sheet of whoever it mentions. The result is stored in the node (redone only if the text or the text model changes). Short texts («watercolor, soft colors»), texts already in the format and projects without a text model (Demo) stay exactly as before; the «Organize the text with AI» box turns it off. If the AI fails or answers something without the format, the original text is used (with a notice).
+- **Using the style in text steps** (AI Text, Refine text, Lyrics): they gained usage rules — the style guides tone and visual language but **never changes the subject or the instruction** (in a conflict, the request wins), the sheets apply only to whoever the text mentions, «Consistency» is a fixed rule, and the guide is neither copied nor mentioned in the answer.
+- **Using the style in image, video and music:** the style snippet at the end of the prompt now comes with a short frame («Style guide (the look of the whole result, not its subject or action): …»), so the model treats it as look and not as subject. Before it was just «Style: …».
+
+### Not yet verified
+- No real text model was used: in the tests the AI is fake. Whether the new system prompts make a real model describe and organize better, and whether the frame improves images from real models, **was not measured**. The frame is a bit longer than the old «Style:», which on models that read few tokens (CLIP's 77) may push part of the style past the limit.
+- Organizing the Style Prompt is one more call to the text model, once per text (stored afterwards).
+
 ## [0.72.0] — 2026-11-17
 
 ### Fixed — local image and video models on weak computers (FLUX, Qwen-Image and the rest)

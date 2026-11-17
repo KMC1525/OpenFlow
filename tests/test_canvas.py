@@ -1095,7 +1095,7 @@ class EngineTests(TmpCase):
             self.assertRegex(digest, r"#[0-9a-f]{6}")  # paleta dominante
         cur = self.cs.get(c["id"])
         img = next(n for n in cur["nodes"] if n["id"] == "i")
-        self.assertIn("Style:", next(a for a in cur["assets"] if a["id"] == img["result"]["assets"][0])["prompt"])
+        self.assertIn("Style guide (the look of the whole result", next(a for a in cur["assets"] if a["id"] == img["result"]["assets"][0])["prompt"])
         # a descrição fica guardada: sem mudar os arquivos, não é refeita
         key = self.result(c["id"], "sf")["digest_key"]
         self.run_engine(c["id"], force=True, targets=["i"])

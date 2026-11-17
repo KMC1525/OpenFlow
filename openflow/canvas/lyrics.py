@@ -80,7 +80,9 @@ def system_prompt(p: Dict[str, object], style: str = "") -> str:
     if p.get("mood"):
         bits.append(f"Mood: {p['mood']}.")
     if style:
-        bits.append(f"Project style: {style}")
+        from .styles import APPLY_RULES_EN
+
+        bits.append(APPLY_RULES_EN + f" Project style: {style}")
     bits.append("Output ONLY the lyrics (the section tags and the lines): no title, no comments, no quotes, no markdown.")
     return " ".join(bits)
 
