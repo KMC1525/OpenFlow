@@ -779,7 +779,7 @@ def _native(args: argparse.Namespace) -> int:
     if args.action == "setup":
         return native.setup(getattr(args, "rust", "") or os.environ.get("OPENFLOW_RUST") or "yes", ask=_ask_terminal)
     st = native.status()
-    print(_("Núcleo Rust: ") + (_("ativo") if st["active"] else _("inativo — usando Python puro, mais lento (rode: flow native setup)")) + (f" — {_(st['reason'])}" if st["reason"] else ""))
+    print(_("Núcleo Rust: ") + (_("ativo") if st["active"] else _("inativo — usando Python puro, mais lento (rode: flow native setup)")) + (f" — {native.translate_reason(st['reason'])}" if st["reason"] else ""))
     print("cargo: " + (native.rust_version() if st["cargo"] else _("não encontrado (opcional: o OpenFlow baixa a biblioteca pronta)")) + ("" if not st["cargo"] else " · rustup: " + (_("sim") if st["rustup"] else _("não"))))
     print(_("Interface: {a} · plataforma: {p} · biblioteca pronta da Release: {n}", a=st["abi"], p=native.platform_tag(), n=native.prebuilt_name()))
     return 0

@@ -2,6 +2,25 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.78.0] — 2026-11-17
+
+### Caçando bugs — o que foi procurado
+- **API:** 974 chamadas com corpos e consultas malformados (JSON quebrado, tipos errados, 200 KB de texto, ids com `..` e com 300 caracteres) em todas as rotas que não mexem na rede nem no disco do usuário; **160 grafos aleatórios** de nós (ciclos, auto-ligações, portas que não existem) no motor; as rotas de upload e de arquivos estáticos com cabeçalhos estranhos; todos os comandos do `flow`; a interface em 3 tamanhos de tela (celular, tablet, computador) e 2 idiomas, com todas as telas, as 5 abas de Configurações e **todos os 63 tipos de nó** no canvas (erros de console, rolagem lateral, campos sem nome, texto cortado, conteúdo que passa da borda do nó); e o fluxo de instalação de modelos.
+- O motor e a API aguentaram quase tudo (nenhum travamento, nenhuma exceção nos 160 grafos); o que apareceu está abaixo.
+
+### Corrigido
+- **Instalar modelos — disco cheio só aparecia no meio do download:** o download do Hugging Face local não conferia o espaço livre; um disco cheio só dava «No space left on device» depois de minutos de rede gasta. Agora ele confere **antes**, descontando o que já está no cache, e diz quanto falta («Sem espaço em disco para «…»: faltam baixar 4,0 GB e há 2,0 GB livres em …; libere espaço, escolha uma precisão menor ou mude a pasta dos modelos»).
+- **Instalar modelos — «Cancelar» esperava o arquivo terminar:** o cancelamento só era lido entre um arquivo e outro, então cancelar um `.safetensors` de 5 GB esperava ele acabar. Agora vale **no meio** do arquivo (o parcial fica guardado e o próximo download continua dele; o modelo cancelado não fica marcado como baixado).
+- **Interface — campos sem nome (acessibilidade):** o rótulo de quase todos os campos ficava ao lado do campo, sem ligação com ele: leitores de tela liam «caixa de seleção» sem dizer qual, e clicar no rótulo não ia ao campo. Eram 13 campos nas Configurações (provedores, desempenho, proteção do computador, memória, idioma…) e os campos dos nós do canvas. Agora o rótulo é ligado ao campo (`for`/`id`) e, em grupos de botões, nomeia o grupo; o botão de copiar o comando da GPU ganhou nome.
+- **Interface — celular:** botões pequenos e botões dos seletores ficavam com menos de 28 px; agora têm pelo menos 34 px em telas estreitas.
+- **API — id de projeto enorme dava erro 500** («File name too long»); agora é «não existe». **Content-Length inválido ou negativo e corpo em pedaços (`Transfer-Encoding: chunked`)** eram lidos como «corpo vazio» e a requisição passava como válida (criava um projeto em branco, por exemplo); agora dão 400 e 411.
+- **Terminal em inglês com um trecho em português:** o motivo de o núcleo Rust estar inativo («biblioteca não compilada…», «desligado por OPENFLOW_NO_NATIVE», «versão da interface diferente…») saía em português; agora segue o idioma do terminal.
+
+### Ainda não verificado
+- Nenhum modelo real foi baixado ou executado (o Hugging Face está bloqueado onde isto foi desenvolvido): a conferência de espaço e o cancelamento no meio do arquivo foram testados com um `huggingface_hub` simulado. O cancelamento no meio do arquivo depende de a versão instalada do hub usar a barra de progresso `file_download.tqdm`; se não usar, o cancelamento continua valendo só entre os arquivos, como antes.
+- A auditoria de acessibilidade e de layout foi feita por script (Chromium), não com um leitor de tela de verdade; cores e contraste não foram avaliados.
+- A caça não esgota o programa: foram os caminhos descritos acima.
+
 ## [0.77.0] — 2026-11-17
 
 ### Corrigido — travamentos ao gerar e editar em máquinas fracas

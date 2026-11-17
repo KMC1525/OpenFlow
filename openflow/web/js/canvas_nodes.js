@@ -3,7 +3,7 @@ import { t } from './i18n.js';
 import { api, events } from './api.js';
 import { withMentions } from './canvas_mention.js';
 import { modelViewer } from './model_viewer.js';
-import { checkbox, confirmDialog, h, icon, popover, seg, select, toast } from './ui.js';
+import { bindLabel, checkbox, confirmDialog, h, icon, popover, seg, select, toast } from './ui.js';
 
 export const compatible = (out, accepts) => accepts.includes(out)
   || (out === 'media' && accepts.some((a) => ['image', 'video', 'audio', 'media', 'model3d'].includes(a)))
@@ -109,7 +109,7 @@ function txt(c, n, key, ph, type) {
   el.addEventListener('keydown', cut);
   return el;
 }
-const lab = (text, ctl) => h('div', null, h('label', { class: 'f' }, text), ctl);
+const lab = (text, ctl) => { const l = h('label', { class: 'f' }, text); bindLabel(l, ctl); return h('div', null, l, ctl); };
 
 // Provedor + Modelo (+ Resolução, quando o tipo tem). v0.17.1: o antigo bloco «Avançado» (prompt negativo, semente, parâmetros extras em JSON, ignorar estilos) saiu da tela;
 // o que já estava salvo nos canvases continua valendo no motor.

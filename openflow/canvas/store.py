@@ -71,7 +71,7 @@ class ProjectStore:
 
     # ------------------------------------------------------------------ caminhos
     def _dir(self, cid: str) -> Optional[Path]:
-        return self.folder / cid if cid and _ID_RE.match(cid) and ".." not in cid else None
+        return self.folder / cid if cid and len(cid) <= 100 and _ID_RE.match(cid) and ".." not in cid else None   # v0.78: um id enorme dava «File name too long» (erro 500) em vez de «não existe»
 
     def asset_dir(self, cid: str) -> Optional[Path]:
         d = self._dir(cid)
