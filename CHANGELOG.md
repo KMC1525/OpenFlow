@@ -2,6 +2,19 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.70.0] — 2026-11-17
+
+### Novo — Remover marca d'água de imagens e vídeos
+- **O nó Marca d'água agora também remove:** em «O que fazer», escolha «Remover uma marca d'água». Serve para **imagens e vídeos** (o vídeo sai com a mesma resolução, os mesmos quadros por segundo e o som). A saída do nó passou a poder ser vídeo e liga em qualquer entrada de mídia; o modo «Pôr uma marca» continua igual (e é o padrão).
+- **Onde está a marca:** num **canto** (tamanho em % do quadro e margem), numa **área** em % (esquerda, topo, largura, altura), **achada sozinha** (só em vídeo) ou dada por uma **máscara** ligada na nova entrada «Máscara» (branco = o que apagar), que vale no lugar da área.
+- **Como apaga:** o ffmpeg refaz a área a partir dos pixels em volta (`delogo`; com máscara, `removelogo`). Marca pequena sobre fundo liso some bem; sobre um fundo cheio de detalhe sobra uma **mancha borrada**: não é um modelo de pintura (inpainting) e não «adivinha» o que havia por baixo.
+- **Detecção automática em vídeo:** analisa 14 quadros espalhados e procura, nos quatro cantos, o que não muda e tem bordas (letras e contornos). O nó diz onde achou («Marca encontrada em x…%»). Precisa do numpy. Em vídeo quase parado (slides, câmera presa) não há como separar a marca do fundo, e o nó avisa em vez de chutar; se não achar nada, também avisa.
+
+### Ainda não verificado
+- Testado com imagens e vídeos sintéticos (marca branca sobre fundo liso ou ruído em movimento), ffmpeg e numpy reais. **Fotos e vídeos de verdade não foram testados:** marcas semitransparentes, que se movem, grandes ou sobre fundo com detalhe podem ficar visíveis ou deixar mancha, e a detecção automática foi ajustada só nesses vídeos de teste.
+- Marcas que ocupam o quadro todo, em várias posições ou que mudam de lugar não são tratadas (a área é fixa durante o vídeo).
+- Remover marca d'água de conteúdo de outras pessoas pode violar direitos autorais; use em material seu ou com permissão.
+
 ## [0.69.0] — 2026-11-17
 
 ### Novo — Transcrição com várias vozes
