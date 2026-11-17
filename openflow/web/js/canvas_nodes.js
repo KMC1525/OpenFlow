@@ -11,7 +11,7 @@ export const compatible = (out, accepts) => accepts.includes(out)
 
 export const GROUPS = [   // espelha schema.PALETTE
   ['Texto', ['text', 'llm', 'transcribe', 'text_template', 'text_join', 'text_edit', 'text_pick', 'text_refine', 'text_extract', 'text_count']],
-  ['Imagem', ['image', 'img_resize', 'img_filter', 'img_text', 'img_collage', 'img_frame', 'img_crop', 'img_watermark', 'char_sheet', 'comic_page']],
+  ['Imagem', ['image', 'img_resize', 'img_filter', 'img_text', 'img_collage', 'img_frame', 'img_crop', 'img_watermark', 'ai_model', 'char_sheet', 'comic_page']],
   ['Vídeo', ['video', 'vid_trim', 'vid_join', 'vid_speed', 'vid_look', 'vid_slideshow', 'vid_reframe', 'vid_loop', 'vid_audio']],
   ['Som', ['music', 'lyrics', 'sfx', 'sound', 'voice', 'dub', 'transcript', 'sub', 'aud_trim', 'aud_mix', 'aud_fx', 'aud_from_video', 'aud_loop', 'aud_silence_cut']],
   ['Input', ['upload', 'style_prompt', 'style_folder', 'in_color', 'in_silence', 'in_url', 'in_random', 'in_vars', 'in_pattern']],
@@ -49,7 +49,7 @@ export const TYPE_HELP = {
   tex3d: 'Põe uma textura num modelo 3D: uma imagem ligada (ex.: de um nó Imagem) ou um padrão pronto (xadrez, tijolos, madeira…), com a projeção que você escolher.',
   rig3d: 'Cria um esqueleto para um modelo 3D (humanoide, coluna ou corrente) e prende a malha a ele, para poder animá-lo.',
   anim3d: 'Anima um modelo 3D em laço: girar, pular, flutuar… e, se ele tem esqueleto, ondular, andar, acenar ou respirar.',
-  img_crop: 'Recorta a imagem numa proporção (1:1, 16:9, 9:16…) ou numa área que você escolhe.', img_watermark: 'Põe uma marca (logo) sobre a imagem, no canto que você escolher, ou remove a marca d\'água de uma imagem ou de um vídeo.',
+  img_crop: 'Recorta a imagem numa proporção (1:1, 16:9, 9:16…) ou numa área que você escolhe.', img_watermark: 'Põe uma marca (logo) sobre a imagem, no canto que você escolher, ou remove a marca d\'água de uma imagem ou de um vídeo.', ai_model: 'Aplica a uma imagem um modelo seu de imagem → imagem feito em PyTorch (TorchScript .pt/.pth) ou TensorFlow/Keras (.keras, .h5, SavedModel): ampliar, tirar ruído, colorir, mudar o estilo…',
   vid_reframe: 'Muda a proporção do vídeo (vertical 9:16, quadrado…) cortando, com fundo desfocado ou com bordas.', vid_loop: 'Repete o vídeo várias vezes ou até uma duração.', vid_audio: 'Troca, mistura ou tira o som de um vídeo.',
   aud_silence_cut: 'Tira os silêncios longos de um áudio (pausas, começo e fim vazios).', in_pattern: 'Gera uma imagem de padrão: xadrez, listras, grade, bolinhas ou ruído.', out_thumbnail: 'Faz a miniatura (thumbnail) de um vídeo: imagem recortada em 16:9 com o título por cima.',
   out_image: 'Exporta a imagem final (PNG, JPG ou WebP) com qualidade e largura máxima.', out_gallery: 'Reúne imagens, vídeos, áudios e textos de vários nós num lugar só para ver e baixar.',
@@ -65,7 +65,7 @@ export const LABEL = {
   in_color: 'Cor e degradê', in_silence: 'Silêncio', in_url: 'Link (URL)', in_random: 'Sorteio de texto', in_vars: 'Data e projeto',
   out_export: 'Vídeo final', out_gif: 'GIF animado', out_audio: 'Áudio final', out_image: 'Imagem final', out_gallery: 'Galeria',
   char_sheet: 'Ficha de personagem', comic_page: 'Página de quadrinhos',
-  text_extract: 'Extrair do texto', text_count: 'Contar texto', tex3d: 'Textura 3D', rig3d: 'Esqueleto 3D', anim3d: 'Animação 3D', img_crop: 'Recortar imagem', img_watermark: "Marca d'água", vid_reframe: 'Mudar a proporção', vid_loop: 'Repetir vídeo', vid_audio: 'Áudio no vídeo',
+  text_extract: 'Extrair do texto', text_count: 'Contar texto', tex3d: 'Textura 3D', rig3d: 'Esqueleto 3D', anim3d: 'Animação 3D', img_crop: 'Recortar imagem', ai_model: 'Modelo PyTorch/TensorFlow', img_watermark: "Marca d'água", vid_reframe: 'Mudar a proporção', vid_loop: 'Repetir vídeo', vid_audio: 'Áudio no vídeo',
   aud_silence_cut: 'Tirar silêncios', in_pattern: 'Padrão e textura', out_thumbnail: 'Miniatura com título',
 };
 const CAP = { model3d: 'model3d', image: 'image', video: 'video', sound: 'sound', music: 'sound', sfx: 'sound', voice: 'voice', dub: 'voice', transcript: 'stt', sub: 'stt', transcribe: 'stt' };
@@ -519,6 +519,13 @@ const FORMS = {
   anim3d: [['sel', 'kind', 'Animação', [['spin', 'Girar sem parar'], ['bounce', 'Pular'], ['float', 'Flutuar'], ['pulse', 'Pulsar'], ['wobble', 'Balançar'], ['sway', 'Ondular (precisa de esqueleto)'], ['walk', 'Andar (esqueleto humanoide)'], ['wave', 'Acenar (esqueleto humanoide)'], ['idle', 'Respirar (precisa de esqueleto)']]],
     ['range', 'duration', 'Duração do laço (s)', 0.5, 30, 0.5], ['range', 'amplitude', 'Intensidade', 0.1, 3, 0.1]],
   img_crop: [['sel', 'mode', 'Modo', [['ratio', 'Por proporção'], ['manual', 'Área manual (%)']]], ['sel', 'ratio', 'Proporção', [['1:1', '1:1'], ['16:9', '16:9'], ['9:16', '9:16'], ['4:3', '4:3'], ['3:4', '3:4'], ['3:2', '3:2'], ['21:9', '21:9']]], ['sel', 'anchor', 'Manter', [['center', 'O centro'], ['top', 'O topo'], ['bottom', 'A base'], ['left', 'A esquerda'], ['right', 'A direita']]], ['num', 'x', 'Manual: esquerda (%)'], ['num', 'y', 'Manual: topo (%)'], ['num', 'w', 'Manual: largura (%)'], ['num', 'h', 'Manual: altura (%)']],
+  ai_model: [['txt', 'model', 'Modelo (arquivo, pasta ou dono/nome)', 'Ex.: C:\\modelos\\esrgan.pt · ~/modelos/denoise.keras · dono/nome'],
+    ['sel', 'framework', 'Framework', [['auto', 'Automático (pelo arquivo)'], ['torch', 'PyTorch (TorchScript)'], ['tf', 'TensorFlow / Keras']]],
+    ['hint', 'Roda modelos de UMA imagem → UMA imagem. Aceita .keras, .h5 completo, SavedModel (pasta) e TorchScript (.pt/.pth). Pickles de modelo e camadas Lambda são recusados (executariam código do arquivo): use só modelos em que você confia.'],
+    ['sel', 'range_in', 'Valores que o modelo espera', [['0-1', '0 a 1'], ['0-255', '0 a 255'], ['-1-1', '−1 a 1']]], ['sel', 'range_out', 'Valores que o modelo devolve', [['auto', 'Automático'], ['0-1', '0 a 1'], ['0-255', '0 a 255'], ['-1-1', '−1 a 1']]],
+    ['sel', 'layout', 'Ordem das dimensões', [['auto', 'Automática (Keras: altura·largura·canais; PyTorch: canais primeiro)'], ['NHWC', 'Altura · largura · canais'], ['NCHW', 'Canais primeiro']]],
+    ['num', 'max_side', 'Lado maior máximo (px, 0 = sem limite)'], ['num', 'tile', 'Processar em blocos de (px, 0 = a imagem toda)'], ['num', 'multiple', 'Tamanho múltiplo de (px)'], ['num', 'channels', 'Canais de entrada (0 = automático; 1, 3 ou 4)'],
+    ['hint', 'Pouca memória? Use blocos (ex.: 256) e um lado maior menor. Modelos com tamanho fixo recebem a imagem redimensionada.']],
   img_watermark: [['sel', 'mode', 'O que fazer', [['add', 'Pôr uma marca (logo)'], ['remove', 'Remover uma marca d\'água']]],
     ['hint', 'Pôr: ligue a imagem da marca em «Marca». Remover: o ffmpeg refaz a área escolhida a partir dos pixels em volta (funciona melhor em marcas pequenas sobre fundo liso; em fundo com detalhe deixa uma mancha). Serve para imagens e vídeos (o vídeo mantém o som).'],
     ['sel', 'where', 'Remover: onde está a marca', [['corner', 'Num canto'], ['box', 'Numa área (%)'], ['auto', 'Achar sozinho (só vídeo)']]],
@@ -553,6 +560,18 @@ function formBody(c, n) {
   });
 }
 
+// v0.82: o nó «Modelo PyTorch/TensorFlow» diz, embaixo do campo, o que achou no caminho escrito (formato, framework, biblioteca que falta) — sem baixar nem carregar nada
+function toolStatus(n) {
+  const box = h('div', { class: 'small', dataset: { toolstatus: '1' } });
+  const model = (n.params.model || '').trim();
+  if (!model) { box.className = 'dim small'; box.textContent = t('Escreva o caminho de um arquivo ou pasta, ou um dono/nome já baixado (pela barra de pesquisa de modelos → «Modelos próprios»).'); return box; }
+  api('/api/tool/info?model=' + encodeURIComponent(model) + '&framework=' + encodeURIComponent(n.params.framework === 'auto' ? '' : n.params.framework || '')).then((r) => {
+    if (r.found) { const lib = r.missing_lib ? ' · ' + t('falta instalar o {l}', { l: r.missing_lib }) : ''; box.className = 'small ' + (r.missing_lib ? 'warn' : 'ok'); box.textContent = (r.missing_lib ? '⚠ ' : '✓ ') + r.label + ' (' + ({ keras: 'Keras', savedmodel: 'SavedModel', torchscript: 'TorchScript', torchexport: 'torch.export' }[r.kind] || r.kind) + ')' + lib; }
+    else { box.className = 'small warn'; box.textContent = '⚠ ' + r.error; }
+  }).catch(() => {});
+  return box;
+}
+BODY.ai_model = (c, n) => [...formBody(c, n), toolStatus(n)];
 export const nodeBody = (c, n) => h('div', { class: 'bd' }, BODY[n.type] ? BODY[n.type](c, n) : (FORMS[n.type] ? formBody(c, n) : null));
 export const capOf = (type) => CAP[type] || '';
 /** Textos do visualizador 3D (ele não importa o tradutor: assim roda também no Node, nos testes). */

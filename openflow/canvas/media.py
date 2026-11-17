@@ -397,6 +397,12 @@ def _device() -> Tuple[str, Any]:
         return "cuda", torch.float16
     if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
         return "mps", torch.float16
+    xpu = getattr(torch, "xpu", None)   # v0.82: placas Intel (Arc, integradas) pelo PyTorch com o pacote XPU
+    try:
+        if xpu is not None and xpu.is_available() is True:   # `is True`: só um bool de verdade vale
+            return "xpu", torch.float16
+    except Exception:  # noqa: BLE001 — um driver Intel quebrado não pode derrubar a geração: cai para a CPU
+        pass
     return "cpu", torch.float32
 
 
@@ -419,7 +425,13 @@ def _media_unload() -> None:
 
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
+        elif getattr(torch, "xpu", None) is not None and torch.xpu.is_available() is True:
+            torch.xpu.empty_cache()
+        elif getattr(torch.backends, "mps", None) and torch.backends.mps.is_available() is True:
+            torch.mps.empty_cache()
     except ImportError:
+        pass
+    except Exception:  # noqa: BLE001 — limpar o cache da placa nunca pode dar erro
         pass
     _give_back_memory()
 
@@ -818,6 +830,8 @@ class LocalHFMedia(MediaProvider):
         _TLS.ctl = self.ctl
         _limit_threads()
         prec = lm.downloaded_precision(model)
+        if prec and lm.downloaded_framework(model):
+            raise ProviderError(f'«{model}» foi baixado para o nó «Modelo PyTorch/TensorFlow» (só o arquivo do modelo, sem o pipeline): não serve como modelo de imagem, vídeo, som ou voz. Escolha outro, ou use-o naquele nó.', status=424)
         if not prec:
             raise ProviderError(f'O modelo local "{model}" ainda não foi baixado. Em Configuração → Mídia, escolha a precisão (quantização) e baixe-o antes de usar.', status=424)
         low = prec in ("fp16", "bf16") or lm.is_quant(prec)

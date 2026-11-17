@@ -487,6 +487,8 @@ class CanvasEngine:
                         items.append([_sig(o["text"]), [a["id"] for a in o["assets"]]])
                 ports[pid_] = items
             data["in"] = ports
+        if t == "ai_model":   # v0.82: o arquivo do modelo (tamanho e data) conta: trocá-lo sem trocar o nome refaz o nó
+            data["model_sig"] = nodes_ext.model_signature(self, node)
         if t in ("image", "video"):   # as imagens citadas com @ no prompt entram no hash: citar outra (ou trocar o arquivo) deixa o nó desatualizado
             txt = "\n\n".join(x for x in (self.inputs(canvas, node, "prompt")["text"], node["params"].get("prompt", "").strip()) if x)   # o @ vale também no texto de um nó Texto ligado
             data["mentions"] = mentions_mod.ids_in(canvas, txt)

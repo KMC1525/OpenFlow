@@ -36,6 +36,7 @@ HINTS = {"fp32": "Maior e mais lento, mas funciona em qualquer computador (inclu
 WEIGHT_EXT = (".safetensors", ".bin", ".pt", ".pth", ".ckpt", ".msgpack", ".h5", ".onnx", ".onnx_data", ".tflite", ".mlmodel", ".gguf")
 SKIP_EXT = (".md", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".mp4", ".wav", ".mp3", ".flac")
 MARKER = "flow_precision.txt"
+FRAMEWORK_MARKER = "flow_framework.txt"   # v0.82: «tf» ou «torch» quando o modelo foi baixado para o nó «Modelo PyTorch/TensorFlow»
 REPO_OK = re.compile(r"^[\w.-]+/[\w.-]+$")
 
 
@@ -90,6 +91,55 @@ def select_files(files: List[Dict[str, Any]], precision: str) -> List[Dict[str, 
             continue  # existe a variante fp16 deste peso: baixa só ela
         out.append(f)
     return out
+
+
+# Modelos para o nó «Modelo PyTorch/TensorFlow» (v0.82): os arquivos que ele roda, por framework
+_TOOL_TF = re.compile(r"(^|/)(saved_model\.pb|keras_metadata\.pb|fingerprint\.pb|variables/[^/]+|assets/[^/]+|[^/]+\.keras|[^/]+\.h5)$", re.I)
+_TOOL_TORCH = re.compile(r"\.(pt|pth|ts|torchscript|pt2)$", re.I)
+_TOOL_NOT_TF = ("tf_model.h5", "model.weights.h5")   # pesos de transformers / só pesos: o Keras não os roda sozinhos
+
+
+def tool_framework_of(name: str) -> str:
+    """«tf» (Keras/SavedModel), «torch» (TorchScript/torch.export) ou «» para um arquivo de um repositório."""
+    low = name.lower()
+    if low.rsplit("/", 1)[-1] in _TOOL_NOT_TF:
+        return ""
+    if _TOOL_TF.search(name):
+        return "tf"
+    if _TOOL_TORCH.search(name):
+        return "torch"
+    return ""
+
+
+def select_tool_files(files: List[Dict[str, Any]], framework: str) -> List[Dict[str, Any]]:
+    """Os arquivos para rodar um modelo no nó «Modelo PyTorch/TensorFlow»: os do framework escolhido («tf» ou «torch») e os pequenos de apoio (config, rótulos…); os pesos dos outros formatos (safetensors, bin, onnx,
+    gguf e os do outro framework) ficam de fora."""
+    out = []
+    for f in files:
+        n = f["name"]
+        low = n.lower()
+        if n.startswith(".") or low.endswith(SKIP_EXT):
+            continue
+        fw = tool_framework_of(n)
+        if fw:
+            if fw == framework:
+                out.append(f)
+            continue
+        if low.endswith(WEIGHT_EXT) or low.endswith((".pb", ".index", ".pt2")) or "/variables/" in "/" + low:
+            continue
+        out.append(f)
+    return out
+
+
+def tool_options(model: str, token: str = "") -> Dict[str, Any]:
+    """O que o repositório tem para o nó «Modelo PyTorch/TensorFlow»: {frameworks: {tf|torch: {files, size}}} (só os que têm um modelo para rodar)."""
+    files = _siblings(model, token)
+    out: Dict[str, Any] = {}
+    for fw in ("torch", "tf"):
+        if any(tool_framework_of(f["name"]) == fw and f["name"].lower().endswith((".keras", ".h5", ".pb", ".pt", ".pth", ".ts", ".torchscript", ".pt2")) for f in files):
+            chosen = select_tool_files(files, fw)
+            out[fw] = {"files": len(chosen), "size": sum(f["size"] for f in chosen)}
+    return {"model": model, "frameworks": out}
 
 
 def _siblings(model: str, token: str) -> List[Dict[str, Any]]:
@@ -190,6 +240,19 @@ def downloaded_precision(model: str) -> str:
     return ""
 
 
+def downloaded_framework(model: str) -> str:
+    """«tf» ou «torch» se o modelo foi baixado para o nó «Modelo PyTorch/TensorFlow» (v0.82) — não serve como modelo de imagem, vídeo, som ou voz; «» nos demais."""
+    try:
+        snap = _snapshot(model)
+    except ProviderError:
+        return ""
+    marker = snap / FRAMEWORK_MARKER if snap else None
+    if marker and marker.is_file():
+        v = marker.read_text(encoding="utf-8").strip()
+        return v if v in ("tf", "torch") else ""
+    return ""
+
+
 def components(model: str) -> Dict[str, Any]:
     """Os componentes do pipeline baixado (`model_index.json`: nome → [biblioteca, classe]); {} se não é um pipeline do diffusers ou não está baixado."""
     import json
@@ -282,13 +345,15 @@ def cancellable(hub: Any, cancelled: Callable[[], bool]) -> Any:
         fd.tqdm = base
 
 
-def download(model: str, precision: str, token: str = "", progress: Optional[Callable[[int, int], None]] = None, cancelled: Callable[[], bool] = lambda: False) -> Path:
-    """Baixa os arquivos da precisão escolhida, um a um (dá para cancelar entre arquivos), e registra a escolha."""
+def download(model: str, precision: str, token: str = "", progress: Optional[Callable[[int, int], None]] = None, cancelled: Callable[[], bool] = lambda: False, framework: str = "") -> Path:
+    """Baixa os arquivos da precisão escolhida, um a um (dá para cancelar entre arquivos), e registra a escolha. Com `framework` («tf» ou «torch», v0.82) baixa só o modelo para o nó «Modelo PyTorch/TensorFlow»."""
     if precision not in PRECISIONS:
         raise ProviderError("Escolha a precisão (quantização) do modelo antes de baixar.")
+    if framework not in ("", "tf", "torch"):
+        raise ProviderError("Escolha o framework: PyTorch (torch) ou TensorFlow (tf).")
     hub = _hub()
     try:
-        files = select_files(_siblings(model, token), precision)
+        files = select_tool_files(_siblings(model, token), framework) if framework else select_files(_siblings(model, token), precision)
     except Exception as exc:  # noqa: BLE001
         raise _gated_or(exc, model, token) from None
     if not files:
@@ -324,6 +389,8 @@ def download(model: str, precision: str, token: str = "", progress: Optional[Cal
     if snap is None:
         raise ProviderError("O download não gerou arquivos.")
     (snap / MARKER).write_text(precision, encoding="utf-8")
+    if framework:
+        (snap / FRAMEWORK_MARKER).write_text(framework, encoding="utf-8")
     return snap
 
 
