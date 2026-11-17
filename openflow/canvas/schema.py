@@ -275,7 +275,7 @@ def normalize_params(ntype: str, p: Any) -> Dict[str, Any]:
     if ntype == "transcribe":
         return {"provider": prov, "model": model, "language": text(p.get("language"), "", 12)}
     if ntype == "style_prompt":
-        return {"text": text(p.get("text"), "", 6000), "global": p.get("global", True) is not False}
+        return {"text": text(p.get("text"), "", 6000), "global": p.get("global", True) is not False, "refine": p.get("refine", True) is not False}
     if ntype == "style_folder":
         return {"files": _files(p.get("files")), "folders": normalize_folders(p.get("folders")), "notes": text(p.get("notes"), "", 4000), "global": p.get("global", True) is not False}
     if ntype in nodes_ext.SPECS:

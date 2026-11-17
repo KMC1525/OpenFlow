@@ -21,6 +21,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from ..providers import ProviderError, build_provider
 from ..util import num, text
 from . import lyrics as lyr
+from . import styles as styles_mod
 from . import model3d_ops as ops3d
 from .render import GRADES, _esc_path, _run, _tempo, find_font, has_audio, render_timeline, still_path
 
@@ -501,7 +502,7 @@ def run_text_refine(eng, canvas, node):
         return {"assets": [], "text": _demo_refine(p["mode"], src, p["language"]), "warnings": warnings}
     provider = build_provider(eng.settings, pid, eng.store.models_dir)
     system = ("Você é um editor de texto dentro de um fluxo de produção de mídia. Cumpra a instrução usando o texto de entrada. Responda APENAS com o texto final, sem explicações nem aspas."
-              + (f"\n\nEstilo do projeto: {style.render(src + ' ' + instruction)}" if style.text else ""))
+              + (styles_mod.apply_block(style.render(src + " " + instruction)) if style.text else ""))
     eng._check()
     out = eng.text_chat(provider, [{"role": "user", "content": f"{instruction}\n\nTexto de entrada:\n{src}"}], system, 0.5, 1500)
     return {"assets": [], "text": out, "warnings": warnings}

@@ -115,6 +115,8 @@ export default {
   'Imagem inicial': 'Start image',
   'Prompt': 'Prompt',
   'Fala': 'Speech',
+  'Organizar o texto com a IA (separa estilo geral, personagens e regras)': 'Organize the text with AI (splits general style, characters and rules)',
+  'Com um modelo de texto configurado, um texto corrido e longo é reescrito por dentro, sem inventar nada, no formato «ESTILO GERAL / PERSONAGEM / CONSISTÊNCIA»: assim cada geração recebe só o que importa. Textos curtos ou já no formato ficam como estão.': 'With a text model configured, a long running text is rewritten internally, without inventing anything, in the «GENERAL STYLE / CHARACTER / CONSISTENCY» format: each generation then receives only what matters. Short texts or texts already in the format are left as they are.',
   'Voz de referência': 'Reference voice',
   'O que se diz na voz de referência (opcional)': 'What is said in the reference voice (optional)',
   'Só com o VoxCPM2: o texto exato do áudio ligado em «Voz de referência». Com ele a clonagem é fiel; sem, vale só o timbre.': 'VoxCPM2 only: the exact text of the audio connected to «Reference voice». With it the cloning is faithful; without it only the timbre counts.',

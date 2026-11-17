@@ -2,6 +2,19 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.73.0] — 2026-11-17
+
+### Melhorado — system prompts internos do Style Folder e do Style Prompt
+O OpenFlow agora instrui a IA por conta própria (o usuário não vê nem edita esses textos, que ficam em `canvas/styles.py`) para o estilo geral do projeto ser descrito e aplicado com mais precisão.
+- **Style Folder — descrição das pastas:** o system prompt que descreve as imagens e pastas de referência foi reescrito com regras de precisão. O estilo geral fala só do que vale para toda imagem (técnica, paleta com cores concretas, luz, composição), as fichas de personagem/cenário/objeto trazem só traços **fixos e visuais**, sem ação nem emoção do momento nem enredo, e não repetem o estilo geral; na dúvida, omite (não inventa); se as imagens divergem, vale o que se repete; se uma nota sua contradiz as imagens, a nota vence. A resposta da IA agora é lida **a partir da primeira linha do formato**, então um «Claro! Aqui está…» antes do guia não vira estilo.
+- **Style Prompt — novo:** um texto corrido e longo (140 caracteres ou mais, sem os cabeçalhos «ESTILO GERAL / PERSONAGEM…») é reescrito pela IA, por dentro, no formato fixo: o que vale para tudo vai em estilo geral, cada personagem/cenário/objeto vira uma ficha, proibições («nunca…») vão em consistência. Regras: não inventa, mantém nomes, @menções e termos exatamente, não cria entidades. Com isso a relevância por prompt passa a funcionar em texto corrido: um estilo com quatro personagens só manda ao prompt a ficha de quem ele cita. O resultado fica guardado no nó (só refaz se o texto ou o modelo de texto mudar). Textos curtos («aquarela, cores suaves»), textos já no formato e projetos sem modelo de texto (Demo) ficam exatamente como antes; a caixa «Organizar o texto com a IA» desliga o recurso. Se a IA falha ou responde algo sem o formato, vale o texto original (com um aviso).
+- **Uso do estilo nas etapas de texto** (Texto IA, Refinar texto, Letra): ganharam regras de uso — o estilo orienta tom e linguagem visual, mas **nunca muda o assunto nem a instrução** (em conflito, o pedido vence), as fichas valem só para quem o texto cita, «Consistência» é regra fixa, e o guia não é copiado nem mencionado na resposta.
+- **Uso do estilo em imagem, vídeo e música:** o trecho de estilo no fim do prompt agora vem com uma moldura curta («Style guide (the look of the whole result, not its subject or action): …»), para o modelo tratá-lo como visual e não como assunto. Antes era só «Style: …».
+
+### Ainda não verificado
+- Nenhum modelo de texto real foi usado: nos testes a IA é de mentira. Que os novos system prompts façam um modelo de verdade descrever e organizar melhor, e que a moldura melhore as imagens de modelos reais, **não foi medido**. A moldura é um pouco mais longa que o «Style:» antigo, o que em modelos que leem poucos tokens (CLIP de 77) pode empurrar parte do estilo para fora do limite.
+- A organização do Style Prompt é uma chamada a mais ao modelo de texto, uma vez por texto (guardada em seguida).
+
 ## [0.72.0] — 2026-11-17
 
 ### Corrigido — modelos locais de imagem e vídeo em computadores fracos (FLUX, Qwen-Image e os demais)

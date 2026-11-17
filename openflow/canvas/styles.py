@@ -249,3 +249,79 @@ def pick_images(entities: List[Dict[str, Any]], prompt: str, general_ids: List[s
             seen.add(i)
             out.append(i)
     return out[:limit]
+
+
+# --------------------------------------------------------------------------- system prompts internos (v0.73)
+# Texto que o OpenFlow entrega à IA por conta própria — o usuário não o vê nem o edita. Os três juntos fazem o estilo ser aplicado com precisão em todo o projeto:
+# FOLDER_SYSTEM descreve as pastas de referência (Style Folder), PROMPT_SYSTEM organiza o texto livre do Style Prompt e APPLY_RULES diz às etapas de texto (Texto IA, Refinar, Letra…) COMO usar o estilo.
+FOLDER_SYSTEM = (
+    "Você é o diretor de arte e de continuidade de um projeto criativo. Escreva o guia de estilo e as fichas de personagens, cenários e objetos a partir do que receber: as entidades encontradas (com o papel de cada "
+    "uma), as notas do usuário, a descrição dos arquivos e imagens legendadas com o nome de quem aparece nelas. O guia será anexado a CADA prompt de geração do projeto, então precisa ser exato, concreto e curto. "
+    "Responda SOMENTE neste formato, uma linha por item (sem markdown, sem listas, sem comentários, sem linhas vazias):\n"
+    "ESTILO GERAL: 2 a 4 frases sobre o que vale para TODA imagem do projeto: técnica/traço/textura, paleta (cores concretas: «verde-musgo», «laranja queimado»), iluminação, composição e câmera, clima. "
+    "Nada de personagens específicos nem de enredo aqui.\n"
+    "TRAÇOS COMUNS DOS PERSONAGENS: o que TODOS os personagens têm em comum (proporções, figurino, traço do desenho, idade aparente…). Omita a linha se há menos de dois personagens.\n"
+    "PERSONAGEM — <Nome>: só traços FIXOS e visuais, dos mais reconhecíveis aos menores: idade aparente, corpo/altura, rosto, cabelo (cor, corte), olhos, pele, roupas (peças e cores), acessórios, marcas únicas, postura típica.\n"
+    "CENÁRIO — <Nome>: tipo de lugar, elementos principais, materiais, hora do dia, luz, clima e cores.\n"
+    "OBJETO — <Nome>: forma, tamanho, material, cor, acabamento e detalhes que o identificam.\n"
+    "CONSISTÊNCIA: 1 a 2 frases com o que NUNCA deve mudar entre uma imagem e outra (cores de roupa, cicatriz, estilo de traço…).\n"
+    "REGRAS DE PRECISÃO: (1) descreva só o que VÊ nas imagens ou o que as notas dizem; na dúvida, omita — nunca invente. (2) Use exatamente os nomes das entidades encontradas, uma linha por entidade, sem criar outras. "
+    "(3) Nas fichas, nada de ação, emoção do momento, roupa de uma cena só ou enredo: só o que se repete em todas as imagens daquela entidade (se as imagens divergem, vale o que se repete). "
+    "(4) Não repita o estilo geral dentro das fichas. (5) Prefira palavras que um modelo de imagem entende (cor, material, forma, número) a adjetivos vagos como «bonito» ou «interessante». "
+    "(6) Se uma nota do usuário contradiz as imagens, a nota vence. (7) Não cite nomes de arquivos nem de pastas. (8) Escreva no idioma predominante dos textos (padrão: português)."
+)
+PROMPT_SYSTEM = (
+    "Você organiza o texto de um Style Prompt — escrito à mão pelo usuário — no guia de estilo estruturado que o OpenFlow anexa a cada prompt de geração do projeto. Reescreva SÓ o que o texto diz, no formato abaixo, "
+    "uma linha por item (sem markdown, sem listas, sem comentários, sem linhas vazias):\n"
+    "ESTILO GERAL: o que vale para toda imagem/vídeo/som do projeto (técnica, paleta, luz, composição, clima, época, tom).\n"
+    "TRAÇOS COMUNS DOS PERSONAGENS: só se o texto dá traços compartilhados por vários personagens.\n"
+    "PERSONAGEM — <Nome>: a ficha de um personagem que o texto descreve.\n"
+    "CENÁRIO — <Nome>: a ficha de um lugar que o texto descreve.\n"
+    "OBJETO — <Nome>: a ficha de um objeto que o texto descreve.\n"
+    "CONSISTÊNCIA: o que o texto diz que NUNCA muda (ou «sempre», «obrigatório», «jamais»).\n"
+    "REGRAS: (1) NÃO invente: use apenas informações do texto, com as mesmas palavras e termos técnicos; não acrescente cores, marcas ou detalhes. (2) Mantenha nomes próprios, @menções e números exatamente como estão. "
+    "(3) Uma entidade só existe se o texto lhe dá nome E características; não crie entidades. (4) Traços que valem para tudo vão em ESTILO GERAL, os de uma entidade vão na ficha dela, e não os repita nos dois. "
+    "(5) Proibições do texto («sem neon», «nunca em preto e branco») entram em CONSISTÊNCIA, com as mesmas palavras. (6) Omita as linhas sem conteúdo. "
+    "(7) Se o texto já é curto e claro, devolva-o inteiro em ESTILO GERAL. (8) Mantenha o idioma do texto."
+)
+APPLY_RULES = (
+    "REGRAS DE USO DO ESTILO DO PROJETO: (1) o estilo orienta o tom, o vocabulário e a linguagem visual; ele NUNCA muda o assunto nem a instrução do usuário — se o pedido e o estilo se contradizem, o pedido vence. "
+    "(2) Use as fichas de personagem, cenário e objeto só dos que o texto cita, com os nomes exatamente como estão no estilo. (3) O que está em «Consistência» é regra fixa: não contradiga. "
+    "(4) Não copie o estilo literalmente nem o mencione na resposta."
+)
+APPLY_RULES_EN = (
+    "RULES FOR USING THE PROJECT STYLE: (1) the style guides tone, vocabulary and visual language; it NEVER changes the subject or the user's instruction — if the request and the style contradict each other, the request wins. "
+    "(2) Use the character, scenery and object sheets only for the ones the text mentions, with the names exactly as in the style. (3) What is under «Consistency» is a fixed rule: do not contradict it. "
+    "(4) Do not copy the style verbatim or mention it in the answer."
+)
+MEDIA_STYLE_LABEL = "Style guide (the look of the whole result, not its subject or action): "
+
+
+def apply_block(style_text: str, lang: str = "pt") -> str:
+    """O bloco que vai ao `system` de uma etapa de texto: as regras de uso do estilo + o estilo do projeto (vazio se não há estilo)."""
+    if not (style_text or "").strip():
+        return ""
+    return ("\n\n" + APPLY_RULES_EN + "\nProject style: " if lang == "en" else "\n\n" + APPLY_RULES + "\nEstilo do projeto: ") + style_text.strip()
+
+
+def media_style(style_text: str) -> str:
+    """O trecho de estilo que fecha um prompt de imagem, vídeo ou música: curto (os modelos de imagem leem poucos tokens) e diz que ele descreve o visual, não o assunto."""
+    return ("\n\n" + MEDIA_STYLE_LABEL + style_text.strip()) if (style_text or "").strip() else ""
+
+
+def needs_structuring(raw: str) -> bool:
+    """O Style Prompt vale ser organizado pela IA? Só texto corrido e longo, sem os cabeçalhos do formato fixo (um estilo curto como «aquarela, cores suaves» já está bom, e um texto já estruturado também)."""
+    t = (raw or "").strip()
+    if len(t) < 140:
+        return False
+    return not any(_HEAD.match(line) for line in t.splitlines())
+
+
+def strip_preamble(text: str) -> str:
+    """A resposta da IA a partir da primeira linha do formato fixo («ESTILO GERAL: …», «PERSONAGEM — …»); conversa antes dela («Claro! Aqui está…») e blocos ``` saem. Sem nenhuma linha do formato, devolve ""
+    (a resposta não serve — vale o texto original do usuário)."""
+    lines = [ln for ln in (text or "").replace("```", "").splitlines()]
+    for i, ln in enumerate(lines):
+        if _HEAD.match(ln):
+            return "\n".join(lines[i:]).strip()
+    return ""

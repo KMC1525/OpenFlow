@@ -295,10 +295,17 @@ class CanvasEngine:
             if sn["type"] == "style_prompt":
                 raw = sn["params"]["text"].strip()
                 if raw:
-                    parsed = styles_mod.from_prompt_text(raw)
-                    st.texts.append(raw)
                     st.parts.append(raw)
-                    st.blocks.append(parsed)
+                    digest = ""
+                    if self.prompt_wants_ai(sn):
+                        key = self.prompt_key(sn)
+                        st.parts.append(f"{sid}:p:{key}")
+                        if need_digest:
+                            digest = self.prompt_digest(canvas, sn)
+                        else:
+                            digest = sn["result"]["digest"] if sn["result"]["digest_key"] == key else ""
+                    st.texts.append(digest or raw)
+                    st.blocks.append(styles_mod.parse(digest) if digest else styles_mod.from_prompt_text(raw))
             elif sn["type"] == "style_folder" and (style_files(sn["params"]) or sn["params"].get("notes", "").strip()):
                 key = self.folder_key(canvas, sn)
                 st.parts.append(f"{sid}:{key}")
@@ -314,6 +321,38 @@ class CanvasEngine:
                     st.entities += ents
                     st.general_ids += general
         return st
+
+    def prompt_wants_ai(self, node: Dict[str, Any]) -> bool:
+        """O Style Prompt deve ser organizado pela IA (v0.73)? Só com «Organizar com IA» ligado, um modelo de texto configurado e um texto corrido e longo (styles.needs_structuring)."""
+        p = node["params"]
+        return bool(p.get("refine", True)) and self.settings["active"].get("generation", "demo") != "demo" and styles_mod.needs_structuring(p.get("text", ""))
+
+    def prompt_key(self, node: Dict[str, Any]) -> str:
+        return _sig([node["params"].get("text", "").strip(), self.settings["active"].get("generation", "demo"), "p1"])
+
+    def prompt_digest(self, canvas: Dict[str, Any], node: Dict[str, Any], force: bool = False) -> str:
+        """O texto do Style Prompt reescrito pela IA no formato fixo de styles.py (PROMPT_SYSTEM): o estilo geral, os personagens/cenários/objetos e a consistência ficam separados, e a relevância por prompt passa
+        a funcionar também em texto corrido. O resultado fica no nó (cache pela chave do texto e do modelo); se a IA falha ou devolve algo sem estrutura, vale o texto original (retorna "")."""
+        key = self.prompt_key(node)
+        if not force and node["result"]["digest_key"] == key:
+            return node["result"]["digest"]
+        raw = node["params"]["text"].strip()
+        out = ""
+        try:
+            pid = self.settings["active"].get("generation", "demo")
+            provider = build_provider(self.settings, pid, self.store.models_dir)
+            self._check()
+            got = self.text_chat(provider, [{"role": "user", "content": raw}], styles_mod.PROMPT_SYSTEM, 0.2, 1000)
+            parsed = styles_mod.parse(styles_mod.strip_preamble(got))
+            if parsed["general"] or parsed["entities"]:
+                out = styles_mod.serialize(parsed["general"], parsed["common"], parsed["entities"], parsed["consistency"], parsed["notes"])[:8000]
+        except (ProviderError, ValueError) as exc:
+            self.emit({"type": "note", "node": node["id"], "message": f"Não foi possível organizar o Style Prompt com a IA ({exc}); usei o texto como está."})
+        res = dict(node["result"])
+        res.update({"digest": out, "digest_key": key})
+        self._set_result(node["id"], res)
+        node["result"] = res
+        return out
 
     def folder_files(self, canvas: Dict[str, Any], node: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Os arquivos do Style Folder como [{path, name, id, kind}] (só os que existem)."""
@@ -404,7 +443,7 @@ class CanvasEngine:
                 ai_text = self.text_chat(provider, [{"role": "user", "content": content}], STYLE_SYSTEM, 0.3, 1200)
         except (ProviderError, ValueError) as exc:
             self.emit({"type": "note", "node": node["id"], "message": f"Não foi possível descrever o estilo com a IA ({exc}); usando as informações básicas dos arquivos."})
-        parsed = styles_mod.parse(ai_text) if ai_text else {"general": "", "common": "", "consistency": "", "notes": "", "entities": []}
+        parsed = styles_mod.parse(styles_mod.strip_preamble(ai_text)) if ai_text else {"general": "", "common": "", "consistency": "", "notes": "", "entities": []}
         have = {styles_mod.fold(e["name"]) for e in parsed["entities"]}
         for e in base_ents:   # toda entidade aparece, mesmo que a IA tenha esquecido uma (ou não haja IA)
             if styles_mod.fold(e["name"]) not in have:
@@ -640,7 +679,7 @@ class CanvasEngine:
         if not desc and not lyrics:
             raise ValueError(self._no_prompt(canvas, node, "O nó Música precisa de uma descrição do estilo (ex.: \"piano calmo, noturno\", \"rock energético\") ou de uma letra."))
         stx = style.render(desc or lyrics[:200])
-        prompt = (desc or "music") + (f"\n\nStyle: {stx}" if stx else "")
+        prompt = (desc or "music") + styles_mod.media_style(stx)
         use_model = p["model"] or model
         if lyrics and not prov.sings_lyrics(use_model):
             warnings.append(f"{prov.label} ({use_model or 'modelo padrão'}) não canta letras: a música saiu só com o estilo e a letra não foi usada. Escolha um modelo que cante (nos nós, em «Modelo»).")
@@ -673,7 +712,7 @@ class CanvasEngine:
                 raise ValueError("No modo Editar, ligue uma imagem na entrada \"Referências\".")
             body = base
             stx = style.render(base)   # só o que o prompt precisa: estilo geral + os personagens/cenários/objetos que ele cita
-            prompt = body + (f"\n\nStyle: {stx}" if stx else "")
+            prompt = body + styles_mod.media_style(stx)
             use_refs = list(refs)
             if not use_refs and (style.entities or style.general_ids) and getattr(prov, "supports_refs", False) and _style_refs_ok(pid, model):
                 use_refs = style.images_for(base, STYLE_IMAGES_MAX)  # modelos que aceitam várias imagens usam o Style Folder como referência
@@ -693,7 +732,7 @@ class CanvasEngine:
                 use_refs = []
             if ment_ids and not use_refs:   # as imagens citadas não chegam ao modelo: sem a marcação «reference image N», que não apontaria para nada
                 body = mentions_mod.plain(canvas, raw_base)
-                prompt = body + (f"\n\nStyle: {stx}" if stx else "")
+                prompt = body + styles_mod.media_style(stx)
             prov.edit_mode = p["mode"] == "edit"   # só ao editar uma imagem o resultado herda a proporção dela
             extra = dict(p["extra"])
             if extra.pop("upsample", True) and upsample.wants(p["model"] or model) and not upsample.is_caption(body):   # FLUX.3 Image Klein: pede legendas de cena completas
@@ -704,13 +743,13 @@ class CanvasEngine:
                     else:
                         self._check()
                         caption = upsample.expand(build_provider(self.settings, llm_pid, self.store.models_dir), body, edit=bool(use_refs), refs=len(use_refs))
-                        prompt = caption + (f"\n\nStyle: {stx}" if stx else "")
+                        prompt = caption + styles_mod.media_style(stx)
                         warnings.append("Prompt expandido para o FLUX.3: " + caption[:300] + ("…" if len(caption) > 300 else ""))
                 except (ProviderError, ValueError) as exc:
                     warnings.append(f"Não consegui expandir o prompt ({exc}); usei o texto como está — o FLUX.3 rende melhor com legendas completas.")
             expanded = any(w.startswith("Prompt expandido") for w in warnings)
             if p["mode"] == "edit" and use_refs and not expanded and not upsample.is_caption(body) and getattr(prov, "frames_edit_for", lambda m="": False)(p["model"] or model):
-                prompt = edit_prompt(body) + (f"\n\nStyle: {stx}" if stx else "")   # sem o modelo de texto: o pedido vira uma instrução de edição clara
+                prompt = edit_prompt(body) + styles_mod.media_style(stx)   # sem o modelo de texto: o pedido vira uma instrução de edição clara
             medias = prov.image(prompt, size=p["size"], count=p["count"], seed=seed, negative=p["negative"], refs=use_refs, model=p["model"], extra=extra)
             if p["mode"] == "edit" and use_refs and medias:
                 diff = M_difference(use_refs[0][0], medias[0].data)
@@ -733,14 +772,14 @@ class CanvasEngine:
                 raise ValueError(self._no_prompt(canvas, node, "O nó Vídeo precisa de um prompt (ou de uma imagem inicial ligada)."))
             start = first
             stx = style.render(base)
-            prompt = (base or "Animate this image with gentle, natural motion") + (f"\n\nStyle: {stx}" if stx else "")
+            prompt = (base or "Animate this image with gentle, natural motion") + styles_mod.media_style(stx)
             m = prov.video(prompt, duration=p["duration"], aspect=p["aspect"], image=start, model=p["model"], extra=p["extra"], seed=seed, long_side=p["resolution"])
             return {"assets": [self._save(node, m, "video", self._title(node, "Vídeo"), prompt, pid, model)], "text": "", "warnings": warnings}
         if t == "sound":
             prompt = p["prompt"].strip() or self.inputs(canvas, node, "prompt")["text"]
             if not prompt:
                 raise ValueError("O nó Som precisa de uma descrição (ex.: \"chuva forte com trovões\").")
-            prompt = (prompt + (f"\n\nStyle: {style.render(prompt)}" if style.text else "")) if p["kind"] == "music" else prompt
+            prompt = (prompt + styles_mod.media_style(style.render(prompt) if style.text else "")) if p["kind"] == "music" else prompt
             m = prov.sound(prompt, kind=p["kind"], duration=p["duration"], model=p["model"], extra=p["extra"], seed=seed)
             return {"assets": [self._save(node, m, "audio", self._title(node, "Música" if p["kind"] == "music" else "Som"), prompt, pid, model)], "text": "", "warnings": warnings}
         if t == "music":
@@ -764,7 +803,7 @@ class CanvasEngine:
             if not base and not img:
                 raise ValueError(self._no_prompt(canvas, node, "O nó Modelo 3D precisa de um prompt (ou de uma imagem ligada)."))
             stx = style.render(base) if base else ""
-            prompt = base + (f"\n\nStyle: {stx}" if stx and not img else "")
+            prompt = base + styles_mod.media_style(stx if not img else "")
             if img is None and prov.model3d_needs_image(p["model"]):
                 img = self._object_picture(base, seed, warnings)   # TripoSR/Hunyuan3D só aceitam imagem: o texto vira uma foto do objeto antes (duas etapas)
             m = prov.model3d(prompt, image=img, model=p["model"], seed=seed, fmt=p["format"], extra=p["extra"])
@@ -858,7 +897,7 @@ class CanvasEngine:
         if pid == "demo":
             return {"assets": [], "text": proc.demo_llm(p["instruction"], source, style.render(p["instruction"] + " " + source))}
         sty = style.render(p["instruction"] + " " + source)
-        system = LLM_SYSTEM + (f"\n\nEstilo do projeto (siga-o): {sty}" if sty else "")
+        system = LLM_SYSTEM + styles_mod.apply_block(sty)
         user = (p["instruction"].strip() + ("\n\n" if p["instruction"].strip() and source else "") + (f"Texto de entrada:\n{source}" if source else "")).strip()
         self._check()
         out = self.text_chat(provider, [{"role": "user", "content": user}], system, p["temperature"], 1500)
@@ -935,18 +974,7 @@ class CanvasEngine:
         return {"assets": [a["id"]], "text": "", "warnings": warnings}
 
 
-STYLE_SYSTEM = (
-    "Você escreve guias de estilo e fichas de personagens, cenários e objetos para projetos criativos. Receberá as entidades encontradas (com o papel de cada uma), notas do usuário, a descrição dos arquivos e imagens "
-    "legendadas com o nome de quem aparece nelas. Responda SOMENTE neste formato, uma linha por item (sem markdown, sem listas, sem comentários):\n"
-    "ESTILO GERAL: 2 a 4 frases sobre o estilo COMUM de tudo: paleta de cores, traço/textura/técnica, iluminação, composição e clima.\n"
-    "TRAÇOS COMUNS DOS PERSONAGENS: o que TODOS os personagens têm em comum (proporções, figurino, traço do desenho, idade aparente…). Omita a linha se há menos de dois personagens.\n"
-    "PERSONAGEM — <Nome>: aparência fixa e reconhecível: idade aparente, corpo/altura, rosto, cabelo (cor, corte), olhos, pele, roupas (peças e cores), acessórios, marcas e detalhes únicos, postura e expressão típicas.\n"
-    "CENÁRIO — <Nome>: tipo de lugar, elementos principais, materiais, hora do dia, luz, clima e cores.\n"
-    "OBJETO — <Nome>: forma, tamanho, material, cor, acabamento e detalhes que o identificam.\n"
-    "CONSISTÊNCIA: 1 a 2 frases com o que NUNCA deve mudar entre uma imagem e outra (cores de roupa, cicatriz, estilo de traço…).\n"
-    "Use exatamente os nomes das entidades encontradas; descreva só o que VÊ nas imagens ou o que as notas dizem, sem inventar. Seja concreto e útil como complemento de um prompt de geração. "
-    "Não cite nomes de arquivos. Escreva no idioma predominante dos textos (padrão: português)."
-)
+STYLE_SYSTEM = styles_mod.FOLDER_SYSTEM   # v0.73: o system prompt interno do Style Folder está em styles.py
 LLM_SYSTEM = "Você é um assistente de escrita criativa dentro de um fluxo de produção de mídia. Cumpra a instrução usando o texto de entrada. Se houver menções como @nome (apelidos de imagens, vídeos ou sons do projeto), mantenha-as exatamente como estão no texto final. Responda APENAS com o texto final, sem explicações nem aspas."
 
 
