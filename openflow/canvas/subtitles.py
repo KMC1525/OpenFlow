@@ -194,9 +194,25 @@ def spread(text: str, total_seconds: float, max_chars: int = 84, start: float = 
 
 
 # ----------------------------------------------------------------------------- transcrição
-def transcript_text(segs: List[Seg], mode: str = "plain") -> str:
-    """A transcrição: `plain` (tudo corrido), `timestamps` (uma linha por trecho, «[1:05] texto») ou `paragraphs` (um parágrafo a cada pausa longa ou frase final depois de uns 400 caracteres)."""
+def transcript_text(segs: List[Seg], mode: str = "plain", names: Optional[List[str]] = None) -> str:
+    """A transcrição: `plain` (tudo corrido), `timestamps` (uma linha por trecho, «[1:05] texto») ou `paragraphs` (um parágrafo a cada pausa longa ou frase final depois de uns 400 caracteres).
+    Se os trechos trazem «speaker» (v0.69, várias vozes), cada fala vem com o nome de quem falou («Locutor 1: …»; `names` dá os nomes, na ordem das vozes): no texto corrido e em parágrafos cada troca de voz abre uma
+    linha/parágrafo novo, e com marcas de tempo cada linha leva o nome."""
     items = [s for s in segs if s["text"].strip()]
+    if any("speaker" in s for s in items):
+        from .diarize import speaker_name
+
+        who = lambda s: speaker_name(int(s.get("speaker", 0)), names or [])  # noqa: E731
+        if mode == "timestamps":
+            return "\n".join(f"[{short_time(s['start'])}] {who(s)}: {s['text'].strip()}" for s in items)
+        turns: List[List[Any]] = []
+        for s in items:
+            if turns and turns[-1][0] == s.get("speaker", 0) and (mode == "plain" or s["start"] - turns[-1][2] <= 1.5):
+                turns[-1][1] += " " + s["text"].strip()
+            else:
+                turns.append([s.get("speaker", 0), s["text"].strip(), 0.0])
+            turns[-1][2] = s["end"]
+        return ("\n\n" if mode == "paragraphs" else "\n").join(f"{speaker_name(int(t[0]), names or [])}: {t[1]}" for t in turns)
     if mode == "timestamps":
         return "\n".join(f"[{short_time(s['start'])}] {s['text'].strip()}" for s in items)
     if mode == "paragraphs":

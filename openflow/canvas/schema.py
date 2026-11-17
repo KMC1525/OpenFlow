@@ -224,7 +224,8 @@ def _lang(v: Any, first: str, extra: Tuple[str, ...] = ()) -> str:
 def _speech_params(ntype: str, p: Dict[str, Any], prov: str, model: str) -> Dict[str, Any]:
     """Parâmetros dos nós de fala (v0.62): Transcrição, Legendas e Dublagem."""
     if ntype == "transcript":
-        return {"language": _lang(p.get("language"), "auto", ("auto",)), "format": p.get("format") if p.get("format") in ("plain", "timestamps", "paragraphs") else "plain", "provider": prov, "model": model}
+        return {"language": _lang(p.get("language"), "auto", ("auto",)), "format": p.get("format") if p.get("format") in ("plain", "timestamps", "paragraphs") else "plain", "provider": prov, "model": model,
+                "diarize": p.get("diarize") is True, "speakers": int(num(p.get("speakers"), 0, 0, 8)), "speaker_names": text(p.get("speaker_names"), "", 240)}
     if ntype == "sub":
         return {"format": "vtt" if p.get("format") == "vtt" else "srt", "language": _lang(p.get("language"), "auto", ("auto",)), "translate_to": _lang(p.get("translate_to"), "", ("",)), "max_chars": int(num(p.get("max_chars"), 42, 20, 80)),
                 "lines": int(num(p.get("lines"), 2, 1, 3)), "max_seconds": round(num(p.get("max_seconds"), 6, 1, 15), 1), "offset": round(num(p.get("offset"), 0, -30, 30), 2), "duration": int(num(p.get("duration"), 0, 0, 36000)),

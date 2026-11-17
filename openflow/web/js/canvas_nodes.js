@@ -25,7 +25,7 @@ export const TYPE_HELP = {
   sound: 'Gera efeitos sonoros ou música (nó geral; para música e efeitos, prefira Música e SFX).',
   music: 'Gera uma música a partir do estilo que você descreve (gênero, clima, instrumentos), com ou sem letra. Ligue um nó Letra na entrada «Letra» para a música cantar.',
   dub: 'Dubla um vídeo ou áudio em outro idioma: transcreve a fala, traduz com o modelo de texto e fala com o modelo de voz, encaixando cada trecho no tempo. Ligue um roteiro ou legendas para dublar o seu texto e nós Voz para dar uma voz a cada personagem.',
-  transcript: 'Transcreve a fala de um vídeo ou áudio em texto: corrido, com marcas de tempo ou em parágrafos.',
+  transcript: 'Transcreve a fala de um vídeo ou áudio em texto: corrido, com marcas de tempo ou em parágrafos, e separa quem fala quando há várias vozes.',
   sub: 'Gera legendas SRT ou VTT para qualquer reprodutor, a partir da fala de um vídeo ou áudio (ou de um texto), com tradução opcional.',
   lyrics: 'Escreve a letra de uma música (ou arruma a sua) com o modelo de texto: estrofes e refrões, no idioma e no gênero que você escolher. Ligue na entrada «Letra» do nó Música.',
   sfx: 'Gera efeitos sonoros curtos (passos, porta, chuva, laser…) a partir de uma descrição, com até 4 variações.',
@@ -408,6 +408,9 @@ const BODY = {
     h('div', { class: 'dim small' }, t('A transcrição usa o modelo padrão de Configuração → Mídia (Whisper local). Com a voz Demo o resultado é só um balbucio.'))],
   transcript: (c, n) => [
     h('div', { class: 'r2' }, lab(t('Idioma da fala'), sel(c, n, 'language', [['auto', t('Automático')], ...langOpts()])), lab(t('Formato'), sel(c, n, 'format', [['plain', t('Texto corrido')], ['timestamps', t('Com marcas de tempo')], ['paragraphs', t('Parágrafos')]]))),
+    checkbox(t('Separar as vozes (quem fala cada trecho)'), n.params.diarize === true, (v) => c.change(n, 'diarize', v, true)),
+    n.params.diarize === true ? h('div', { class: 'r2' }, lab(t('Quantas vozes (0 = descobrir)'), txt(c, n, 'speakers', '0', 'number')), lab(t('Nomes das vozes (opcional)'), txt(c, n, 'speaker_names', t('Ana, Bruno'))))  : null,
+    n.params.diarize === true ? h('div', { class: 'dim small' }, t('Cada fala sai com o nome de quem falou («Locutor 1: …»). Dizer quantas pessoas falam é mais confiável do que deixar em automático; os nomes seguem a ordem em que as vozes aparecem. Vozes parecidas, fala ao mesmo tempo e música ao fundo confundem a separação.')) : null,
     ...providerBlock(c, n, 'stt')],
   sub: (c, n) => [
     h('div', { class: 'dim small' }, t('Ligue um vídeo ou áudio (a fala vira legenda) e/ou um texto: um texto com tempos (SRT/VTT) é reformatado; um texto simples é distribuído ao longo do arquivo.')),

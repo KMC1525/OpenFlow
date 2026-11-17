@@ -115,10 +115,45 @@ def run_transcript(eng: Any, canvas: Dict[str, Any], node: Dict[str, Any]) -> Di
     segs, timed, label = transcribe_media(eng, src, p["language"], p["provider"], p["model"])
     if not timed and p["format"] != "plain":
         warnings.append(f"{label} não devolve o tempo de cada trecho: a transcrição saiu num bloco só (o formato «{'Com marcas de tempo' if p['format'] == 'timestamps' else 'Parágrafos'}» não se aplica).")
-    text = sub.transcript_text(segs, p["format"] if timed else "plain")
+    names: List[str] = []
+    if p.get("diarize") and timed:
+        segs, names = who_speaks(eng, src, segs, int(p.get("speakers") or 0), p.get("speaker_names", ""), warnings)
+    elif int(p.get("speakers") or 0) > 1 and not timed:
+        warnings.append(f"{label} não devolve o tempo de cada trecho, então não consigo separar as vozes (use um modelo de transcrição com tempos, como o Whisper).")
+    text = sub.transcript_text(segs, p["format"] if timed else "plain", names)
     if not text.strip():
         raise ValueError("Não encontrei fala neste arquivo (ou o modelo não entendeu nada).")
     return {"assets": [], "text": text, "warnings": warnings}
+
+
+def who_speaks(eng: Any, src: Dict[str, Any], segs: List[Dict[str, Any]], count: int, names_text: str, warnings: List[str]) -> Tuple[List[Dict[str, Any]], List[str]]:
+    """Separa as vozes da transcrição (v0.69). Em automático (`count` 0) uma voz só deixa tudo como estava; sem ffmpeg/numpy ou com falha na leitura do áudio, a transcrição sai sem locutores
+    (e o aviso aparece só quando o usuário pediu mais de uma voz)."""
+    from . import diarize
+
+    asked = count > 1
+    path = eng.cs.asset_path(eng.cid, src["file"])
+    x = diarize.decode(path) if path else None
+    if x is None:
+        if asked:
+            warnings.append("Não consegui separar as vozes: isso precisa do ffmpeg e do numpy (pip install numpy) e de um áudio legível.")
+        return segs, []
+    eng._check()
+    eng.ctl.note("Separando as vozes…")
+    try:
+        out, found = diarize.label_segments(x, segs, count)
+    except Exception as exc:   # análise de apoio: falhar não pode perder a transcrição
+        warnings.append(f"Não consegui separar as vozes ({type(exc).__name__}); a transcrição saiu sem locutores.")
+        return segs, []
+    if found <= 1:
+        if asked:
+            warnings.append("Só encontrei uma voz neste áudio.")
+        return segs, []
+    given = diarize.parse_names(names_text)
+    if given and len(given) < found:
+        warnings.append(f"Você deu {len(given)} nome(s) e há {found} vozes: as outras ficam como «Locutor N».")
+    eng.ctl.note(f"{found} vozes encontradas.")
+    return out, given
 
 
 # ----------------------------------------------------------------------------- Legendas

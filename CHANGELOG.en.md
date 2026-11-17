@@ -2,6 +2,17 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.69.0] — 2026-11-17
+
+### New — Transcript with several voices
+- **Who speaks each part:** the Transcript node gained «Separate the voices». Each line comes with the name of who spoke it («Locutor 1: …», «Locutor 2: …»), in running text (one line per change of voice), in timestamps (the name on every line) and in paragraphs. When the voice changes in the middle of a segment, the segment is split at the change (the text is divided by time, so that cut is approximate).
+- **How many voices and names:** leave 0 for OpenFlow to find out, or say how many people speak (more reliable). «Voice names» («Ana, Bruno») replaces «Locutor N» with names, in the order the voices appear. Named output is read by Dubbing («Name: line» marks).
+- **How it works:** no model download, only numpy and ffmpeg: the audio becomes 1 s windows of speech, each with the timbre (mel cepstrum) and pitch of the voice, and the windows are grouped by similarity. A single voice stays a single voice. Off by default, so old projects come out the same. Without ffmpeg/numpy, or with a model that returns no timings, the transcript comes out as before and the node warns when you asked for more than one voice.
+
+### Not yet verified
+- Tested only with the demo's synthetic voices (deep and high), real ffmpeg and numpy. **Recordings of real people were not tested:** similar human voices, noise, background music and overlapping speech may be confused, and the thresholds of automatic mode were calibrated on the synthetic voice. When in doubt, say how many voices there are.
+- It does not use a dedicated model (pyannote, ECAPA): it is much simpler and less accurate than those.
+
 ## [0.68.0] — 2026-11-17
 
 ### Improved — local Hugging Face sound and voice models
