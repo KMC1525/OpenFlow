@@ -2,6 +2,24 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.74.0] — 2026-11-17
+
+### Tested — every node and model compatibility
+- **Every node, with every option and hard inputs:** a sweep of **1,233 runs** ran the 58 nodes that execute (engine + ffmpeg + Demo provider) with every option of every field, extreme values in numeric fields and three input sets: ordinary (640×360), hard (a 333×517 portrait JPEG; a **321×241 video, odd dimensions, no audio**) and tiny (a 17×9 image). Result: **no ffmpeg error, exception, empty file or unreadable video**; every failure was a validation message that says what to do («Type the text to search», «connect a 3D Skeleton node», «the video has no audio»). This became a permanent test (`tests/test_every_node_v074.py`: defaults on 3 input sets, every option on the hard input, numeric extremes on the nodes that edit media, and the fields are read straight from the code, so a new field enters the test by itself).
+- **Image and video, generate and edit:** the Image node was exercised in both modes, with 0 to 5 references (PNG, JPEG, WebP, GIF, with transparency, 17×9, 2600×1500, and a video as a reference), 4 sizes and 1–2 images, on 4 providers (Demo and three fakes: accepts references, only edits with a reference, accepts 1 reference); the Video node, with and without a start image, 3 aspect ratios and 1–30 s. Checked: how many references reach the provider (and the warning when they are cut), the style in the prompt, the Edit-mode-without-image errors.
+- **Model compatibility:** each local image family (SD/SDXL turbo, SD3, FLUX.1 schnell/dev, FLUX Kontext, FLUX.2 dev and klein, Z-Image, Qwen-Image, Qwen-Image-Edit/Plus) and video family (LTX text→video and image→video) runs in both modes with a fake pipeline that has the **real diffusers 0.43 signature**; odd reference images (1×1, 4000×12, CMYK, with transparency) keep valid sizes; the suggested catalog is checked (model type, steps and guidance, reference limit), and the GGUF family table is checked (regexes, sd-cli options, companion files).
+
+### Fixed — what the tests found
+- **Z-Image-Turbo came out blurry:** the generic «turbo» rule gave 2 steps; the model asks for 9 (8 evaluations) and guidance 0 (the GGUF path already used 8). «Base» Z-Image now uses 28 steps and guidance 4.
+- **Oversaturated SD3/SD3.5:** guidance 7 (the old default) is too high; now 28 steps and guidance 4.5, and «turbo» 4 steps with no guidance. **SDXL-Lightning** reads 2, 4 or 8 steps from the model name (before: always 2).
+- **LTX-Video image → video failed:** the repository ships the text → video pipeline and a start image raised an error; OpenFlow now builds LTX's image → video pipeline from the same weights (no reload). LTX also receives the real frame rate (24; it assumed 25 and motion came out ~4% slower).
+- **Subtitles with a very negative «Advance/delay»** said «No speech found to subtitle» when speech existed; the message now says every cue would fall before the start and when the speech ends.
+
+### Not yet verified
+- **No real model was run** (Hugging Face is blocked where this was developed): compatibility proves that the right arguments reach the right pipeline, not that the image looks good. The new steps and guidance defaults come from the models' documentation and the GGUF path, not from quality tests.
+- Only local providers and Demo are in the new matrix; the cloud adapters (OpenAI, Google, Replicate…) remain covered by the tests that already existed, with simulated servers.
+- The 1,233-run sweep was done separately (it takes ~10 min); the permanent test runs a smaller version (~2 min).
+
 ## [0.73.0] — 2026-11-17
 
 ### Improved — internal system prompts of Style Folder and Style Prompt

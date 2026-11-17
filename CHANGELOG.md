@@ -2,6 +2,24 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.74.0] — 2026-11-17
+
+### Testado — todos os nós e a compatibilidade dos modelos
+- **Todos os nós, com cada opção e entradas difíceis:** uma varredura de **1.233 execuções** rodou os 58 nós que executam (motor + ffmpeg + provedor Demo) com cada opção de cada campo, valores extremos nos campos numéricos e três conjuntos de entradas: comum (640×360), difícil (imagem JPEG retrato de 333×517; vídeo de **321×241, dimensão ímpar, sem áudio**) e minúscula (imagem de 17×9). Resultado: **nenhum erro de ffmpeg, exceção, arquivo vazio ou vídeo ilegível**; todas as falhas eram mensagens de validação que explicam o que fazer («Escreva o texto a procurar», «ligue um nó Esqueleto 3D», «o vídeo não tem áudio»). Isso virou teste permanente (`tests/test_every_node_v074.py`: padrões em 3 conjuntos de entrada, cada opção na entrada difícil, extremos numéricos nos nós que editam mídia, e a leitura dos campos direto do código, então um campo novo entra no teste sozinho).
+- **Imagem e vídeo, gerar e editar:** o nó Imagem foi exercitado nos dois modos, com 0 a 5 referências (PNG, JPEG, WebP, GIF, com transparência, 17×9, 2600×1500, e um vídeo como referência), 4 tamanhos e 1 a 2 imagens, em 4 provedores (Demo e três de mentira: aceita referências, só edita com referência, aceita 1 referência); o nó Vídeo, com e sem imagem inicial, 3 proporções e 1 a 30 s. Conferido: quantas referências chegam ao provedor (e o aviso quando são cortadas), o estilo no prompt, os erros do modo Editar sem imagem.
+- **Compatibilidade dos modelos:** cada família local de imagem (SD/SDXL turbo, SD3, FLUX.1 schnell/dev, FLUX Kontext, FLUX.2 dev e klein, Z-Image, Qwen-Image, Qwen-Image-Edit/Plus) e de vídeo (LTX texto→vídeo e imagem→vídeo) roda nos dois modos com um pipeline falso que tem a **assinatura real do diffusers 0.43**; imagens de referência estranhas (1×1, 4000×12, CMYK, com transparência) mantêm tamanhos válidos; o catálogo sugerido é conferido (tipo de modelo, passos e guidance, limite de referências), e a tabela de famílias GGUF é conferida (expressões, opções do sd-cli, arquivos de apoio).
+
+### Corrigido — o que os testes acharam
+- **Z-Image-Turbo saía borrado:** a regra genérica «turbo» dava 2 passos; o modelo pede 9 (8 avaliações) e guidance 0 (o caminho GGUF já usava 8). O Z-Image «base» agora usa 28 passos e guidance 4.
+- **SD3/SD3.5 saturado:** guidance 7 (o padrão antigo) é alto demais; agora 28 passos e guidance 4,5, e o «turbo» 4 passos sem guidance. **SDXL-Lightning** lê 2, 4 ou 8 passos do nome do modelo (antes sempre 2).
+- **LTX-Video imagem → vídeo falhava:** o repositório traz o pipeline de texto → vídeo e uma imagem inicial dava erro; agora o OpenFlow monta o pipeline de imagem → vídeo do LTX a partir dos mesmos pesos (sem recarregar). O LTX também recebe a taxa real de quadros (24; ele assumia 25 e o movimento saía ~4% mais lento).
+- **Legendas com «Adiantar/atrasar» muito negativo** diziam «Não encontrei fala para legendar» quando a fala existia; agora a mensagem diz que todas as legendas ficariam antes do início e quando a fala termina.
+
+### Ainda não verificado
+- **Nenhum modelo real foi executado** (o Hugging Face está bloqueado onde isto foi desenvolvido): a compatibilidade prova que os argumentos certos chegam ao pipeline certo, não que a imagem sai boa. Os padrões novos de passos e guidance vêm da documentação dos modelos e do caminho GGUF, não de testes de qualidade.
+- Só os provedores locais e Demo entram na matriz nova; os adaptadores de nuvem (OpenAI, Google, Replicate…) continuam cobertos pelos testes que já existiam, com servidores simulados.
+- A varredura de 1.233 execuções foi feita à parte (leva ~10 min); o teste permanente roda uma versão menor (~2 min).
+
 ## [0.73.0] — 2026-11-17
 
 ### Melhorado — system prompts internos do Style Folder e do Style Prompt

@@ -695,7 +695,14 @@ class LocalHFMedia(MediaProvider):
             return (50, 4.0) if "base" in name else (4, 1.0)
         if "schnell" in name:
             return 4, 0.0
-        if any(k in name for k in ("turbo", "lightning", "lcm")):
+        if re.search(r"z[-_ ]?image", name):   # Z-Image-Turbo: 9 passos (8 avaliações) e guidance 0; o «base» usa CFG (28 passos, guidance 4). Com «turbo» valendo 2 passos saía borrado
+            return (9, 0.0) if "turbo" in name else (28, 4.0)
+        if re.search(r"sd3|stable[-_ ]diffusion[-_ ]3", name):   # SD3/SD3.5: guidance 7 (o padrão antigo) satura; a documentação usa ~4,5 com 28 passos, e o «turbo» 4 passos sem guidance
+            return (4, 0.0) if "turbo" in name else (28, 4.5)
+        if "lightning" in name:   # SDXL-Lightning: 2, 4 ou 8 passos (o nome diz); sem o número, 4
+            m = re.search(r"(\d)[-_ ]?step", name)
+            return (int(m.group(1)) if m else 4), 0.0
+        if any(k in name for k in ("turbo", "lcm")):
             return 2, 0.0
         if "flux" in name:
             return 28, 3.5
@@ -1350,11 +1357,22 @@ class LocalHFMedia(MediaProvider):
         w, h = w // 32 * 32 or 32, h // 32 * 32 or 32
         fps = 24
         params = lowmem.params_of(pipe)
+        if image and not lowmem.accepted(params, "image"):   # o repositório do LTX-Video traz o pipeline de texto → vídeo, mas os mesmos pesos fazem imagem → vídeo: monta o pipeline de imagem (compartilha os pesos, sem recarregar)
+            i2v = {"LTXPipeline": "LTXImageToVideoPipeline"}.get(type(pipe).__name__)
+            cls = getattr(diffusers, i2v, None) if i2v else None
+            if cls is not None:
+                try:
+                    pipe = cls.from_pipe(pipe)
+                    params = lowmem.params_of(pipe)
+                except Exception:  # noqa: BLE001
+                    pass
         if image and not lowmem.accepted(params, "image"):   # v0.72: um modelo só de texto → vídeo recebia `image=` e quebrava com um TypeError no meio da geração
             raise ProviderError(f"«{model}» só gera vídeo a partir de texto (o pipeline dele não aceita uma imagem). Desligue a imagem do nó ou escolha um modelo de imagem → vídeo (ex.: um LTX-Video ou Wan «i2v»).")
         kw: Dict[str, Any] = {"prompt": prompt, "width": w, "height": h, "num_frames": int(max(9, min(161, duration * fps)) // 8 * 8 + 1)}
         if image:
             kw["image"] = open_rgb(image[0]).resize((w, h))
+        if params is not None and "frame_rate" in params:
+            kw["frame_rate"] = fps   # LTX: o pipeline assume 25 quadros por segundo; o MP4 sai a 24, então diz a taxa real (senão o movimento fica ~4% mais lento)
         kw = lowmem.keep(kw, params)
         kw.update(extra or {})
         (torch,) = _local_import("torch")
