@@ -100,8 +100,16 @@ def _transformers_like(row: Dict[str, Any]) -> bool:
     return lib == "transformers" or (lib == "" and "transformers" in tags)
 
 
+def _diffusers_like(row: Dict[str, Any]) -> bool:
+    """Repositório no formato do diffusers (v0.68: AudioLDM, MusicLDM e Stable Audio): não é GGUF, nem ONNX/TFLite, nem precisa de código próprio. A biblioteca pode vir como «diffusers», «stable-audio-3» ou vazia."""
+    _mid, tags, lib, _tag = _facts(row)
+    if tags & {"custom_code", "gguf", "onnx", "tflite"} or lib in ("gguf", "ggml", "audio.cpp", "onnx"):
+        return False
+    return lib in ("diffusers", "stable-audio-3", "stable-audio", "") or "diffusers" in tags
+
+
 _FAMILIES = {
-    "sound": ("MusicGen", re.compile(r"musicgen", re.I)),
+    "sound": ("MusicGen, AudioLDM, MusicLDM e Stable Audio", re.compile(r"musicgen|audioldm|musicldm|stable-audio", re.I)),
     "voice": ("Bark, MMS-TTS (VITS), Orpheus ou CSM", re.compile(r"(^|[/_-])bark|mms-tts|(^|[/_-])vits|orpheus|(^|[/_-])csm", re.I)),
     "stt": ("Whisper", re.compile(r"whisper", re.I)),
 }
@@ -115,7 +123,15 @@ def compat(cap: str, topic: str, row: Dict[str, Any]) -> Dict[str, str]:
     if not ok_topic:
         what = {"clone": "trocar ou clonar vozes", "design": "criar vozes por descrição", "dub": "dublar fala em outro idioma", "tools": "separar ou melhorar áudio"}.get(topic, "este tipo de tarefa")
         return {"level": "no", "reason": f"O OpenFlow ainda não tem um nó para {what} com este tipo de modelo (a dublagem do OpenFlow junta a transcrição, a tradução e a voz)."}
-    if fam and fam[1].search(mid + " " + " ".join(sorted(tags))) and _transformers_like(row):
+    if cap == "sound" and ok_topic:   # sons e músicas: MusicGen (transformers) ou os pipelines de áudio do diffusers
+        from .canvas import soundmodels
+
+        f = soundmodels.family(mid)
+        if f == "musicgen" and _transformers_like(row):
+            return {"level": "ok", "reason": "Família MusicGen: o OpenFlow tem suporte (usa a biblioteca transformers)."}
+        if f in soundmodels.DIFFUSERS and _diffusers_like(row):
+            return {"level": "ok", "reason": f"Família {({'audioldm': 'AudioLDM / MusicLDM', 'stable-audio-open': 'Stable Audio Open', 'stable-audio-3': 'Stable Audio 3'})[f]}: o OpenFlow tem suporte (usa a biblioteca diffusers)."}
+    elif fam and fam[1].search(mid + " " + " ".join(sorted(tags))) and _transformers_like(row):
         return {"level": "ok", "reason": f"Família {fam[0]}: o OpenFlow tem suporte (usa a biblioteca transformers)."}
     want = fam[0] if fam else "outra família"
     if "custom_code" in tags:

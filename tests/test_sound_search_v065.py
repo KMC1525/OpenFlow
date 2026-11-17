@@ -94,7 +94,7 @@ class CompatTests(unittest.TestCase):
         self.assertEqual(c["level"], "no")
         self.assertIn("código próprio", c["reason"])
         self.assertIn("MusicGen", c["reason"])
-        self.assertIn("stable-audio-3", ss.compat("sound", "sfx", row(STABLE))["reason"])
+        self.assertEqual(ss.compat("sound", "sfx", row(STABLE))["level"], "ok")           # v0.68: Stable Audio 3 pelo diffusers
         self.assertIn("diffusers", ss.compat("sound", "sfx", row(MOSS))["reason"])
         self.assertEqual(self.level("voice", "tts", KOKORO), "no")         # o mais baixado de todos: o OpenFlow não o roda
         self.assertEqual(self.level("voice", "tts", VIBE), "no")
@@ -121,7 +121,7 @@ class RankTests(unittest.TestCase):
     def test_music_keeps_only_music_and_runnable_ones_come_first(self):
         out = ss.rank([row(r) for r in ALL], "sound", "music")
         self.assertEqual([x["id"] for x in out], ["facebook/musicgen-medium", "stabilityai/stable-audio-3-medium", "ACE-Step/Ace-Step1.5"])
-        self.assertEqual([x["compat"]["level"] for x in out], ["ok", "no", "no"])
+        self.assertEqual([x["compat"]["level"] for x in out], ["ok", "ok", "no"])        # v0.68: o Stable Audio (diffusers) também roda
         self.assertEqual(out[1]["topics"], ["music", "sfx"])
 
     def test_effects(self):

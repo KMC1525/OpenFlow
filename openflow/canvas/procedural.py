@@ -13,6 +13,7 @@ import random
 import re
 import shutil
 import struct
+import subprocess
 import tempfile
 import wave
 import zlib
@@ -381,6 +382,21 @@ def _babble_samples(text: str, speed: float = 1.0, seed: int = 0, style: str = "
 
 def ffmpeg_path() -> Optional[str]:
     return shutil.which("ffmpeg")
+
+
+def change_tempo(wav: bytes, factor: float) -> Optional[bytes]:
+    """O WAV mais rápido (`factor` > 1) ou mais lento (< 1) sem mudar o tom, pelo `atempo` do ffmpeg (0,5 a 2). None sem ffmpeg ou se ele falhar (quem chama deixa o áudio como está)."""
+    ff = ffmpeg_path()
+    if not ff or not wav or not 0.5 <= float(factor) <= 2.0:
+        return None
+    with tempfile.TemporaryDirectory() as td:
+        src, dst = Path(td) / "in.wav", Path(td) / "out.wav"
+        src.write_bytes(wav)
+        try:
+            r = subprocess.run([ff, "-y", "-loglevel", "error", "-i", str(src), "-af", f"atempo={float(factor):.4f}", str(dst)], capture_output=True, timeout=120)
+        except (OSError, subprocess.SubprocessError):
+            return None
+        return dst.read_bytes() if r.returncode == 0 and dst.exists() and dst.stat().st_size > 44 else None
 
 
 def video_from_image(png: bytes, seconds: int, size: Tuple[int, int], fps: int = 24, seed: int = 0) -> bytes:
