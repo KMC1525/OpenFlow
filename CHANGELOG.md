@@ -2,6 +2,20 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.77.0] — 2026-11-17
+
+### Corrigido — travamentos ao gerar e editar em máquinas fracas
+Quatro motivos faziam o nó (ou o computador inteiro) parecer travado; todos foram tratados.
+- **O botão «Parar» ficava mudo por minutos:** o cancelamento só era lido entre uma imagem e outra, e numa máquina fraca uma imagem leva muitos minutos. Agora o cancelamento é lido **a cada passo de difusão** (imagem e vídeo do Hugging Face local), e o nó mostra o progresso: «Gerando imagem: passo 12 de 28 — faltam ≈ 3min10s» (em imagem → imagem, conta só os passos que de fato rodam). Com várias imagens, «Gerando imagem 2 de 3».
+- **O computador inteiro engasgava:** o torch usava todos os núcleos da CPU. Agora ele deixa **pelo menos um núcleo livre** para a interface e o sistema (modo equilibrado: todos menos um; leve: metade; máximo: todos, como antes). Vale para imagem, vídeo, voz, som e transcrição locais.
+- **Silêncio durante etapas longas:** carregar um modelo grande leva minutos sem nenhum evento, e o fim da geração (a decodificação da imagem na CPU, a stable-diffusion.cpp) também. Agora, a cada poucos segundos, o nó avisa «Carregando «modelo» na memória… 1min20s» e «Ainda gerando… 45s», com o tempo decorrido; o aviso para quando a etapa termina. Se você cancelar durante o carregamento, o cancelamento vale logo depois dele.
+- **Modelo maior que a RAM travava a máquina toda:** um modelo que não cabe na RAM livre vai para a memória virtual do disco e o computador inteiro fica sem resposta por minutos. Agora: acima de 1× a RAM livre, o nó **avisa** («Este modelo ocupa 20,0 GB e só há 16,0 GB de RAM livre… use uma precisão menor ou um GGUF»); acima de 2×, **recusa antes de carregar**, com a mesma explicação. Para tentar mesmo assim (devagar, usando o disco), defina `OPENFLOW_ALLOW_SWAP=1`. Modelo inteiro na placa de vídeo não conta a RAM.
+
+### Ainda não verificado
+- **Nenhum modelo real foi executado** (o Hugging Face está bloqueado onde isto foi desenvolvido): pipelines falsos com a assinatura real do diffusers chamam o callback a cada passo, e o torch é simulado. Que o computador fique de fato mais fluido, e quanto mais lenta a geração fica com um núcleo a menos, depende da sua máquina.
+- O cancelamento por passo e o progresso valem para pipelines do diffusers que têm `callback_on_step_end` na assinatura (a maioria: FLUX, Qwen-Image, SD3, SDXL, Z-Image, LTX, Wan). O FLUX.3 (pipeline modular), a stable-diffusion.cpp em Python e o sd-cli mostram só o aviso periódico: a stable-diffusion.cpp em Python continua sem poder ser interrompida no meio de uma imagem.
+- Os limites 1× e 2× da RAM são regras simples sobre o tamanho dos arquivos do modelo; um modelo que cabe na RAM mas muda de tipo ao carregar (ex.: fp16 → bf16) pode ocupar mais do que o tamanho do arquivo.
+
 ## [0.76.0] — 2026-11-17
 
 ### Corrigido — «AudioVAE checkpoint not found» na Dublagem (e na Voz) com o openbmb/VoxCPM2
