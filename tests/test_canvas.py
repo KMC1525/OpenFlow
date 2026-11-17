@@ -742,7 +742,7 @@ class LocalHFTests(unittest.TestCase):
         self.assertEqual(calls["device"], "cpu")
         self.assertEqual((calls["kw"]["num_inference_steps"], calls["kw"]["guidance_scale"], calls["kw"]["width"]), (2, 0.0, 768))  # turbo e CPU: leve
         load = mods["diffusers"].AutoPipelineForText2Image.from_pretrained.call_args.kwargs
-        self.assertEqual((load["local_files_only"], load["variant"], load["torch_dtype"]), (True, "fp16", mods["torch"].float16))  # nunca baixa sozinho
+        self.assertEqual((load["local_files_only"], load["variant"], load["torch_dtype"]), (True, "fp16", mods["torch"].float32))  # nunca baixa sozinho; v0.72: na CPU o fp16 vira float32 (o torch não roda fp16 na CPU)
 
     def test_a_model_that_was_not_downloaded_is_refused_instead_of_downloaded_silently(self):
         from openflow.canvas import localmodels as lm

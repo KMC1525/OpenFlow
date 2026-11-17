@@ -2,6 +2,30 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.72.0] — 2026-11-17
+
+### Corrigido — modelos locais de imagem e vídeo em computadores fracos (FLUX, Qwen-Image e os demais)
+Procurei os problemas **lendo o código do diffusers 0.43** (as assinaturas reais de cada pipeline) e o caminho de geração do OpenFlow; nada disso foi reproduzido com um modelo de verdade.
+- **Editar com Qwen-Image-Edit, FLUX Kontext e FLUX.2 quebrava:** o OpenFlow mandava `strength` (que esses pipelines não têm) e passava por um «imagem → imagem» que o diffusers não liga a eles. Agora os argumentos pedidos são conferidos contra a assinatura real do pipeline: esses modelos editam com `image` direto, sem `strength`. Um modelo que não aceita imagem diz isso, em vez de um erro cru no meio da geração.
+- **Qwen-Image gerava mais fraco do que devia:** o OpenFlow mandava `guidance_scale` 7 (que ele ignora) e nenhum prompt negativo, e sem prompt negativo o diffusers **desliga o CFG**. Agora usa `true_cfg_scale` 4,0 com prompt negativo, 30 passos (50 é o padrão da biblioteca; 30 poupa tempo em máquina fraca) e, nas versões «Lightning», 4 ou 8 passos sem CFG (antes: 2 passos).
+- **Várias imagens de referência:** o FLUX.2 dev (até 10) e o Qwen-Image-Edit-Plus/2509/2511 (até 3) só usavam a primeira; agora usam todas, dentro do limite de cada um.
+- **Imagens pretas no FLUX e no Qwen-Image com GPU:** esses modelos são treinados em bf16 e estouram em fp16. Um modelo baixado em fp16 agora é carregado em bfloat16 (os pesos fp16 são lidos nesse tipo).
+- **Computador sem GPU:** um modelo baixado em fp16 rodava em fp16 na CPU e falhava («not implemented for 'Half'») no Whisper, Bark, MMS, SDXL e outros. Agora a CPU usa float32 nos modelos pequenos e bfloat16 nos grandes (FLUX, Qwen, SD3, Wan, LTX…, onde float32 dobraria a RAM). Vale para imagem, vídeo, voz, som e transcrição.
+- **Tamanho na CPU:** o lado maior ia a 768 mas **cada lado era cortado sozinho** (1024×576 virava 768×576, esticado); agora a proporção é mantida (768×432). As medidas são múltiplas de 16, como FLUX, Qwen-Image, SD3 e Z-Image pedem.
+- **Faltou memória ao gerar:** em vez do erro cru do torch, o OpenFlow tenta de novo mais leve. Na placa de vídeo: fatiamento do VAE e descarga do modelo para a RAM; depois, uma imagem 25% menor (até 2 vezes; as próximas imagens já saem no tamanho que coube). Na RAM, só a redução. No vídeo: primeiro menos quadros, depois menor. Se nada couber, a mensagem diz o que fazer (imagem menor, precisão menor, GGUF quantizado, memória virtual no Windows).
+- **Faltou memória ao carregar:** a mensagem explica (RAM ou placa) em vez de um traceback; e se o modelo não cabe na placa mesmo com o plano, o carregamento cai para a descarga para a RAM.
+- **Vídeo só de texto com imagem ligada:** dava `TypeError` no meio da geração; agora a mensagem diz que o modelo só gera a partir de texto.
+
+### Novo — biblioteca voxcpm nas bibliotecas do OpenFlow
+- `flow libs` (e o instalador/atualizador, que usam «all») agora instalam a biblioteca **voxcpm** (a voz do VoxCPM2) quando o Python é 3.10 ou mais novo; no 3.9 ela é pulada. Também `pip install "openflow[voxcpm]"`, e o extra «all» a inclui (`python_version >= "3.10"`). Se a instalação falhar, o OpenFlow segue sem ela e avisa.
+- `flow doctor` mostra se a voxcpm está instalada. Se a biblioteca existe mas falta uma dependência dela (funasr, modelscope…), o nó diz qual; no Python 3.9 diz que precisa do 3.10.
+
+### Ainda não verificado
+- **Nenhum modelo real foi executado** (o Hugging Face está bloqueado onde isto foi desenvolvido): FLUX, Qwen-Image e os demais foram exercitados com pipelines de mentira que têm a assinatura real do diffusers. Que o OpenFlow agora gere/edite nessas máquinas, e quanta memória cada modelo realmente usa, não foi medido.
+- A tentativa mais leve depois de faltar memória (descarga sequencial depois da descarga do modelo) depende da versão do diffusers/accelerate e é feita «no que couber»; se uma etapa não existir, passa para a seguinte (a redução do tamanho).
+- O FLUX.1 em bf16 numa GPU sem bf16 nativo (Pascal/Turing, como a GTX 16xx) roda por emulação, mais lento; um modelo FP8/GGUF é melhor nesses casos.
+- A instalação da voxcpm junto de tudo pode trazer dependências pesadas (gradio, funasr, modelscope…) e conflitar com versões já instaladas; falhas só geram aviso.
+
 ## [0.71.0] — 2026-11-17
 
 ### Novo — suporte ao openbmb/VoxCPM2 (voz local)
