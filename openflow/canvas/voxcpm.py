@@ -12,6 +12,7 @@ Os quatro modos do modelo, e como o nó Voz os usa:
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 REPO = "openbmb/VoxCPM2"
@@ -93,6 +94,19 @@ def split_text(text: str, limit: int = MAX_CHUNK) -> List[str]:
         cur += sent
     flush()
     return out
+
+
+CODEC_FILES = ("audiovae.safetensors", "audiovae.pth")
+CODEC_DOWNLOAD = "audiovae.pth"     # o arquivo que o repositório openbmb/VoxCPM2 traz
+CODEC_MB = 377
+
+
+def missing_codec(snapshot: Optional[Path]) -> bool:
+    """O modelo baixado está sem o codec de áudio (`audiovae.safetensors` ou `audiovae.pth`)? Os downloads feitos antes da v0.71 descartavam o .pth (o seletor de arquivos só ficava com `.safetensors`), e a
+    biblioteca então falha com «AudioVAE checkpoint not found»."""
+    if not snapshot:
+        return False
+    return not any((Path(snapshot) / n).is_file() for n in CODEC_FILES)
 
 
 def options(extra: Optional[Dict[str, Any]]) -> Dict[str, Any]:

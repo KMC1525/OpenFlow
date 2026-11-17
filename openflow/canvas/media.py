@@ -1222,6 +1222,23 @@ class LocalHFMedia(MediaProvider):
             raise ProviderError("Não consegui ler o áudio de referência (o arquivo está corrompido ou não tem som).")
         return dst
 
+    def _complete_voxcpm_download(self, model: str) -> None:
+        """Um VoxCPM baixado antes da v0.71 não tem o codec de áudio (`audiovae.pth`, ≈ 377 MB) e não carrega («AudioVAE checkpoint not found»). Só esse arquivo é baixado agora — com um aviso no nó, do mesmo
+        repositório que o usuário já escolheu — e, sem rede, o erro diz como resolver."""
+        from . import localmodels as lm
+
+        snap = lm._snapshot(model)
+        if not voxcpm.missing_codec(snap):
+            return
+        self.ctl.note(f"O modelo {model} foi baixado sem o codec de áudio ({voxcpm.CODEC_DOWNLOAD}, ≈ {voxcpm.CODEC_MB} MB; downloads antes da v0.71 o pulavam): baixando só esse arquivo agora…")
+        try:
+            lm.fetch_files(model, [voxcpm.CODEC_DOWNLOAD])
+        except ProviderError as exc:
+            raise ProviderError(f"O modelo {model} está sem o codec de áudio ({voxcpm.CODEC_DOWNLOAD}) e não consegui baixá-lo agora ({exc}). Baixe o modelo de novo em Configuração → Mídia (só esse arquivo falta) "
+                                f"ou coloque o {voxcpm.CODEC_DOWNLOAD} na pasta {snap}.") from None
+        if voxcpm.missing_codec(lm._snapshot(model)):
+            raise ProviderError(f"O repositório {model} não trouxe o codec de áudio ({voxcpm.CODEC_DOWNLOAD}). Baixe o modelo de novo em Configuração → Mídia.")
+
     def _voice_voxcpm(self, text: str, model: str, extra: Optional[Dict[str, Any]], instructions: str, reference: Any = None, reference_text: str = "") -> Media:
         """VoxCPM / VoxCPM2 (openbmb/VoxCPM2): fala em 30 idiomas, «design de voz» pela descrição, clonagem controlável (áudio de referência) e clonagem fiel (referência + o texto dela). Saída em 48 kHz."""
         (np,) = _local_import("numpy")
@@ -1235,13 +1252,19 @@ class LocalHFMedia(MediaProvider):
                 raise ProviderError(f'A biblioteca voxcpm está instalada, mas falta a dependência «{exc.name}». Reinstale:  pip install -U voxcpm  (ou rode: flow libs --extras voxcpm).') from None
             raise ProviderError('O VoxCPM precisa da biblioteca "voxcpm" (Python 3.10 ou mais novo):  pip install voxcpm  (ou rode: flow libs --extras voxcpm).') from None
         self._ready(model)
+        self._complete_voxcpm_download(model)
         dev, _ = _device()
 
         def load() -> Any:
             old = os.environ.get("HF_HUB_OFFLINE")
             os.environ["HF_HUB_OFFLINE"] = "1"   # nada é baixado em silêncio
             try:
-                return vox.VoxCPM.from_pretrained(model, load_denoiser=False, local_files_only=True, optimize=False, device=dev)
+                try:
+                    return vox.VoxCPM.from_pretrained(model, load_denoiser=False, local_files_only=True, optimize=False, device=dev)
+                except ProviderError:
+                    raise
+                except Exception as exc:  # noqa: BLE001 — o erro cru da biblioteca («AudioVAE checkpoint not found…») não diz o que fazer
+                    raise ProviderError(f"O VoxCPM não conseguiu carregar «{model}»: {type(exc).__name__}: {str(exc)[:300]}. Se o modelo foi baixado incompleto, baixe-o de novo em Configuração → Mídia.") from None
             finally:
                 if old is None:
                     os.environ.pop("HF_HUB_OFFLINE", None)

@@ -226,6 +226,20 @@ def download(model: str, precision: str, token: str = "", progress: Optional[Cal
     return snap
 
 
+def fetch_files(model: str, names: List[str], token: str = "") -> List[Path]:
+    """Baixa só os arquivos `names` de um modelo que já está baixado (os que faltaram: ex. o codec de áudio do VoxCPM que os downloads antes da v0.71 pulavam). Devolve os caminhos."""
+    hub = _hub()
+    out = []
+    for n in names:
+        try:
+            out.append(Path(hub.hf_hub_download(model, n, token=token or None)))
+        except ProviderError:
+            raise
+        except Exception as exc:  # noqa: BLE001
+            raise _gated_or(exc, model, token) from None
+    return out
+
+
 def torch_dtype(precision: str) -> Any:
     import torch  # type: ignore
 
