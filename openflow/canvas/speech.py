@@ -186,8 +186,11 @@ def run_sub(eng: Any, canvas: Dict[str, Any], node: Dict[str, Any]) -> Dict[str,
     if p["translate_to"]:
         texts = translate(eng, [s["text"] for s in segs], lang, p["translate_to"], warnings)
         segs = [sub.seg(s["start"], s["end"], t) for s, t in zip(segs, texts)]
-    segs = sub.tidy(sub.shift(sub.split_long(segs, p["max_chars"] * p["lines"], p["max_seconds"]), p["offset"]))
+    cut = sub.split_long(segs, p["max_chars"] * p["lines"], p["max_seconds"])
+    segs = sub.tidy(sub.shift(cut, p["offset"]))
     if not segs:
+        if cut and p["offset"]:   # v0.74: o erro dizia «não encontrei fala» quando, na verdade, o deslocamento empurrou todas as legendas para antes do zero
+            raise ValueError(f"Com «Adiantar/atrasar» em {p['offset']:g} s todas as legendas ficariam antes do início do arquivo. Use um valor menor (a fala termina em {max(s['end'] for s in cut):.1f} s).")
         raise ValueError("Não encontrei fala para legendar.")
     out = (sub.to_vtt if p["format"] == "vtt" else sub.to_srt)(segs, p["max_chars"], p["lines"])
     warnings.insert(0, f"{len(segs)} legenda(s) em {p['format'].upper()}: use o botão «Baixar» do nó e carregue o arquivo no reprodutor.")

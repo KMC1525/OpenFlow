@@ -115,7 +115,7 @@ def respond(self, kw):
     class Img:
         def save(self, buf, format="PNG"):
             buf.write(PNG)
-    return mock.Mock(images=[Img()])
+    return mock.Mock(images=[Img()], frames=[["f"]])
 
 
 def qwen_call(self, prompt=None, negative_prompt=None, true_cfg_scale=4.0, height=None, width=None, num_inference_steps=50, sigmas=None, guidance_scale=None, generator=None, max_sequence_length=512):
@@ -401,7 +401,7 @@ class VideoTests(unittest.TestCase):
         def call(self, prompt=None, width=None, height=None, num_frames=None):
             return mock.Mock(frames=[["f"]])
         with self.assertRaises(ProviderError) as cm:
-            self.run_video(make_pipe("LTXPipeline", call), image=(PNG, "image/png"))
+            self.run_video(make_pipe("WanPipeline", call), image=(PNG, "image/png"))
         self.assertIn("só gera vídeo a partir de texto", str(cm.exception))
 
     def test_video_oom_halves_the_frames_then_the_size(self):
