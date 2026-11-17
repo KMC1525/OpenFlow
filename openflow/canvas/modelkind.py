@@ -11,10 +11,13 @@ from typing import Dict
 
 _STT = re.compile(r"(whisper|wav2vec|hubert|wavlm|parakeet|canary|conformer|moonshine|speech2text|speecht5[-_]asr|(^|[/_-])asr([/_-]|$))", re.I)
 _VOICE = re.compile(r"((^|[/_-])bark|mms-tts|(^|[/_-])vits|speecht5|orpheus|(^|[/_-])csm|kokoro|xtts|parler|vibevoice|f5-tts|chatterbox|outetts|voxcpm|(^|[/_-])tts([/_-]|$))", re.I)
-_SOUND = re.compile(r"(musicgen|audioldm|stable-audio|audiogen|ace-?step|(^|[/_-])yue|riffusion|(^|[/_-])tango|soundeffect|diffrhythm)", re.I)
+_SOUND = re.compile(r"(musicgen|audioldm|musicldm|stable-audio|audiogen|ace-?step|riffusion|soundeffect|diffrhythm)", re.I)
 
 LABEL: Dict[str, str] = {"stt": "transcrição (fala → texto)", "voice": "voz (texto → fala)", "sound": "sons e músicas"}
 EXAMPLES: Dict[str, str] = {"stt": "Whisper", "voice": "Bark, MMS-TTS, Orpheus, CSM ou VoxCPM", "sound": "MusicGen"}
+
+
+_SOUND_NAME = re.compile(r"^(yue|tango)([-_.0-9]|$)", re.I)   # só o NOME do modelo, não o da organização («yuewen/…» e «tango-labs/…» podem ser modelos de imagem)
 
 
 def kind_of(model: str) -> str:
@@ -22,7 +25,7 @@ def kind_of(model: str) -> str:
     name = str(model or "")
     if _STT.search(name):
         return "stt"
-    if _SOUND.search(name):
+    if _SOUND.search(name) or _SOUND_NAME.search(name.rsplit("/", 1)[-1]):
         return "sound"
     if _VOICE.search(name):
         return "voice"
