@@ -36,7 +36,7 @@ from .. import perf as _perf
 from ..util import hardware_info
 from ..providers.base import ProviderError
 from . import procedural as proc
-from . import gguf_info, mesh3d, sdcli, support
+from . import gguf_info, mesh3d, sdcli, support, voxcpm
 
 CAP_LABELS = {"image": "imagens", "video": "vídeos", "sound": "sons e músicas", "voice": "vozes", "stt": "transcrição de áudio", "model3d": "modelos 3D"}
 Ref = Tuple[bytes, str]  # (bytes, mime) de uma imagem de referência
@@ -256,8 +256,14 @@ class MediaProvider:
         """O modelo canta a letra? (A engine avisa quando não: a música sai só com o estilo.)"""
         return False
 
-    def voice(self, text: str, *, voice: str = "", speed: float = 1.0, model: str = "", extra: Optional[Dict[str, Any]] = None, instructions: str = "") -> Media:
+    def voice(self, text: str, *, voice: str = "", speed: float = 1.0, model: str = "", extra: Optional[Dict[str, Any]] = None, instructions: str = "", reference: Optional[Ref] = None,
+              reference_text: str = "") -> Media:
+        """`reference` (v0.71): um áudio (bytes, mime) com a voz a clonar e `reference_text`, o que ele diz (opcional; melhora a clonagem). Só os modelos que clonam voz (`clones_voice`) os usam."""
         raise self._no("voice")
+
+    def clones_voice(self, model: str = "") -> bool:
+        """O modelo clona a voz de um áudio de referência (v0.71)? A engine avisa quando há uma referência ligada e o modelo não clona."""
+        return False
 
     def voice_style_note(self, model: str = "") -> str:
         """O que dizer ao usuário quando ele descreve a voz («Como é a voz») e este modelo não a lê por inteiro; vazio = a descrição vale (v0.64). O padrão: o modelo ignora a descrição."""
@@ -318,7 +324,7 @@ class DemoMedia(MediaProvider):
     def sings_lyrics(self, model=""):
         return True   # a demonstração «canta» a letra num balbucio rítmico (não é canto de verdade)
 
-    def voice(self, text, *, voice="", speed=1.0, model="", extra=None, instructions=""):
+    def voice(self, text, *, voice="", speed=1.0, model="", extra=None, instructions="", reference=None, reference_text=""):
         return Media(proc.babble(text, speed, proc.seed_of(voice), instructions), "audio/wav", {"note": "demo"})
 
     def voice_style_note(self, model=""):
@@ -1084,9 +1090,89 @@ class LocalHFMedia(MediaProvider):
         first = audio[0] if isinstance(audio, (list, tuple)) else audio
         return Media(_wav_from_array(first.to(torch.float32).cpu().numpy(), 24000), "audio/wav")
 
-    def voice(self, text, *, voice="", speed=1.0, model="", extra=None, instructions=""):
+    def _reference_wav(self, reference: Any, tmp: Path, keep_all: bool) -> Path:
+        """O áudio de referência como WAV mono de 16 kHz num arquivo (um vídeo vira o áudio dele). Sem texto da referência, só os primeiros 30 s valem: referência longa demora e não melhora a clonagem."""
+        data, mime = reference
+        src = tmp / ("ref." + (MIME_EXT.get(mime, "") or "bin"))
+        src.write_bytes(data)
+        ff = proc.ffmpeg_path()
+        if not ff:
+            if mime in ("audio/wav", "audio/x-wav", "audio/wave"):
+                return src
+            raise ProviderError("Usar uma voz de referência precisa do ffmpeg (para ler o áudio ou o vídeo). Instale-o, ou use um áudio em WAV.")
+        dst = tmp / "ref16k.wav"
+        cmd = [ff, "-y", "-loglevel", "error", "-i", str(src), "-vn", "-ac", "1", "-ar", "16000", *([] if keep_all else ["-t", f"{voxcpm.MAX_REFERENCE_SECONDS:g}"]), str(dst)]
+        r = subprocess.run(cmd, capture_output=True, timeout=300)
+        if r.returncode != 0 or not dst.exists():
+            raise ProviderError("Não consegui ler o áudio de referência (o arquivo está corrompido ou não tem som).")
+        return dst
+
+    def _voice_voxcpm(self, text: str, model: str, extra: Optional[Dict[str, Any]], instructions: str, reference: Any = None, reference_text: str = "") -> Media:
+        """VoxCPM / VoxCPM2 (openbmb/VoxCPM2): fala em 30 idiomas, «design de voz» pela descrição, clonagem controlável (áudio de referência) e clonagem fiel (referência + o texto dela). Saída em 48 kHz."""
+        (np,) = _local_import("numpy")
+        (torch,) = _local_import("torch")
+        try:
+            vox = __import__("voxcpm", fromlist=["_"])
+        except ImportError:
+            raise ProviderError('O VoxCPM precisa da biblioteca "voxcpm" (Python 3.10 ou mais novo):  pip install voxcpm  (ou rode: flow libs --extras voxcpm).') from None
+        self._ready(model)
+        dev, _ = _device()
+
+        def load() -> Any:
+            old = os.environ.get("HF_HUB_OFFLINE")
+            os.environ["HF_HUB_OFFLINE"] = "1"   # nada é baixado em silêncio
+            try:
+                return vox.VoxCPM.from_pretrained(model, load_denoiser=False, local_files_only=True, optimize=False, device=dev)
+            finally:
+                if old is None:
+                    os.environ.pop("HF_HUB_OFFLINE", None)
+                else:
+                    os.environ["HF_HUB_OFFLINE"] = old
+
+        engine = _local_load("voice", model, load)
+        opts = voxcpm.options(extra)
+        use_ref = reference is not None and voxcpm.supports_reference(model)
+        if reference is not None and not use_ref:
+            self.ctl.note(f"«{model}» não clona voz (só o VoxCPM2 aceita áudio de referência): ignorei a referência.")
+        ultimate = use_ref and bool((reference_text or "").strip())
+        if ultimate and instructions.strip():
+            self.ctl.note("Na clonagem fiel (referência + texto da referência) o modelo não lê a descrição da voz: ignorei a descrição.")
+        chunks = voxcpm.split_text(text)
+        if not chunks:
+            raise ProviderError("O VoxCPM precisa de um texto para falar.")
+        rate = int(getattr(engine.tts_model, "sample_rate", 0) or 48000)
+        parts: List[Any] = []
+        with tempfile.TemporaryDirectory() as td:
+            ref_path = self._reference_wav(reference, Path(td), keep_all=ultimate) if use_ref else None
+            self.ctl.note("Sintetizando voz com o VoxCPM (local)" + (" — clonando a voz de referência…" if use_ref else "…"))
+            for i, chunk in enumerate(chunks):
+                kw: Dict[str, Any] = dict(opts)
+                if use_ref:
+                    kw["reference_wav_path"] = str(ref_path)
+                    if ultimate:
+                        kw.update(prompt_wav_path=str(ref_path), prompt_text=reference_text.strip())
+                line = chunk if ultimate else voxcpm.with_description(chunk, instructions)
+                try:
+                    with torch.no_grad():
+                        wav = engine.generate(text=line, **kw)
+                except ProviderError:
+                    raise
+                except Exception as exc:  # noqa: BLE001 — a mensagem da biblioteca é o que ajuda a achar o problema (memória, versão…)
+                    raise ProviderError(f"O VoxCPM não conseguiu gerar a voz: {type(exc).__name__}: {str(exc)[:300]}") from None
+                arr = wav.detach().cpu().float().numpy() if hasattr(wav, "detach") else np.asarray(wav, dtype="float32")
+                parts.append(np.squeeze(arr))
+                if i + 1 < len(chunks):
+                    parts.append(np.zeros(int(voxcpm.SILENCE_SECONDS * rate), dtype="float32"))
+        return Media(_wav_from_array(np.concatenate(parts), rate), "audio/wav")
+
+    def clones_voice(self, model=""):
+        return voxcpm.supports_reference(self.model_for("voice", model) or model)
+
+    def voice(self, text, *, voice="", speed=1.0, model="", extra=None, instructions="", reference=None, reference_text=""):
         model = self._pick("voice", model, "suno/bark-small")
         self._expect("voice", model)
+        if voxcpm.is_voxcpm(model):
+            return self._with_speed(self._voice_voxcpm(text, model, extra, instructions, reference, reference_text), speed)
         if re.search(r"orpheus", model, re.I):
             return self._with_speed(self._voice_orpheus(text, voice, model, extra, instructions), speed)
         if re.search(r"(^|/)csm-1b", model, re.I):
@@ -1099,6 +1185,8 @@ class LocalHFMedia(MediaProvider):
         return self._with_speed(Media(_wav_from_array(res["audio"], res["sampling_rate"]), "audio/wav"), speed)
 
     def voice_style_note(self, model=""):
+        if voxcpm.is_voxcpm(self.model_for("voice", model) or model):
+            return ""   # o VoxCPM lê a descrição inteira («Design de voz»)
         if re.search(r"orpheus", self.model_for("voice", model) or model or "", re.I):
             return "O Orpheus só usa da descrição da voz o gênero (feminina ou masculina), para escolher uma das vozes dele quando o campo «Voz» está vazio; o resto da descrição foi ignorado."
         return super().voice_style_note(self.model_for("voice", model) or model)
@@ -2089,7 +2177,7 @@ MEDIA_PRESETS: Dict[str, Dict[str, Any]] = {   # v0.35: só o Demo (offline) e o
         "models": {"image": "stabilityai/sd-turbo", "video": "Lightricks/LTX-Video", "sound": "facebook/musicgen-small", "voice": "suno/bark-small", "stt": "openai/whisper-small", "model3d": "openai/shap-e"},
         "suggest": {"model3d": mesh3d.SUGGEST, "image": ["stabilityai/sd-turbo", "stabilityai/sdxl-turbo", "black-forest-labs/FLUX.1-schnell", "unsloth/Z-Image-Turbo", "unsloth/FLUX.2-klein-4B", "unsloth/FLUX.1-schnell"], "video": ["Lightricks/LTX-Video"],
                     "sound": ["facebook/musicgen-small", "facebook/musicgen-medium", "facebook/musicgen-stereo-small", "cvssp/audioldm2", "cvssp/audioldm2-music", "stabilityai/stable-audio-open-1.0", "stabilityai/stable-audio-3-small-sfx"],
-                    "voice": ["suno/bark-small", "facebook/mms-tts-por", "facebook/mms-tts-eng", "facebook/mms-tts-spa", "unsloth/orpheus-3b-0.1-ft", "unsloth/csm-1b"],
+                    "voice": ["suno/bark-small", "facebook/mms-tts-por", "facebook/mms-tts-eng", "facebook/mms-tts-spa", "openbmb/VoxCPM2", "unsloth/orpheus-3b-0.1-ft", "unsloth/csm-1b"],
                     "stt": ["openai/whisper-small", "openai/whisper-large-v3-turbo", "unsloth/whisper-large-v3-turbo", "unsloth/whisper-small", "unsloth/whisper-base"]},
         "hint": 'Roda modelos do Hugging Face dentro do OpenFlow. Requer:  pip install "openflow[media]". Antes de usar, escolha a precisão (quantização) e baixe cada modelo aqui mesmo — nada é baixado em silêncio. Vídeo exige GPU.',
     },

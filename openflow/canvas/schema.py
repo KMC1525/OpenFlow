@@ -35,7 +35,7 @@ NODE_TYPES: Dict[str, Dict[str, Any]] = {
     "dub": {"label": "Dublagem", "icon": "mic", "out": "media", "ins": [("media", "Vídeo ou áudio", ["video", "audio"], False), ("script", "Roteiro", ["text"], True), ("voices", "Vozes", ["audio"], True)]},
     "transcript": {"label": "Transcrição", "icon": "doc", "out": "text", "ins": [("media", "Vídeo ou áudio", ["video", "audio"], False)]},
     "sub": {"label": "Legendas", "icon": "doc", "out": "text", "ins": [("media", "Vídeo ou áudio", ["video", "audio"], False), ("text", "Texto ou legendas", ["text"], True)]},
-    "voice": {"label": "Voz", "icon": "mic", "out": "audio", "ins": [("text", "Fala", ["text"], True), ("style", "Estilo", ["style"], True)]},
+    "voice": {"label": "Voz", "icon": "mic", "out": "audio", "ins": [("text", "Fala", ["text"], True), ("style", "Estilo", ["style"], True), ("reference", "Voz de referência", ["audio", "video"], False)]},
     "model3d": {"label": "Modelo 3D", "icon": "cube", "out": "model3d", "ins": [("prompt", "Prompt", ["text"], True), ("image", "Imagem", ["image", "video"], False), ("style", "Estilo", ["style"], True)]},
     "transcribe": {"label": "Transcrever", "icon": "doc", "out": "text", "ins": [("audio", "Áudio/vídeo", ["audio", "video"], False)]},
     "style_prompt": {"label": "Style Prompt", "icon": "palette", "out": "style", "ins": []},
@@ -268,7 +268,7 @@ def normalize_params(ntype: str, p: Any) -> Dict[str, Any]:
         return _speech_params(ntype, p, prov, model)
     if ntype == "voice":
         return {"text": text(p.get("text"), "", 8000), "voice_style": text(p.get("voice_style"), "", 600), "voice": text(p.get("voice"), "", 80), "speed": round(num(p.get("speed"), 1, 0.5, 2), 2), "provider": prov, "model": model,
-                "extra": _json_dict(p.get("extra")), "ignore_global_styles": bool(p.get("ignore_global_styles"))}
+                "reference_text": text(p.get("reference_text"), "", 1000), "extra": _json_dict(p.get("extra")), "ignore_global_styles": bool(p.get("ignore_global_styles"))}
     if ntype == "model3d":
         return {"prompt": text(p.get("prompt"), "", 2000), "format": "obj" if p.get("format") == "obj" else "glb", "seed": int(num(p.get("seed"), 0, 0, 2 ** 31)), "provider": prov, "model": model,
                 "extra": _json_dict(p.get("extra")), "ignore_global_styles": bool(p.get("ignore_global_styles"))}

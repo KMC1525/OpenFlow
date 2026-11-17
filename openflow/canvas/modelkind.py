@@ -10,11 +10,11 @@ import re
 from typing import Dict
 
 _STT = re.compile(r"(whisper|wav2vec|hubert|wavlm|parakeet|canary|conformer|moonshine|speech2text|speecht5[-_]asr|(^|[/_-])asr([/_-]|$))", re.I)
-_VOICE = re.compile(r"((^|[/_-])bark|mms-tts|(^|[/_-])vits|speecht5|orpheus|(^|[/_-])csm|kokoro|xtts|parler|vibevoice|f5-tts|chatterbox|outetts|(^|[/_-])tts([/_-]|$))", re.I)
+_VOICE = re.compile(r"((^|[/_-])bark|mms-tts|(^|[/_-])vits|speecht5|orpheus|(^|[/_-])csm|kokoro|xtts|parler|vibevoice|f5-tts|chatterbox|outetts|voxcpm|(^|[/_-])tts([/_-]|$))", re.I)
 _SOUND = re.compile(r"(musicgen|audioldm|stable-audio|audiogen|ace-?step|(^|[/_-])yue|riffusion|(^|[/_-])tango|soundeffect|diffrhythm)", re.I)
 
 LABEL: Dict[str, str] = {"stt": "transcrição (fala → texto)", "voice": "voz (texto → fala)", "sound": "sons e músicas"}
-EXAMPLES: Dict[str, str] = {"stt": "Whisper", "voice": "Bark, MMS-TTS, Orpheus ou CSM", "sound": "MusicGen"}
+EXAMPLES: Dict[str, str] = {"stt": "Whisper", "voice": "Bark, MMS-TTS, Orpheus, CSM ou VoxCPM", "sound": "MusicGen"}
 
 
 def kind_of(model: str) -> str:

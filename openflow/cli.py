@@ -133,7 +133,9 @@ LIBS = {
     "docs": "extração de PDFs mais precisa",
     "media": "modelos locais de imagem, vídeo, som e voz (PyTorch, diffusers, transformers — vários GB)",
     "local": "modelos GGUF embutidos: texto, imagem e vídeo (llama-cpp-python e stable-diffusion-cpp-python; compilam código nativo)",
+    "voxcpm": "voz do VoxCPM2 (openbmb/VoxCPM2): fala em 30 idiomas, voz por descrição e clonagem (precisa do Python 3.10+; só instala se você pedir: flow libs --extras voxcpm)",
 }
+OPT_IN_LIBS = ("voxcpm",)   # extras que «all» não instala: trazem muitas dependências próprias (gradio, funasr, modelscope…)
 
 
 def _lib_desc(extra: str) -> str:
@@ -147,7 +149,7 @@ def _wanted_libs(spec: str):
         return [], []
     names = [x.strip() for x in spec.replace(";", ",").split(",") if x.strip()]
     if "all" in names:
-        return list(LIBS), []
+        return [n for n in LIBS if n not in OPT_IN_LIBS], []
     return [n for n in LIBS if n in names], [n for n in names if n not in LIBS]
 
 

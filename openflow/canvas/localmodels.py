@@ -65,6 +65,9 @@ def select_files(files: List[Dict[str, Any]], precision: str) -> List[Dict[str, 
         if not low_n.endswith(WEIGHT_EXT):
             out.append(f)
             continue
+        if low_n.rsplit("/", 1)[-1] == "audiovae.pth":
+            out.append(f)   # VoxCPM: o codec de áudio é um .pth (não há versão safetensors dele): sem ele o modelo não fala
+            continue
         if has_st and not low_n.endswith((".safetensors", ".onnx_data")) and not low_n.endswith(".gguf"):
             continue  # só safetensors quando existe
         if low_n.endswith((".onnx", ".onnx_data", ".tflite", ".mlmodel")):

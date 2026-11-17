@@ -2,6 +2,27 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.71.0] — 2026-11-17
+
+### Novo — suporte ao openbmb/VoxCPM2 (voz local)
+- **O modelo:** VoxCPM2 é um modelo de voz de 2 B de parâmetros, 30 idiomas (incluindo português), saída em **48 kHz** e licença Apache-2.0. Escolha `openbmb/VoxCPM2` no campo «Modelo» do nó Voz (ou da Dublagem): ele aparece nas sugestões de voz do Hugging Face local, é reconhecido como modelo de voz e a barra de pesquisa de sons mostra o selo «ok» para ele nos assuntos «Voz», «Clonar» e «Criada por descrição».
+- **Fala comum:** só o texto, sem marca de idioma. Textos longos são divididos em trechos (≈ 420 caracteres, cortando em fim de frase) com uma pausa curta entre eles, porque o modelo fica instável em entradas muito longas.
+- **Design de voz:** o campo «Como é a voz» (somado ao estilo do projeto) vira «(descrição)texto», como o modelo espera: «mulher jovem, voz doce e animada». Parênteses na descrição são trocados por vírgulas, e um texto que já começa com «(…)» fica como você escreveu.
+- **Clonagem controlável:** ligue um áudio (ou vídeo) na nova entrada **«Voz de referência»** do nó Voz. A voz do áudio é clonada, e a descrição, se houver, guia o estilo («um pouco mais rápido, alegre») mantendo o timbre. O áudio é convertido para WAV mono de 16 kHz (e cortado nos 30 primeiros segundos).
+- **Clonagem fiel:** preencha também «O que se diz na voz de referência» com o texto exato do áudio: o modelo continua a fala dele (o áudio inteiro vale). Nesse modo a descrição da voz não é lida, e o nó avisa.
+- **Dublagem:** cada nó Voz ligado em «Vozes» pode ter a sua própria referência, então cada personagem é clonado de um áudio diferente. Trocar a referência ou o texto dela refaz a dublagem.
+- **Ajustes avançados** no campo «Extra» do nó: `cfg_value` (padrão 2.0), `inference_timesteps` (padrão 10), `normalize`, `denoise` e `retry_badcase`. A velocidade do nó Voz também vale (ffmpeg, sem mudar o tom). O modelo é lido só dos arquivos baixados (nada é baixado em silêncio), em GPU quando houver.
+- **Download:** o codec de áudio do modelo é o arquivo `audiovae.pth`, que o baixador descartava quando o repositório tem `safetensors`; agora ele vem junto dos pesos (sem ele o modelo não fala).
+- **Instalação:** a biblioteca é opcional e fica fora do «all», porque traz muitas dependências próprias (Python 3.10+): `flow libs --extras voxcpm` (ou `pip install voxcpm`). Sem ela, o nó diz como instalar.
+- Outros provedores/modelos que não clonam voz ignoram a «Voz de referência» **com aviso** (o VoxCPM 0.5B/1.5 também não: só o VoxCPM2 aceita referência).
+
+### Ainda não verificado
+- **Nenhum modelo foi baixado nem executado:** o Hugging Face está bloqueado onde isto foi desenvolvido. Os argumentos de `VoxCPM.from_pretrained` e `generate` foram conferidos lendo o código do pacote `voxcpm` 2.0.3 e o README e o `config.json` do `openbmb/VoxCPM2` pelo Hub; nos testes, a biblioteca e o torch são simulados (ffmpeg e numpy são reais).
+- Não sei se a biblioteca instala sem conflito nas suas versões do torch/transformers, nem quanta memória o modelo usa no seu computador (o README cita ≈ 8 GB de VRAM). Rodei com `optimize=False` (sem `torch.compile`) para ser estável: pode ser mais lento do que o ritmo que o README cita.
+- A qualidade da clonagem e do design de voz **em português**, e se descrições em português funcionam tão bem quanto em inglês/chinês, não foi avaliada. O README avisa que design de voz e controle de estilo variam entre execuções (gere 1 a 3 vezes).
+- O modelo não tem semente: duas gerações do mesmo texto podem soar diferentes.
+- Uso proibido pelo autor do modelo: personificação, fraude e desinformação. Rotule o áudio gerado e clone só vozes que você tem direito de usar.
+
 ## [0.70.0] — 2026-11-17
 
 ### Novo — Remover marca d'água de imagens e vídeos

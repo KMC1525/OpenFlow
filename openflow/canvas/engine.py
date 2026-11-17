@@ -779,7 +779,14 @@ class CanvasEngine:
                 note = prov.voice_style_note(p["model"] or model)
                 if note:
                     warnings.append(note)
-            m = prov.voice(speech, voice=p["voice"], speed=p["speed"], model=p["model"], extra=p["extra"], instructions=voicestyle.compose(p["voice_style"], style.render(speech)))
+            ref = next((a for a in self.inputs(canvas, node, "reference")["assets"] if a["kind"] in ("audio", "video")), None)
+            ref_bytes = (self._asset_bytes(ref), ref["mime"]) if ref else None
+            if ref and not ref_bytes[0]:
+                raise ValueError("O arquivo da voz de referência não existe mais.")
+            if ref_bytes and not prov.clones_voice(p["model"] or model):
+                warnings.append(f"{prov.label}{' (' + (p['model'] or model) + ')' if (p['model'] or model) else ''} não clona voz: a «Voz de referência» foi ignorada (use o VoxCPM2 em Modelos locais).")
+                ref_bytes = None
+            m = prov.voice(speech, voice=p["voice"], speed=p["speed"], model=p["model"], extra=p["extra"], instructions=voicestyle.compose(p["voice_style"], style.render(speech)), **({"reference": ref_bytes, "reference_text": p["reference_text"]} if ref_bytes else {}))
             return {"assets": [self._save(node, m, "audio", self._title(node, "Voz"), speech, pid, model)], "text": "", "warnings": warnings}
         raise ValueError(f"Tipo de nó sem gerador: {t}")
 

@@ -129,6 +129,7 @@ EN = {
     'Rust: não há um terminal para perguntar, então não instalei nada. Para instalar: flow native setup --rust yes   (ou OPENFLOW_RUST=yes no instalador).': 'Rust: there is no terminal to ask, so I installed nothing. To install: flow native setup --rust yes   (or OPENFLOW_RUST=yes in the installer).',
     'Ok, sem Rust por agora. Quando quiser:  flow native setup': 'Ok, no Rust for now. Whenever you want:  flow native setup',
     'extração de PDFs mais precisa': 'more accurate PDF extraction',
+    'voz do VoxCPM2 (openbmb/VoxCPM2): fala em 30 idiomas, voz por descrição e clonagem (precisa do Python 3.10+; só instala se você pedir: flow libs --extras voxcpm)': 'VoxCPM2 voice (openbmb/VoxCPM2): speech in 30 languages, voice by description and cloning (needs Python 3.10+; only installed if you ask: flow libs --extras voxcpm)',
     'modelos GGUF embutidos: texto, imagem e vídeo (llama-cpp-python e stable-diffusion-cpp-python; compilam código nativo)': 'built-in GGUF models: text, image and video (llama-cpp-python and stable-diffusion-cpp-python; they compile native code)',
     'Não consegui abrir o gerenciador de arquivos aqui; abra o caminho acima manualmente.': 'Could not open the file manager here; open the path above manually.',
     'abre a pasta dos dados locais do OpenFlow no seu computador': "opens OpenFlow's local data folder on your computer",
