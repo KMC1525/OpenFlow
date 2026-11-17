@@ -2,6 +2,17 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.69.0] — 2026-11-17
+
+### Novo — Transcrição com várias vozes
+- **Quem fala cada trecho:** o nó Transcrição ganhou «Separar as vozes». Cada fala sai com o nome de quem falou («Locutor 1: …», «Locutor 2: …»), no texto corrido (uma linha por troca de voz), nas marcas de tempo (o nome em cada linha) e nos parágrafos. A troca de voz no meio de um trecho divide o trecho no ponto da troca (o texto é repartido pelo tempo, então esse corte é aproximado).
+- **Quantas vozes e nomes:** deixe em 0 para o OpenFlow descobrir, ou diga quantas pessoas falam (mais confiável). «Nomes das vozes» («Ana, Bruno») troca «Locutor N» pelos nomes, na ordem em que as vozes aparecem. A saída com nomes é lida pela Dublagem (marcas «Nome: fala»).
+- **Como funciona:** sem baixar modelo, só numpy e ffmpeg: o áudio vira janelas de 1 s de fala, cada uma com o timbre (cepstro mel) e a altura da voz, e as janelas são agrupadas por semelhança. Uma voz só continua sendo uma voz só. Desligado por padrão, então projetos antigos saem iguais. Sem ffmpeg/numpy, ou com um modelo que não devolve tempos (ex.: OpenAI whisper-1 simples), a transcrição sai como antes e o nó avisa quando você pediu mais de uma voz.
+
+### Ainda não verificado
+- Testado só com as vozes sintéticas da demonstração (graves e agudas), ffmpeg e numpy reais. **Gravações de pessoas de verdade não foram testadas:** vozes humanas parecidas, ruído, música ao fundo e fala sobreposta podem ser confundidas, e os limiares do modo automático foram calibrados com a voz sintética. Em caso de dúvida, diga quantas vozes há.
+- Não usa um modelo dedicado (pyannote, ECAPA): é bem mais simples e menos preciso que eles.
+
 ## [0.68.0] — 2026-11-17
 
 ### Melhorado — modelos locais de som e voz do Hugging Face
