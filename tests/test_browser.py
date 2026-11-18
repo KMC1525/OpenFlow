@@ -111,6 +111,9 @@ class BrowserTests(unittest.TestCase):
     def test_96_the_node_search_field_shows_keyboard_focus(self):
         self.run_script("focus_v088_ui.js")
 
+    def test_95_support_file_tiers_in_the_library_and_in_the_node(self):
+        self.run_script("support_tiers_v089_ui.js")
+
     def test_98_utility_nodes_can_be_run_one_by_one(self):
         self.run_script("ext_run_v087_ui.js")
 

@@ -335,18 +335,21 @@ class ProjectRoutes:
         import re as _re
 
         from . import hf
-        from .canvas import support
+        from .canvas import quants, support, support_tiers
 
         body = req.body_json()
         model = text((body if isinstance(body, dict) else {}).get("model"), "", 200)
         if not _re.match(r"^[\w][\w .+()=-]{0,200}\.gguf$", model):
             raise HttpError(400, "Informe o arquivo GGUF do modelo.")
         cap = "video" if text((body if isinstance(body, dict) else {}).get("cap"), "", 8) == "video" else "image"
+        tier = text((body if isinstance(body, dict) else {}).get("tier"), "", 4).upper()   # v0.89: a faixa (Q2…Q8) do codificador de texto e do VAE, se a pessoa já escolheu uma no nó
+        if tier and tier not in quants.TIERS:
+            raise HttpError(400, "Escolha a faixa: Q2, Q3, Q4, Q6 ou Q8.")
         folder = hf.kind_dir(self.store.models_dir, cap, create=True)
         info = support.missing(folder, model)
         if not info["family"]:
             raise HttpError(400, "Este modelo não é de uma família com arquivos de apoio conhecidos (Qwen-Image, FLUX, Z-Image, Wan2.2…).")
-        if not info["missing"]:
+        if not info["missing"] and not tier:
             raise HttpError(400, "Os arquivos de apoio deste modelo já estão na pasta.")
         running = self.app.jobs.running("support_files")
         if running:
@@ -364,8 +367,9 @@ class ProjectRoutes:
                     last[0] = time.time()
                     job.emit({"type": "progress", "done": done, "total": total})
 
-            got = support.download_missing(folder, model, token, progress, lambda: job.cancelled, lambda m: job.emit({"type": "note", "message": m}))
-            job.emit({"type": "done", "files": got})
+            got = support.download_missing(folder, model, token, progress, lambda: job.cancelled, lambda m: job.emit({"type": "note", "message": m}), tier)
+            g2, failed = support_tiers.ensure_for_model(self.store.models_dir, cap, model, tier, token, progress, lambda: job.cancelled, lambda m: job.emit({"type": "note", "message": m}))
+            job.emit({"type": "done", "files": got + g2, "failed": failed})
 
         job = self.app.jobs.start("support_files", work)
         req.json({"job_id": job.id, "files": [m["label"] for m in info["missing"]], "approx_gb": info["approx_gb"]})

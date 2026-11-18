@@ -152,6 +152,8 @@ class App:
         a("DELETE", r"/api/hf/local/(?P<name>[^/]+)", self.r_hf_delete)
         a("GET", r"/api/models/support", self.r_support_status)
         a("POST", r"/api/models/support/install", self.r_support_install)
+        a("GET", r"/api/models/support/files", self.r_support_files)
+        a("POST", r"/api/models/support/tier", self.r_support_tier)
 
 
         self.project_routes = ProjectRoutes(self)
@@ -259,7 +261,7 @@ class App:
                   "running": sum(1 for j in items if j.status == "running")})
 
     #: tarefas que baixam arquivos grandes (a aba «Downloads» da Biblioteca): tipo → rótulo
-    DOWNLOAD_KINDS = {"download": "Modelo", "preinstalled": "Modelo recomendado", "support_files": "Arquivos de apoio", "ltx2_components": "Componentes do LTX-2", "sd_cli": "sd-cli", "sd_latest": "sd-cli (mais novo)", "local_model": "Modelo local", "requant": "Criar faixa (Q2–Q8)", "storage_move": "Mover a Biblioteca"}
+    DOWNLOAD_KINDS = {"download": "Modelo", "preinstalled": "Modelo recomendado", "support_files": "Arquivos de apoio", "ltx2_components": "Componentes do LTX-2", "sd_cli": "sd-cli", "sd_latest": "sd-cli (mais novo)", "local_model": "Modelo local", "requant": "Criar faixa (Q2–Q8)", "support_tier": "Arquivo de apoio (faixa)", "storage_move": "Mover a Biblioteca"}
 
     def r_downloads(self, req: "Request") -> None:
         """Downloads em andamento e recentes (desta sessão), com o progresso de cada um. A Biblioteca os mostra ao lado dos modelos já baixados."""
@@ -585,12 +587,58 @@ class App:
                     out.append({"kind": kind, "name": m["name"], **st})
         req.json({"models": out, "auto": self._auto_support()})
 
+    def r_support_files(self, req: "Request") -> None:
+        """Os codificadores de texto e VAEs baixados (pastas de imagem e vídeo), com a faixa de cada um e as faixas Q2…Q8 que dá para obter (v0.89). Sem rede."""
+        from .canvas import quants, support_tiers
+
+        req.json({"files": support_tiers.listing(self.store.models_dir), "tiers": list(quants.TIERS)})
+
+    def r_support_tier(self, req: "Request") -> None:
+        """Obtém a faixa `tier` (Q2/Q3/Q4/Q6/Q8) de um codificador de texto ou VAE já baixado (`kind` + `name`): `how` = «auto» (baixa a pronta; sem ela, cria), «download» ou «create». Tarefa em segundo plano."""
+        from .canvas import quants, requant, support_tiers
+
+        body = req.body_json()
+        body = body if isinstance(body, dict) else {}
+        kind, name, tier, how = text(body.get("kind"), "", 8), text(body.get("name"), "", 260), text(body.get("tier"), "", 4).upper(), text(body.get("how"), "auto", 8) or "auto"
+        if kind not in ("image", "video") or tier not in quants.TIERS or how not in ("auto", "download", "create"):
+            raise HttpError(400, "Informe kind (image ou video), name, tier (Q2, Q3, Q4, Q6 ou Q8) e how (auto, download ou create).")
+        folder = hf.kind_dir(self.store.models_dir, kind)
+        if not support_tiers.companion_key(name) or not (folder / Path(name).name).is_file():
+            raise HttpError(404, "Esse codificador de texto ou VAE não foi baixado (ou não está nesta pasta).")
+        if how == "create":
+            try:
+                requant.plan(self.store.models_dir, kind, name, tier)   # recusa antes de começar o que não dá (já existe, bits demais…)
+            except ProviderError as exc:
+                raise HttpError(400, str(exc))
+        running = self.jobs.running("support_tier")
+        if running:
+            raise HttpError(409, json.dumps({"job_id": running.id}))
+        token = self._hf_token()
+
+        def work(job: Job) -> None:
+            job.emit({"type": "start", "file": name, "tier": tier})
+            last = [0.0]
+
+            def progress(done: int, total: int) -> None:
+                if time.time() - last[0] > 0.4:
+                    last[0] = time.time()
+                    job.emit({"type": "progress", "done": done, "total": total})
+
+            res = support_tiers.install_tier(self.store.models_dir, kind, name, tier, how, token, progress, lambda: job.cancelled, lambda m: job.emit({"type": "note", "message": m}))
+            job.emit({"type": "done", "name": res["name"], "how": res["how"], "kind": kind})
+
+        job = self.jobs.start("support_tier", work, {"title": f"{Path(name).name} → {tier}", "kind": kind})
+        req.json({"job_id": job.id})
+
     def r_support_install(self, req: "Request") -> None:
-        """Instala o que falta de arquivos de apoio de um modelo já baixado (`kind` + `name`) ou de todos (sem `name`)."""
-        from .canvas import support
+        """Instala o que falta de arquivos de apoio de um modelo já baixado (`kind` + `name`) ou de todos (sem `name`); com `tier`, obtém também essa faixa dos codificadores de texto e VAEs."""
+        from .canvas import quants, support, support_tiers
 
         body = req.body_json()
         kind, name = text(body.get("kind"), "", 8), text(body.get("name"), "", 260)
+        tier = text(body.get("tier"), "", 4).upper()   # v0.89: depois de instalar o que falta, obtém também esta faixa (Q2…Q8) dos codificadores de texto e VAEs do modelo
+        if tier and tier not in quants.TIERS:
+            raise HttpError(400, "Escolha a faixa: Q2, Q3, Q4, Q6 ou Q8.")
         todo = []
         for k in (kind,) if kind else ("image", "video", "text"):
             try:
@@ -625,6 +673,9 @@ class App:
                 res = support.install_with_model(folder, fname, k, "", token, None, progress, lambda: job.cancelled, lambda m: job.emit({"type": "note", "message": m}))
                 got += res["installed"]
                 failed += res["failed"]
+                g2, f2 = support_tiers.ensure_for_model(self.store.models_dir, k, fname, tier, token, progress, lambda: job.cancelled, lambda m: job.emit({"type": "note", "message": m}))
+                got += g2
+                failed += f2
             job.emit({"type": "done", "files": got, "failed": failed})
 
         job = self.jobs.start("support_files", work)

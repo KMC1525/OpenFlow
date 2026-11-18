@@ -49,13 +49,14 @@ run('quants_v081', async ({ api, open, check }) => {
   // nó de imagem com o provedor GGUF: campo «Quantização ao carregar» grava extra.quant
   await api(`/api/projects/${cv.id}`, { method: 'PUT', body: { name: 'Faixas', nodes: [{ id: 'n1', type: 'image', x: 40, y: 40, params: { provider: 'gguf_local' } }, { id: 'n2', type: 'video', x: 520, y: 40, params: { provider: 'local_hf' } }], edges: [] } });
   await page.evaluate((id) => { location.hash = '#/project/' + id; }, cv.id); await page.waitForSelector('.cv-node[data-id="n1"]', { timeout: 15000 }); await page.waitForTimeout(700);
-  const sel = page.locator('.cv-node[data-id="n1"] select').filter({ has: page.locator('option[value="Q4"]') });
+  const QSEL = '.cv-node[data-id="n1"] div:has(> label.f:has-text("Quantização ao carregar")) > select';   // v0.89: o nó ganhou outro seletor com Q4 («Faixa dos arquivos de apoio»)
+  const sel = page.locator(QSEL);
   check('no-de-imagem:campo-quantizacao-ao-carregar', (await sel.count()) === 1);
   check('no-de-video-local-hf:sem-o-campo-so-vale-para-gguf', (await page.locator('.cv-node[data-id="n2"] option[value="Q4"]').count()) === 0);
   await sel.first().selectOption('Q4'); await page.waitForTimeout(1200);
   const saved = await api('/api/projects/' + cv.id);
   check('no-de-imagem:grava-extra-quant', (((saved.nodes.find((n) => n.id === 'n1') || {}).params || {}).extra || {}).quant === 'Q4');
-  await page.locator('.cv-node[data-id="n1"] select').filter({ has: page.locator('option[value="Q4"]') }).first().selectOption('');
+  await page.locator(QSEL).first().selectOption('');
   await page.waitForTimeout(1200);
   check('no-de-imagem:automatica-tira-o-campo', !('quant' in ((((await api('/api/projects/' + cv.id)).nodes.find((n) => n.id === 'n1') || {}).params || {}).extra || {})));
 });

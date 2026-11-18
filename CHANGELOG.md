@@ -2,6 +2,24 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.89.0] — 2026-11-18
+
+### Novo — faixas Q2, Q3, Q4, Q6 e Q8 dos codificadores de texto e VAEs
+- **Biblioteca → «Codificadores de texto e VAEs»:** lista os arquivos de apoio dos modelos de imagem e vídeo baixados (VAE, LLM Qwen/Mistral, T5/UMT5, CLIP) com a faixa de cada um, as faixas que já estão na pasta e as que ainda dá para obter. Escolha a faixa e o modo — **baixar a pronta** (quando o repositório do arquivo tem GGUF nessa faixa: os codificadores LLM da unsloth e o T5/UMT5 em GGUF), **criar** a partir do arquivo baixado, ou **automático** (baixa a pronta; sem ela, cria).
+- **Criar uma faixa:** codificador LLM em GGUF → `llama_model_quantize` (llama.cpp); T5/UMT5/CLIP e VAE (safetensors ou GGUF) → `sd-cli -M convert`. A faixa criada ganha o nome do arquivo de origem + a faixa (`t5xxl_fp8_e4m3fn-Q4_K.gguf`) e só aparece completa. O OpenFlow diz o tamanho que deu.
+- **Usar:** no nó de imagem ou vídeo (modelos GGUF), o novo campo **«Faixa dos arquivos de apoio»** carrega o codificador de texto e o VAE na faixa escolhida, se ela já está na pasta (senão usa o arquivo como está e avisa como instalar). O botão «Baixar os arquivos de apoio» do nó já baixa, nesse caso, o codificador na faixa escolhida (em vez de baixar o padrão e comprimir depois).
+- **Terminal:** `flow models support --tier Q4` e `flow models install --tier Q4` (com `--how auto|download|create`) obtêm a faixa de todos os codificadores e VAEs baixados; `flow models quant` agora lista também esses arquivos e `--name ARQUIVO --tier Q4` cria a faixa deles.
+- API: `GET /api/models/support/files` e `POST /api/models/support/tier` (tarefa «Arquivo de apoio (faixa)» na aba Downloads).
+
+### Corrigido
+- **O «Automático» escolhia o arquivo de apoio pela ordem do alfabeto:** com mais de um arquivo do mesmo codificador na pasta (por exemplo, o padrão Q4_K_M e uma Q2 criada), valia o primeiro em ordem alfabética — e «Q2» vem antes de «Q4». Agora o «Automático» usa o arquivo padrão da família, depois o original e só então Q8 → Q2.
+- **Criar uma faixa de um codificador de texto GGUF que mora na pasta de imagem usava o programa errado** (o sd-cli, que não lê um LLM): agora vai para o llama.cpp.
+
+### Limites honestos (leia)
+- **Num VAE quase nada é quantizável:** o ggml só quantiza tensores cuja primeira dimensão é múltipla do bloco (32; 256 nas faixas «K»), e as convoluções 3×3 de um VAE não são. O arquivo «quantizado» mal encolhe (o OpenFlow avisa o tamanho) e a qualidade do VAE é sensível; não há faixa pronta de VAE para baixar.
+- Os comandos do sd-cli e do llama.cpp seguem a documentação e o código deles, mas **não foram executados contra os programas e arquivos reais** (Hugging Face bloqueado, sem GPU): os testes simulam os programas e provam o que o OpenFlow pede e como ele escolhe os arquivos. Que o sd.cpp carregue um T5/CLIP/VAE em GGUF criado por ele e que o llama.cpp quantize um codificador de arquitetura nova (ex.: Qwen3-VL) depende da versão instalada.
+- O projetor de visão (mmproj), o CLIP vision, o VAE de áudio e o tokenizador não são quantizados (a visão é sensível à precisão e são pequenos). O LTX-2 (diffusers) não usa o campo.
+
 ## [0.88.0] — 2026-11-18
 
 ### Caçando bugs 7 — o que foi procurado
