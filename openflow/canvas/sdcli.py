@@ -408,7 +408,7 @@ def sys_platform() -> str:
 LOAD_FLAGS = {"diffusion_model_path": "--diffusion-model", "model_path": "-m", "vae_path": "--vae", "llm_path": "--llm", "t5xxl_path": "--t5xxl", "clip_l_path": "--clip_l", "clip_g_path": "--clip_g",
               "tokenizer_path": "--tokenizer", "llm_vision_path": "--llm_vision", "clip_vision_path": "--clip_vision", "audio_vae_path": "--audio-vae", "high_noise_diffusion_model_path": "--high-noise-diffusion-model", "wtype": "--type"}
 #: parâmetro de carga booleano → opção
-LOAD_SWITCHES = {"offload_params_to_cpu": ["--offload-to-cpu"], "diffusion_flash_attn": ["--flash-attn", "off,diffusion=on"], "keep_clip_on_cpu": ["--clip-on-cpu"], "te_on_cpu": ["--backend", "te=cpu"], "vae_tiling": ["--vae-tiling"], "vae_on_cpu": ["--vae-on-cpu"]}
+LOAD_SWITCHES = {"offload_params_to_cpu": ["--offload-to-cpu"], "diffusion_flash_attn": ["--flash-attn", "off,diffusion=on"], "keep_clip_on_cpu": ["--clip-on-cpu"], "te_on_cpu": ["--backend", "te=cpu"], "qwen_image_zero_cond_t": ["--qwen-image-zero-cond-t"], "vae_tiling": ["--vae-tiling"], "vae_on_cpu": ["--vae-on-cpu"]}
 #: parâmetro de geração → opção
 RUN_FLAGS = {"cfg_scale": "--cfg-scale", "sample_steps": "--steps", "sample_method": "--sampling-method", "flow_shift": "--flow-shift", "strength": "--strength", "guidance": "--guidance",
              "video_frames": "--video-frames", "fps": "--fps", "high_noise_cfg_scale": "--high-noise-cfg-scale", "high_noise_sample_method": "--high-noise-sampling-method",
