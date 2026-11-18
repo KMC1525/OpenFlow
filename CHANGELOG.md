@@ -2,6 +2,24 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.84.0] — 2026-11-18
+
+### Caçando bugs 4 — o que foi procurado
+- **O caminho completo das faixas Q2, Q3, Q4, Q6 e Q8:** escolher e baixar (GGUF e formato original), criar (texto, imagem, vídeo), usar ao carregar (imagem, vídeo, edição) e as telas de cada passo; mais cenários hostis da Dublagem com voz clonada (trechos com o mesmo início, de duração zero, fora do áudio, 300 trechos, texto enorme, Unicode, silêncio), as opções de **todos os campos de lista e de intervalo** de **todos os nós** (os valores que a tela oferece contra os que o servidor aceita), a linha de comando, mídia corrompida, 1018 chamadas malformadas à API e 160 grafos aleatórios.
+- A API, o motor, a Dublagem e as opções dos nós aguentaram tudo; o que apareceu está abaixo.
+
+### Corrigido
+- **`flow update` tirava a placa de vídeo do PyTorch:** quem instalou o PyTorch de placa de vídeo com `flow torch --install` («2.15.0+cu130», «+rocm…», «+xpu») tinha ele trocado, na atualização seguinte, pela versão do PyPI — que no Windows é a **só de CPU**. Agora o `flow libs`/`flow update` mantém o PyTorch e o torchvision de índice de placa (e diz como atualizá-los: `flow torch --install`). Além disso, ao fim da instalação/atualização no Windows com placa NVIDIA e o PyTorch «padrão», o OpenFlow avisa e mostra o comando.
+- **As faixas Q… do formato original ficavam sem explicação na busca de modelos** (o painel tinha uma cópia antiga dos textos, só com fp32/fp16/bf16): agora usa os textos completos.
+- **A «Quantização ao carregar» no LTX-2 era ignorada em silêncio** (ele roda pelo diffusers, não pela stable-diffusion.cpp), e a faixa escolhida no pipeline modular (FLUX.3) também: agora o nó avisa e diz como obter outra faixa (arquivo GGUF dela).
+- **O campo «Modelo» do nó «Modelo PyTorch/TensorFlow» recebia «erro interno»** com um nome comprido demais ou uma pasta sem permissão (como `/proc`): o status do nó agora responde sempre, e os testes de arquivo do nó nunca levantam exceção.
+- **`flow torch --index 'a b;rm -rf /'` mostrava um comando para copiar com esse texto solto dentro:** o índice agora é validado (letras, números, `.`, `-`, `/`, sem `..`) em todos os caminhos, incluindo `OPENFLOW_TORCH_INDEX`.
+- **`flow models quant --name x`**, com um arquivo que não está baixado, dizia «só modelos de texto, imagem e vídeo»: agora diz que não achou o arquivo e como ver a lista.
+
+### Ainda não verificado
+- Nenhum modelo real foi baixado ou executado (Hugging Face bloqueado), nada rodou numa placa de vídeo, e o `flow torch --install`/`flow update` foram testados com o pip simulado.
+- A caça não esgota o programa: foram os caminhos descritos acima.
+
 ## [0.83.0] — 2026-11-17
 
 ### Caçando bugs 3 — o que foi procurado

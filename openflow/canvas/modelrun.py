@@ -51,11 +51,19 @@ def walk(folder: Path):
 
 
 # ----------------------------------------------------------------------------- achar o modelo
+def _ok(fn: Callable[[], bool]) -> bool:
+    """Um teste de arquivo (`exists`, `is_dir`…) que nunca levanta: nome comprido demais, sem permissão ou atalho quebrado contam como «não»."""
+    try:
+        return bool(fn())
+    except (OSError, ValueError):
+        return False
+
+
 def kind_of(path: Path) -> str:
     """«keras», «savedmodel», «torchscript» ou «» (formato que o OpenFlow não roda)."""
     p = Path(path)
-    if p.is_dir():
-        return "savedmodel" if (p / "saved_model.pb").is_file() else ""
+    if _ok(p.is_dir):
+        return "savedmodel" if _ok((p / "saved_model.pb").is_file) else ""
     low = p.name.lower()
     if low in _SKIP_H5:
         return ""
@@ -76,7 +84,7 @@ def candidates(folder: Path, framework: str = "") -> List[Path]:
     """Os modelos que dá para rodar dentro de uma pasta (ela mesma, se é um SavedModel), do mais provável ao menos: o que tem «model/best/generator» no nome, depois o maior."""
     folder = Path(folder)
     found: List[Path] = []
-    if (folder / "saved_model.pb").is_file():
+    if _ok((folder / "saved_model.pb").is_file):
         found.append(folder)
     for p in walk(folder):
         if p.name == "saved_model.pb" and p.parent != folder:
@@ -88,7 +96,7 @@ def candidates(folder: Path, framework: str = "") -> List[Path]:
 
     def size(p: Path) -> int:
         try:
-            return sum(f.stat().st_size for f in walk(p)) if p.is_dir() else p.stat().st_size
+            return sum(f.stat().st_size for f in walk(p)) if _ok(p.is_dir) else p.stat().st_size
         except OSError:
             return 0
     return sorted(found, key=lambda p: (0 if _PREFER.search(p.stem if p.is_file() else p.name) else 1, -size(p), str(p)))
@@ -106,9 +114,9 @@ def resolve(model: str, framework: str = "", models_dir: Optional[Path] = None) 
         ref, wanted = ref.split("::", 1)
     local = Path(os.path.expanduser(ref))
     base: Optional[Path] = None
-    if local.exists():
+    if _ok(local.exists):
         base = local
-    elif models_dir is not None and "/" not in ref and (Path(models_dir) / "custom" / ref).exists():
+    elif models_dir is not None and "/" not in ref and _ok((Path(models_dir) / "custom" / ref).exists):
         base = Path(models_dir) / "custom" / ref
     elif REPO.match(ref):
         try:
@@ -121,7 +129,7 @@ def resolve(model: str, framework: str = "", models_dir: Optional[Path] = None) 
         raise ProviderError(f"Não achei o modelo «{ref}» neste computador (confira o caminho). Aceita um arquivo .keras/.h5/.pt/.pth, uma pasta SavedModel ou um repositório dono/nome baixado.")
     if wanted:
         target = base / wanted
-        if not target.exists() or ".." in Path(wanted).parts:
+        if not _ok(target.exists) or ".." in Path(wanted).parts:
             raise ProviderError(f"O arquivo «{wanted}» não está em {ref}.")
         base = target
     kind = kind_of(base)
@@ -129,7 +137,7 @@ def resolve(model: str, framework: str = "", models_dir: Optional[Path] = None) 
         if framework in ("tf", "torch") and framework_of(kind) != framework:
             raise ProviderError(f"«{base.name}» é um modelo {'TensorFlow/Keras' if framework_of(kind) == 'tf' else 'PyTorch'}, mas o nó pede {'TensorFlow' if framework == 'tf' else 'PyTorch'}. Deixe «Framework» em Automático.")
         return base, kind
-    if base.is_dir():
+    if _ok(base.is_dir):
         found = candidates(base, framework)
         if found:
             return found[0], kind_of(found[0])
@@ -139,7 +147,10 @@ def resolve(model: str, framework: str = "", models_dir: Optional[Path] = None) 
 
 def _why_not(path: Path) -> str:
     low = path.name.lower()
-    names = [p.name.lower() for p in path.iterdir()] if path.is_dir() else [low]
+    try:
+        names = [p.name.lower() for p in path.iterdir()] if path.is_dir() else [low]
+    except OSError:
+        names = [low]
     if any(n.endswith(".safetensors") for n in names):
         return "Um .safetensors só tem os PESOS, sem a estrutura do modelo: não dá para rodar sozinho."
     if any(n.endswith((".onnx", ".gguf")) for n in names):

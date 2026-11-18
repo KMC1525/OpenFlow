@@ -34,6 +34,7 @@ run('quants_v081', async ({ api, open, check }) => {
   await page.waitForSelector('.hub-q[data-quant="q4"]', { timeout: 8000 });
   check('original:faixa-q4-na-precisao', (await page.locator('.hub-q[data-quant="q2"]').count()) === 1);
   check('original:mostra-a-memoria-estimada', /Mem[oó]ria|Memory/.test(await page.locator('.hub-q[data-quant="q4"]').innerText()));
+  check('original:faixa-tem-a-explicacao', /4 bits/.test(await page.locator('.hub-q[data-quant="q4"]').innerText()) && /2 bits/.test(await page.locator('.hub-q[data-quant="q2"]').innerText()));   // v0.84: o hub tinha uma cópia antiga dos textos, só com fp32/fp16/bf16: as faixas ficavam sem explicação
   // Biblioteca: criar uma faixa menor a partir de um arquivo baixado
   await page.route('**/api/library/items*', (r) => json(r, { folders: [], items: [{ key: 'model:image/z-Q8_0.gguf', scope: 'models', kind: 'image', name: 'z-Q8_0.gguf', size: 7000000000, quant: 'Q8_0', bits: 8, tier: 'Q8', parts: 1, mtime: 1 }], path: [], search: false }));
   await page.route('**/api/hf/requant', (r) => { seen.requant.push(JSON.parse(r.request().postData())); json(r, { job_id: 'j_q' }); });

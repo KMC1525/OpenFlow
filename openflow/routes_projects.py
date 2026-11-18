@@ -659,6 +659,8 @@ class ProjectRoutes:
             path, kind = modelrun.resolve(model, fw if fw in ("tf", "torch") else "", self.store.models_dir)
         except ProviderError as exc:
             return req.json({"found": False, "error": str(exc), "libs": libs})
+        except Exception as exc:  # noqa: BLE001 — o campo do nó é texto livre: nenhum valor pode virar «erro interno» (v0.84)
+            return req.json({"found": False, "error": f"Não consegui ler esse caminho ({type(exc).__name__}).", "libs": libs})
         need = modelrun.framework_of(kind)
         req.json({"found": True, "path": str(path), "kind": kind, "framework": need, "label": path.name, "libs": libs,
                   "missing_lib": "" if libs.get(need) else ("PyTorch" if need == "torch" else "TensorFlow")})
