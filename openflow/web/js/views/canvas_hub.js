@@ -5,12 +5,12 @@ import { PREC_HINT } from '../model_labels.js';
 import { fill, h, icon, toast } from '../ui.js';
 
 // Barra de pesquisa de modelos no topo do Canvas (Hugging Face): procura, mostra TODAS as quantizações de cada modelo, baixa e passa a usar — no nó selecionado e como padrão do tipo.
-const CAPS = [['image', 'Imagem'], ['video', 'Vídeo'], ['sound', 'Som'], ['voice', 'Voz'], ['stt', 'Transcrição'], ['model3d', '3D'], ['text', 'Texto'], ['tool', 'Modelos próprios']];
+const CAPS = [['image', 'Imagem'], ['video', 'Vídeo'], ['sound', 'Som'], ['voice', 'Voz'], ['stt', 'Transcrição'], ['model3d', '3D'], ['text', 'Texto']];
 const GGUF_CAPS = ['image', 'video', 'text'];   // os únicos com provedor GGUF no OpenFlow
 const BOTH_CAPS = ['image', 'video'];   // escolhem entre GGUF e o formato original (diffusers: fp32/fp16/bf16); o texto roda só GGUF (llama.cpp) e som, voz, transcrição e 3D só o formato original
 const REPO_RE = /^[A-Za-z0-9][\w.-]{0,95}\/[A-Za-z0-9][\w.-]{0,95}$/;
 const SOUND_CAPS = ['sound', 'voice', 'stt'];   // v0.65: pesquisam por assunto (música, efeitos, voz, dublagem…) e já abrem com os mais baixados
-const NODE_OF = { image: 'image', video: 'video', sound: 'sound', voice: 'voice', stt: 'transcribe', text: 'llm', model3d: 'model3d', tool: 'ai_model' };
+const NODE_OF = { image: 'image', video: 'video', sound: 'sound', voice: 'voice', stt: 'transcribe', text: 'llm', model3d: 'model3d' };
 const QUALITY = { very_low: 'qualidade muito baixa', low: 'qualidade baixa', good: 'boa qualidade', very_good: 'ótima qualidade', high: 'alta qualidade', lossless: 'quase sem perdas', original: 'original' };
 
 const bytes = (n) => (n >= 1 << 30 ? (n / (1 << 30)).toFixed(1) + ' GB' : n >= 1 << 20 ? Math.round(n / (1 << 20)) + ' MB' : n ? Math.round(n / 1024) + ' KB' : '?');
@@ -126,22 +126,6 @@ export function modelSearchBar(c) {
             return row;
           }));
         draw();
-      } else if (st.cap === 'tool') {
-        // v0.82: modelos próprios (imagem → imagem) para o nó «Modelo PyTorch/TensorFlow»: escolhe o framework e baixa só o arquivo do modelo
-        const FW = { torch: ['PyTorch', 'TorchScript / torch.export (.pt, .pth, .pt2)'], tf: ['TensorFlow', 'Keras / SavedModel (.keras, .h5, saved_model.pb)'] };
-        const [o, info] = await Promise.all([api('/api/tool/files?model=' + encodeURIComponent(repo)), api('/api/tool/info?model=' + encodeURIComponent(repo))]);
-        const entries = Object.entries(o.frameworks || {});
-        const draw = (have) => fill(slot, h('div', { class: 'muted small', style: { marginBottom: '6px' } }, t('Escolha o framework do modelo: só o arquivo dele é baixado (nada do resto do repositório).')),
-          !entries.length ? h('div', { class: 'errbox', dataset: { none: '1' } }, t('Este repositório não tem um modelo que o OpenFlow rode (.keras, .h5 completo, SavedModel, .pt, .pth ou .pt2).')) : null,
-          entries.map(([fw, d]) => { const row = h('div', { class: 'hub-q', dataset: { quant: fw } });
-            fill(row, h('div', { class: 'grow' }, h('b', null, FW[fw][0]), h('div', { class: 'dim small' }, t(FW[fw][1]))), h('span', { class: 'chip solid' }, bytes(d.size)),
-              h('button', { class: 'btn sm', type: 'button', dataset: { act: 'download' }, onclick: async () => {
-                let jid; try { jid = (await api('/api/tool/download', { method: 'POST', body: { model: repo, framework: fw } })).job_id; } catch (e) { return toast(e.status === 409 ? t('Já há um download em andamento.') : e.message, 'err'); }
-                progressRow(row, repo.split('/')[1] + ' · ' + FW[fw][0], jid, (ok) => { if (ok) api('/api/tool/info?model=' + encodeURIComponent(repo)).then((i) => draw(i.found)).catch(() => draw(true)); else draw(have); });
-              } }, icon('download', 13), t('Baixar')));
-            return row; }),
-          have ? h('div', { class: 'row', style: { gap: '8px', marginTop: '8px' } }, h('span', { class: 'chip on' }, t('baixado')), h('button', { class: 'btn sm primary', type: 'button', dataset: { act: 'use' }, onclick: () => useModel('tool', repo) }, icon('check', 13), t('Usar no nó «Modelo PyTorch/TensorFlow»'))) : null);
-        draw(info.found);
       } else {
         const [o, q] = await Promise.all([api('/api/media/local/options?model=' + encodeURIComponent(repo)), api('/api/media/local/quants?model=' + encodeURIComponent(repo)).catch(() => ({ variants: [] }))]);
         let state = {}; try { state = await api('/api/media/local/state'); } catch (e) { /* sem estado */ }
@@ -183,7 +167,7 @@ export function modelSearchBar(c) {
         m.status === 'ready' || m.status === 'beta' ? h('button', { class: 'btn sm', type: 'button', dataset: { act: 'rec-open' }, onclick: () => go(m.repo) }, t('Ver quantizações'))
           : m.status === 'alt' ? h('button', { class: 'btn sm primary', type: 'button', onclick: () => go(m.use) }, t('Abrir {r}', { r: m.use })) : null));
     }));
-    box.append(h('div', { class: 'hub-head muted small' }, st.cap === 'tool' ? t('Modelos próprios de imagem → imagem (ampliar, tirar ruído, colorir…) para o nó «Modelo PyTorch/TensorFlow». Escreva o que procura (esrgan, denoise, colorize…) ou o endereço dono/nome e aperte Enter.') : st.cap === 'text' ? t('O texto usa só GGUF (llama.cpp). Escreva o nome ou o endereço dono/nome do modelo e aperte Enter.')
+    box.append(h('div', { class: 'hub-head muted small' }, st.cap === 'text' ? t('O texto usa só GGUF (llama.cpp). Escreva o nome ou o endereço dono/nome do modelo e aperte Enter.')
       : BOTH_CAPS.includes(st.cap) ? t('Escreva o nome ou o endereço dono/nome do modelo e aperte Enter. Em «Formato» escolha GGUF (quantizações) ou Original (diffusers).') : t('Escreva o nome ou o endereço dono/nome do modelo e aperte Enter (som, voz, transcrição e 3D usam o formato original).')));
     return box;
   }

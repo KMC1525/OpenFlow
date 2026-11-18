@@ -205,7 +205,7 @@ def provider(kind, base, models=None, key="k", **cfg):
 class SchemaTests(unittest.TestCase):
     def test_edges_are_validated(self):
         nodes = [S.normalize_node(n) for n in (node("text", nid="t1"), node("text", nid="t2"), node("image", nid="i1"), node("video", nid="v1"), node("sound", nid="s1"),
-                                              node("editor", nid="e1"), node("upload", nid="u1"), node("style_prompt", nid="sp"))]
+                                              node("out_export", nid="e1"), node("upload", nid="u1"), node("style_prompt", nid="sp"))]
         edges = S.normalize_edges([
             edge("t1", "i1", "prompt"), edge("t1", "i1", "prompt"),  # duplicada
             edge("t2", "i1", "prompt"),  # porta múltipla: aceita
@@ -215,7 +215,7 @@ class SchemaTests(unittest.TestCase):
             edge("v1", "i1", "refs"),  # vídeo não é imagem nem mídia? ("media" aceita vídeo)
             edge("sp", "i1", "style"), edge("i1", "i1", "prompt"),  # laço
             edge("v1", "t1", "prompt"), edge("zz", "i1", "prompt"), edge("t1", "i1", "inexistente"),
-            edge("i1", "e1", "clips"), edge("v1", "e1", "clips"), edge("s1", "e1", "clips"),
+            edge("i1", "e1", "video"), edge("v1", "e1", "video"), edge("s1", "e1", "audio"),
         ], nodes)
         keys = {(e["from"], e["to"], e["port"]) for e in edges}
         self.assertEqual(len(keys), len(edges))
@@ -228,7 +228,7 @@ class SchemaTests(unittest.TestCase):
         self.assertIn(("sp", "i1", "style"), keys)
         self.assertNotIn(("i1", "i1", "prompt"), keys)
         self.assertEqual([k for k in keys if k[0] == "zz" or k[2] == "inexistente"], [])
-        self.assertTrue({("i1", "e1", "clips"), ("v1", "e1", "clips"), ("s1", "e1", "clips")} <= keys)
+        self.assertTrue({("i1", "e1", "video"), ("s1", "e1", "audio")} <= keys)   # a porta «video» é de uma entrada só: a primeira vale
 
     def test_cycles_and_single_ports(self):
         nodes = [S.normalize_node(n) for n in (node("llm", nid="a"), node("llm", nid="b"), node("text", nid="t"), node("text", nid="t2"), node("video", nid="v"), node("image", nid="i"), node("image", nid="i2"))]
@@ -267,11 +267,12 @@ class SchemaTests(unittest.TestCase):
             self.assertEqual(len(c["nodes"]), len(base["nodes"]), t["id"])
             self.assertEqual(len(c["edges"]), len(base["edges"]), t["id"])  # nenhuma conexão do modelo é descartada
         scene = S.build_template("scene")
-        self.assertIn("editor", [n["type"] for n in scene["nodes"]])
+        self.assertIn("out_export", [n["type"] for n in scene["nodes"]])
+        self.assertNotIn("editor", [n["type"] for n in scene["nodes"]])   # o nó Editor saiu na v0.87
         self.assertIn("style_prompt", [n["type"] for n in scene["nodes"]])
 
     def test_mandatory_node_types_exist(self):
-        for t in ("editor", "style_prompt", "style_folder", "image", "video", "sound", "voice", "text", "llm", "upload", "transcribe"):
+        for t in ("out_export", "style_prompt", "style_folder", "image", "video", "sound", "voice", "text", "llm", "upload", "transcribe"):
             self.assertIn(t, S.NODE_TYPES)
         self.assertEqual(S.NODE_TYPES["style_prompt"]["out"], "style")
         self.assertEqual(S.NODE_TYPES["style_folder"]["out"], "style")
@@ -325,18 +326,15 @@ class StoreTests(TmpCase):
         self.assertEqual([x["id"] for x in saved["assets"]], [a["id"]])
         self.assertEqual((saved["name"], saved["viewport"]["zoom"], n2["x"], len(saved["edges"])), ("Renomeado", 1.5, im["x"] + 50, 1))
 
-    def test_delete_asset_cleans_nodes_and_clips(self):
+    def test_delete_asset_cleans_nodes(self):
         c = self.cs.create("a")
         a = self.cs.add_asset(c["id"], PNG, "png", "image")
         b = self.cs.add_asset(c["id"], WAV, "wav", "audio")
         up = node("upload", nid="up", files=[a["id"], b["id"]])
-        ed = node("editor", nid="ed", timeline={"tracks": [{"id": "v", "kind": "video"}], "clips": [{"track": "v", "asset": a["id"]}, {"track": "v", "asset": b["id"]}, {"track": "v", "node": "up"}]})
-        self.cs.save_layout(c["id"], {"nodes": [up, ed], "edges": [], "assets": []})
+        self.cs.save_layout(c["id"], {"nodes": [up], "edges": [], "assets": []})
         self.assertTrue(self.cs.delete_asset(c["id"], a["id"]))
         cur = self.cs.get(c["id"])
         self.assertEqual(next(n for n in cur["nodes"] if n["id"] == "up")["params"]["files"], [b["id"]])
-        clips = next(n for n in cur["nodes"] if n["id"] == "ed")["params"]["timeline"]["clips"]
-        self.assertEqual(sorted((c_["asset"], c_["node"]) for c_ in clips), [("", "up"), (b["id"], "")])
         self.assertIsNone(self.cs.asset_path(c["id"], a["file"]))
         self.assertFalse(self.cs.delete_asset(c["id"], "as_nao"))
 
@@ -845,18 +843,18 @@ class EngineTests(TmpCase):
         self.assertEqual((stats["ran"], stats["errors"], stats["cached"]), (5, 0, 0))
         cur = self.cs.get(c["id"])
         kinds = {n["type"]: [next(a for a in cur["assets"] if a["id"] == i)["kind"] for i in n["result"]["assets"]] for n in cur["nodes"] if n["result"]["assets"]}
-        self.assertEqual(kinds, {"image": ["image"], "video": ["video"], "voice": ["audio"], "sound": ["audio"], "editor": ["video"]} if HAVE_FFMPEG else kinds)
+        self.assertEqual(kinds, {"image": ["image"], "video": ["video"], "voice": ["audio"], "sound": ["audio"], "out_export": ["video"]} if HAVE_FFMPEG else kinds)
         self.assertEqual([e["state"] for e in ev if e["type"] == "node" and e["state"] != "running"], ["done"] * 5)
         eng = CanvasEngine(self.store, c["id"])
         self.assertEqual(eng.stale_ids(cur), [])
         # nada mudou: tudo vem do cache
         stats, ev = self.run_engine(c["id"])
         self.assertEqual((stats["ran"], stats["cached"]), (0, 5))
-        # mudar o texto refaz só o que depende dele (imagem → vídeo → editor), e não a voz/som
+        # mudar o texto refaz só o que depende dele (imagem → vídeo → vídeo final), e não a voz/som
         txt = next(n for n in cur["nodes"] if n["type"] == "text")
         self.cs.patch_node_params(c["id"], txt["id"], {"text": "Um dragão sobrevoa a montanha"})
         stale = {n["type"] for n in cur["nodes"] if n["id"] in CanvasEngine(self.store, c["id"]).stale_ids(self.cs.get(c["id"]))}
-        self.assertEqual(stale, {"image", "video", "editor"})
+        self.assertEqual(stale, {"image", "video", "out_export"})
         stats, _ = self.run_engine(c["id"])
         self.assertEqual((stats["ran"], stats["cached"]), (3, 2))
         # "gerar de novo" num alvo refaz só esse nó, com outra semente
@@ -865,38 +863,6 @@ class EngineTests(TmpCase):
         stats, _ = self.run_engine(c["id"], [img["id"]], force=True)
         self.assertEqual(stats["ran"], 1)
         self.assertNotEqual(self.result(c["id"], img["id"])["assets"], before)
-
-    @unittest.skipUnless(HAVE_FFMPEG, "ffmpeg não instalado")
-    def test_editor_auto_timeline_and_export_duration(self):
-        c = self.cs.create("t", "scene")
-        self.run_engine(c["id"])
-        cur = self.cs.get(c["id"])
-        ed = next(n for n in cur["nodes"] if n["type"] == "editor")
-        tl = ed["params"]["timeline"]
-        self.assertEqual({t["kind"] for t in tl["tracks"]}, {"video", "audio"})
-        self.assertEqual(sorted(c_["track"] for c_ in tl["clips"] if c_["start"] == 0 and c_["track"].startswith("t_a")), ["t_a1", "t_a2"])  # voz e som tocam juntos
-        asset = next(a for a in cur["assets"] if a["id"] == ed["result"]["assets"][0])
-        probe = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(self.cs.asset_path(c["id"], asset["file"]))], capture_output=True, text=True)
-        self.assertAlmostEqual(float(probe.stdout), tl["duration"], delta=0.6)
-        self.assertEqual((asset["w"], asset["h"]), (1280, 720))
-
-    def test_editor_follows_connected_nodes_when_they_regenerate(self):
-        c = self.make([node("text", nid="t", text="uma praia"), node("image", nid="i"), node("editor", nid="e")], [edge("t", "i", "prompt"), edge("i", "e", "clips")])
-        if not HAVE_FFMPEG:
-            self.skipTest("ffmpeg não instalado")
-        self.run_engine(c["id"])
-        first = self.result(c["id"], "i")["assets"][0]
-        clip = next(n for n in self.cs.get(c["id"])["nodes"] if n["id"] == "e")["params"]["timeline"]["clips"][0]
-        self.assertEqual((clip["node"], clip["asset"]), ("i", first))
-        self.run_engine(c["id"], ["i"], force=True)
-        self.assertNotEqual(self.result(c["id"], "i")["assets"][0], first)
-        eng = CanvasEngine(self.store, c["id"])
-        self.assertIn("e", eng.stale_ids(self.cs.get(c["id"])))  # o Editor percebe que a imagem mudou
-        stats, _ = self.run_engine(c["id"])
-        self.assertEqual(stats["ran"], 1)
-        cur = self.cs.get(c["id"])
-        resolved = eng.resolve_clip(cur, next(n for n in cur["nodes"] if n["id"] == "e")["params"]["timeline"]["clips"][0])
-        self.assertEqual(resolved["asset"]["id"], self.result(c["id"], "i")["assets"][0])  # clipe ligado ao nó usa a imagem nova
 
     def test_errors_isolate_branches_and_skip_dependents(self):
         c = self.make([node("text", nid="t", text="x"), node("image", nid="bad", provider="gguf_local"), node("image", nid="ok"), node("video", nid="dep"), node("sound", nid="s", prompt="chuva", duration=1)],
@@ -1178,7 +1144,9 @@ class CanvasApiTests(ServerCase):
         status, meta = self.c.json("GET", "/api/project-templates")
         self.assertEqual(status, 200)
         self.assertEqual({t["id"] for t in meta["templates"]}, {t["id"] for t in S.TEMPLATES})
-        self.assertIn("editor", [t["type"] for t in meta["types"]])
+        self.assertIn("out_export", [t["type"] for t in meta["types"]])
+        self.assertNotIn("editor", [t["type"] for t in meta["types"]])
+        self.assertNotIn("ai_model", [t["type"] for t in meta["types"]])
         status, c = self.c.json("POST", "/api/projects", {"name": "Projeto A", "template": "styled", "prompt": "um gato"})
         self.assertEqual(status, 201)
         cid = c["id"]
@@ -1308,19 +1276,6 @@ class CanvasApiTests(ServerCase):
             ev = self.c.sse(f"/api/jobs/{job['job_id']}/events")
             self.assertEqual([e["precision"] for e in ev if e["type"] == "done"], ["fp16"])
             self.assertEqual(self.c.json("GET", "/api/media/local/state")[1]["models"]["image"]["precision"], "fp16")
-
-    @unittest.skipUnless(HAVE_FFMPEG, "ffmpeg não instalado")
-    def test_editor_autofill_endpoint(self):
-        cid = self.c.json("POST", "/api/projects", {"template": "scene"})[1]["id"]
-        r = self.c.json("POST", f"/api/projects/{cid}/run", {"nodes": [n["id"] for n in self.c.json("GET", f"/api/projects/{cid}")[1]["nodes"] if n["type"] in ("image", "voice")]})[1]
-        self.c.sse(f"/api/jobs/{r['job_id']}/events")
-        cur = self.c.json("GET", f"/api/projects/{cid}")[1]
-        ed = next(n for n in cur["nodes"] if n["type"] == "editor")
-        status, out = self.c.json("POST", f"/api/projects/{cid}/nodes/{ed['id']}/autofill")
-        self.assertEqual(status, 200)
-        self.assertEqual(len(out["timeline"]["clips"]), 1)  # só a imagem e a voz já tinham resultado; a imagem não está ligada ao Editor, a voz sim
-        self.assertEqual(self.c.json("POST", f"/api/projects/{cid}/nodes/nao/autofill")[0], 404)
-        self.c.json("DELETE", f"/api/projects/{cid}")
 
     def test_only_local_providers_are_listed_and_old_cloud_settings_are_ignored(self):
         self.c.json("PUT", "/api/settings", {"providers": {"openai": {"api_key": "sk-SECRETO"}}, "media": {"active": {"image": "openai"}}})

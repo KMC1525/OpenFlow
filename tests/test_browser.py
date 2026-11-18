@@ -1,4 +1,4 @@
-"""Interface no navegador (Chromium via Playwright): projetos e pesquisa, editor de fluxos, pastas de estilo, modelos e Editor de vídeo. Pulado se Playwright/Chromium não existirem."""
+"""Interface no navegador (Chromium via Playwright): projetos e pesquisa, editor de fluxos, pastas de estilo, modelos. Pulado se Playwright/Chromium não existirem."""
 import json
 import os
 import shutil
@@ -57,7 +57,7 @@ class BrowserTests(unittest.TestCase):
     def test_03_style_folder_subfolders_rename_move_toggle_delete(self):
         self.run_script("style_folder_ui.js")
 
-    def test_05_flow_editor_and_video_timeline(self):
+    def test_05_flow_editor_and_final_video(self):
         self.run_script("canvas_ui.js")
 
     def test_06_new_nodes_palette_controls_and_a_real_chain(self):
@@ -101,6 +101,12 @@ class BrowserTests(unittest.TestCase):
 
     def test_23_the_node_limit_warns_instead_of_losing_the_new_node(self):
         self.run_script("limits_v047_ui.js")
+
+    def test_99_removed_nodes_are_gone_and_old_projects_say_so(self):
+        self.run_script("removed_v087_ui.js")
+
+    def test_98_utility_nodes_can_be_run_one_by_one(self):
+        self.run_script("ext_run_v087_ui.js")
 
     def test_24_the_computer_guard_card_and_stop_banner(self):
         self.run_script("guard_v049_ui.js")

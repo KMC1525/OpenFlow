@@ -57,7 +57,7 @@ class MediaFixTests(GraphCase):
         g = self.gif()
         up = self.node("u", "upload", files=[g["id"]])
         up2 = self.node("u2", "upload", files=[g["id"]])
-        cases = [("vid_slideshow", "images", {}), ("vid_join", "clips", {}), ("out_export", "video", {}), ("editor", "clips", {})]
+        cases = [("vid_slideshow", "images", {}), ("vid_join", "clips", {}), ("out_export", "video", {})]
         for t, port, params in cases:
             nodes = [up, up2, self.node("x", t, **params)]
             edges = [{"id": "e", "from": "u", "to": "x", "port": port}] + ([{"id": "e2", "from": "u2", "to": "x", "port": port}] if t == "vid_join" else [])
@@ -66,12 +66,6 @@ class MediaFixTests(GraphCase):
             asset = next(a for a in cur["assets"] if a["id"] == res["x"]["result"]["assets"][0])
             self.assertEqual(asset["kind"], "video", t)
 
-    def test_the_editor_with_only_audio_makes_a_video_with_the_sound(self):
-        a = self.audio()
-        res, cur = self.run_graph([self.node("u", "upload", files=[a["id"]]), self.node("x", "editor")], [{"id": "e", "from": "u", "to": "x", "port": "clips"}])
-        self.assertEqual(res["x"]["result"]["state"], "done", res["x"]["result"]["error"])
-        asset = next(x for x in cur["assets"] if x["id"] == res["x"]["result"]["assets"][0])
-        self.assertEqual(probe_streams(self.cs.asset_path(self.cid, asset["file"])), ["audio", "video"])
 
 
 class RegexTests(GraphCase):

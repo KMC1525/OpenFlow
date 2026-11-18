@@ -23,7 +23,7 @@ from .providers.base import ProviderError
 HF = "https://huggingface.co"
 REPO_RE = re.compile(r"^[A-Za-z0-9][\w.-]{0,95}/[A-Za-z0-9][\w.-]{0,95}$")
 FILE_RE = re.compile(r"^[\w][\w .+()=-]{0,200}\.gguf$")
-QUANT_RE = re.compile(r"(?<![A-Za-z0-9])((?:IQ|Q)\d(?:_[A-Z0-9]+)*|BF16|F16|F32|MXFP4)(?![A-Za-z0-9])", re.I)
+QUANT_RE = re.compile(r"(?<![A-Za-z0-9])((?:IQ|TQ|Q)\d(?:_[A-Z0-9]+)*|BF16|F16|F32|MXFP4)(?![A-Za-z0-9])", re.I)
 SHARD_RE = re.compile(r"^(?P<base>.+)-(?P<n>\d{5})-of-(?P<total>\d{5})\.gguf$", re.I)
 # qualidade esperada por número de bits (aproximação dos guias do llama.cpp)
 QUALITY = {1: "very_low", 2: "very_low", 3: "low", 4: "good", 5: "very_good", 6: "high", 8: "lossless"}
@@ -160,7 +160,6 @@ def search(query: str, token: str = "", limit: int = 20, kind: str = "text") -> 
 ORIGINAL_TAGS: Dict[str, List[str]] = {
     "image": ["text-to-image", "image-to-image"], "video": ["text-to-video", "image-to-video"], "sound": ["text-to-audio"], "voice": ["text-to-speech"], "stt": ["automatic-speech-recognition"], "model3d": ["text-to-3d", "image-to-3d"],
     "text": ["text-generation"],
-    "tool": ["image-to-image"],   # v0.82: modelos próprios de imagem → imagem, para o nó «Modelo PyTorch/TensorFlow»
 }
 
 

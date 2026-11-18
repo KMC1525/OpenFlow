@@ -259,7 +259,7 @@ class App:
                   "running": sum(1 for j in items if j.status == "running")})
 
     #: tarefas que baixam arquivos grandes (a aba «Downloads» da Biblioteca): tipo → rótulo
-    DOWNLOAD_KINDS = {"download": "Modelo", "preinstalled": "Modelo recomendado", "support_files": "Arquivos de apoio", "ltx2_components": "Componentes do LTX-2", "sd_cli": "sd-cli", "sd_latest": "sd-cli (mais novo)", "local_model": "Modelo local", "tool_model": "Modelo próprio", "requant": "Criar faixa (Q2–Q8)", "storage_move": "Mover a Biblioteca"}
+    DOWNLOAD_KINDS = {"download": "Modelo", "preinstalled": "Modelo recomendado", "support_files": "Arquivos de apoio", "ltx2_components": "Componentes do LTX-2", "sd_cli": "sd-cli", "sd_latest": "sd-cli (mais novo)", "local_model": "Modelo local", "requant": "Criar faixa (Q2–Q8)", "storage_move": "Mover a Biblioteca"}
 
     def r_downloads(self, req: "Request") -> None:
         """Downloads em andamento e recentes (desta sessão), com o progresso de cada um. A Biblioteca os mostra ao lado dos modelos já baixados."""

@@ -831,8 +831,6 @@ class LocalHFMedia(MediaProvider):
         _TLS.ctl = self.ctl
         _limit_threads()
         prec = lm.downloaded_precision(model)
-        if not prec and lm.downloaded_framework(model):   # só o arquivo para o nó «Modelo PyTorch/TensorFlow» (sem o pipeline)
-            raise ProviderError(f'«{model}» foi baixado para o nó «Modelo PyTorch/TensorFlow» (só o arquivo do modelo, sem o pipeline): não serve como modelo de imagem, vídeo, som ou voz. Baixe-o como modelo de imagem/vídeo/som/voz em Configuração → Mídia, ou use-o naquele nó.', status=424)
         if not prec:
             raise ProviderError(f'O modelo local "{model}" ainda não foi baixado. Em Configuração → Mídia, escolha a precisão (quantização) e baixe-o antes de usar.', status=424)
         low = prec in ("fp16", "bf16") or lm.is_quant(prec)

@@ -2,7 +2,7 @@
 1. «Quantização ao carregar» pedia Q8 para um arquivo Q5 (e outros tipos que não são uma das cinco faixas) e «recomprimia para cima»: agora só vale para uma faixa MENOR;
 2. criar uma faixa de um modelo de TEXTO podia travar para sempre: a saída do llama.cpp ia para um pipe que ninguém lia (o buffer enche, o processo para);
 3. «Procurar em outros repositórios» oferecia outro modelo («Z-Image-Turbo» para quem procura o «Z-Image»);
-4. o nó «Modelo PyTorch/TensorFlow» varria a pasta inteira (e a pasta pessoal, se fosse o caminho) a cada conferência do canvas."""
+4. (o nó «Modelo PyTorch/TensorFlow», que também era tratado aqui, saiu na v0.87 e seus testes com ele.)"""
 import os
 import sys
 import tempfile
@@ -13,8 +13,6 @@ from pathlib import Path
 from unittest import mock
 
 from openflow import hf
-from openflow.canvas import modelrun as mr
-from openflow.canvas import nodes_ext
 from openflow.canvas import quants as Q
 from openflow.canvas import requant
 
@@ -98,110 +96,6 @@ class OtherReposTests(unittest.TestCase):
         with mock.patch.object(hf, "search", return_value=[{"id": "a/Z-Image-GGUF", "downloads": 5}, {"id": "b/Z-Image-Turbo-GGUF", "downloads": 9}]), mock.patch.object(hf, "repo_files", return_value=[{"name": "m-Q2_K.gguf", "size": 1}]):
             rows = hf.other_repos("x/Z-Image-Turbo-GGUF", "image", ["Q2"], "")
         self.assertEqual([r["repo"] for r in rows], ["b/Z-Image-Turbo-GGUF"])
-
-
-class ScanTests(unittest.TestCase):
-    def test_walk_is_bounded_in_files_and_depth(self):
-        d = Path(tempfile.mkdtemp())
-        for i in range(mr.MAX_SCAN + 500):
-            (d / f"f{i}.txt").write_bytes(b"")
-        self.assertEqual(len(list(mr.walk(d))), mr.MAX_SCAN)
-        deep = Path(tempfile.mkdtemp())
-        cur = deep
-        for i in range(mr.MAX_DEPTH + 3):
-            cur = cur / f"d{i}"
-            cur.mkdir()
-            (cur / f"m{i}.keras").write_bytes(b"x")
-        found = [p.name for p in mr.walk(deep)]
-        self.assertIn(f"m{mr.MAX_DEPTH - 1}.keras", found)
-        self.assertNotIn(f"m{mr.MAX_DEPTH + 2}.keras", found)
-
-    def test_hidden_cache_and_linked_folders_are_skipped(self):
-        d = Path(tempfile.mkdtemp())
-        for sub in (".git", "__pycache__", "node_modules", ".hidden", "ok"):
-            (d / sub).mkdir()
-            (d / sub / "m.keras").write_bytes(b"x")
-        outside = Path(tempfile.mkdtemp())
-        (outside / "secret.keras").write_bytes(b"x")
-        try:
-            os.symlink(outside, d / "link")
-        except OSError:
-            pass
-        names = sorted(str(p.relative_to(d)) for p in mr.walk(d))
-        self.assertEqual(names, [os.path.join("ok", "m.keras")])
-
-    def test_candidates_on_a_huge_folder_return_quickly(self):
-        d = Path(tempfile.mkdtemp())
-        for i in range(6000):
-            (d / f"x{i}.txt").write_bytes(b"")
-        (d / "net.pt").write_bytes(b"x")
-        t0 = time.time()
-        self.assertEqual([c.name for c in mr.candidates(d)], ["net.pt"] if "net.pt" in [p.name for p in mr.walk(d)] else [])
-        self.assertLess(time.time() - t0, 5)
-
-
-class SignatureCacheTests(unittest.TestCase):
-    def test_the_signature_is_cached_for_a_few_seconds(self):
-        nodes_ext._SIG_CACHE.clear()
-        node = {"params": {"model": "/x/model.keras", "framework": "auto"}}
-        eng = mock.Mock()
-        calls = []
-        with mock.patch.object(mr, "resolve", side_effect=lambda *a, **k: calls.append(1) or (Path("/x/model.keras"), "keras")), mock.patch.object(mr, "fingerprint", return_value="1-2"):
-            a = nodes_ext.model_signature(eng, node)
-            b = nodes_ext.model_signature(eng, node)
-            self.assertEqual((a, b, len(calls)), ("/x/model.keras|1-2", "/x/model.keras|1-2", 1))
-            node2 = {"params": {"model": "/x/other.keras", "framework": "auto"}}
-            nodes_ext.model_signature(eng, node2)
-            self.assertEqual(len(calls), 2)                                                      # outro modelo: outra chave
-        nodes_ext._SIG_CACHE.clear()
-
-
-class ModelNodeImageTests(unittest.TestCase):
-    """O nó «Modelo PyTorch/TensorFlow» com imagens ruins: erro claro, não «Erro inesperado»."""
-
-    def run_node(self, data, wh=None):
-        import io
-
-        from PIL import Image
-
-        from openflow.canvas import modelrun
-        from openflow.canvas.engine import CanvasEngine
-        from openflow.storage import Store
-        from tests.test_modelrun_v082 import FakeRunner
-
-        store = Store(Path(tempfile.mkdtemp()))
-        cs = store.projects
-        cid = cs.create("x")["id"]
-        a = cs.add_asset(cid, data, "png", "image", name="f.png", mime="image/png", provider="upload")
-        model = Path(tempfile.mkdtemp()) / "up.keras"
-        model.write_bytes(b"x")
-        cs.save_layout(cid, {"nodes": [{"id": "m", "type": "ai_model", "x": 0, "y": 0, "params": {"model": str(model)}}, {"id": "u", "type": "upload", "x": 0, "y": 0, "params": {"files": [a["id"]]}}],
-                             "edges": [{"id": "e", "from": "u", "to": "m", "port": "image"}]})
-        events = []
-        with mock.patch.object(modelrun, "load_keras", return_value=FakeRunner()), mock.patch.object(Image, "MAX_IMAGE_PIXELS", wh or Image.MAX_IMAGE_PIXELS):
-            CanvasEngine(store, cid, events.append, lambda: False).run(None, True)
-        return next((e.get("message") for e in events if e.get("type") == "node" and e.get("id") == "m" and e.get("state") == "error"), None)
-
-    def png(self, w=40, h=30):
-        import io
-
-        from PIL import Image
-        b = io.BytesIO()
-        Image.new("RGB", (w, h), (9, 9, 9)).save(b, "PNG")
-        return b.getvalue()
-
-    def test_a_decompression_bomb_is_explained(self):
-        msg = self.run_node(self.png(200, 200), wh=1000)
-        self.assertIsNotNone(msg)
-        self.assertIn("grande demais", msg)
-        self.assertNotIn("inesperado", msg.lower())
-
-    def test_a_truncated_image_is_explained(self):
-        msg = self.run_node(self.png()[:60])
-        self.assertIn("corrompido ou incompleto", msg or "")
-
-    def test_a_good_image_runs(self):
-        self.assertIsNone(self.run_node(self.png()))
 
 
 class FrameworksCardTests(unittest.TestCase):

@@ -295,7 +295,7 @@ def tf_advice(info: Dict[str, Any], gpu_vendors: Sequence[str], system: str, py:
         if py > TF_MAX_PYTHON:
             return [_a("info", f"O TensorFlow ainda não publica pacotes para o Python {py[0]}.{py[1]} (o último é o {TF_MAX_PYTHON[0]}.{TF_MAX_PYTHON[1]}). Modelos Keras 3 (.keras) rodam com o PyTorch como motor: pip install keras (e KERAS_BACKEND=torch).",
                        f"TensorFlow does not publish packages for Python {py[0]}.{py[1]} yet (the latest is {TF_MAX_PYTHON[0]}.{TF_MAX_PYTHON[1]}). Keras 3 models (.keras) run with PyTorch as the engine: pip install keras (and KERAS_BACKEND=torch).")]
-        return [_a("info", "O TensorFlow não está instalado: ele só é preciso para rodar modelos feitos para ele (Keras, SavedModel).", "TensorFlow is not installed: it is only needed to run models made for it (Keras, SavedModel).", cmd)]
+        return [_a("info", "O TensorFlow não está instalado: o OpenFlow não precisa dele (os modelos locais usam o PyTorch); instale só se você usa o TensorFlow neste Python.", "TensorFlow is not installed: OpenFlow does not need it (local models use PyTorch); install it only if you use TensorFlow in this Python.", cmd)]
     if info.get("error"):
         return [_a("error", f"O TensorFlow está instalado ({info.get('version', '?')}), mas não carrega: {info['error']}. Reinstale-o.", f"TensorFlow is installed ({info.get('version', '?')}) but does not load: {info['error']}. Reinstall it.", cmd)]
     if info.get("probed") is False:   # v0.83: carregar o TensorFlow custa ≈ 400 MB de RAM e alguns segundos: só quando a pessoa pede

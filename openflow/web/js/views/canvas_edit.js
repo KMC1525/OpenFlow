@@ -9,7 +9,6 @@ import { GROUPS, LABEL, OUT_COLOR, TYPE_HELP, compatible, findFolder, nodeBody, 
 
 const uid = (p) => p + Math.random().toString(36).slice(2, 12);
 const deep = (o) => JSON.parse(JSON.stringify(o));
-const RUNNABLE = ['llm', 'image', 'video', 'sound', 'music', 'sfx', 'lyrics', 'voice', 'dub', 'transcript', 'sub', 'transcribe', 'editor'];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 // Editor de um canvas: nós ligados por conexões, pan/zoom, arquivos do projeto, execução com acompanhamento ao vivo.
@@ -33,7 +32,6 @@ export default async function render(root, ctx, cid) {
     accOpen: new Set(),
     uploadTo: (n, files, fid) => uploadFiles(files, null, n, fid),
     mentions: () => api(`/api/projects/${cid}/mentions`).then((r) => r.items),
-    openTimeline: (n) => openTimeline(n),
     run: (ids, force) => run(ids, force),
     preview: (a, list) => preview(a, list),
   };
@@ -163,16 +161,17 @@ export default async function render(root, ctx, cid) {
     for (const [id, e] of Object.entries(el)) e.classList.toggle('sel', id === nid);
     drawEdges();
   }
+  const runs = (type) => !!(types[type] && types[type].runs);   // v0.87: todo nó que o servidor executa (os de IA e os utilitários) mostra o ponto de estado e o botão de executar
   const isStale = (id) => (S.cv.stale || []).includes(id);
   function dotClass(n) {
     const st = S.states[n.id] || {};
     if (st.state === 'running') return 'st';
     if (st.state === 'queued') return 'st queued';
     if (st.state === 'error' || n.result.state === 'error') return 'st err';
-    if (!RUNNABLE.includes(n.type)) return 'st';
+    if (!runs(n.type)) return 'st';
     return isStale(n.id) ? 'st stale' : (n.result.state === 'done' ? 'st ok' : 'st');
   }
-  const dotTitle = (n) => (RUNNABLE.includes(n.type) ? (isStale(n.id) ? t('Desatualizado: será gerado de novo ao executar') : (n.result.state === 'done' ? t('Atualizado') : '')) : '');
+  const dotTitle = (n) => (runs(n.type) ? (isStale(n.id) ? t('Desatualizado: será gerado de novo ao executar') : (n.result.state === 'done' ? t('Atualizado') : '')) : '');
   function paintStale() { for (const n of S.cv.nodes) { const d = el[n.id] && el[n.id].querySelector('.st'); if (d) { d.className = dotClass(n); d.title = dotTitle(n); } } }
 
   function nodeEl(n) {
@@ -180,7 +179,7 @@ export default async function render(root, ctx, cid) {
     const title = h('input', { class: 'ti nodrag', value: n.title || '', placeholder: t(LABEL[n.type]), onchange: (e) => { n.title = e.target.value; dirty(); }, onkeydown: (e) => e.stopPropagation() });
     const menuBtn = h('button', { class: 'btn ghost icon sm nodrag', title: t('Mais'), onclick: (e) => nodeMenu(e.currentTarget, n) }, icon('more', 15));
     const hd = h('div', { class: 'hd' }, icon(info.icon, 16), title, h('span', { class: dotClass(n), title: dotTitle(n) }),
-      RUNNABLE.includes(n.type) ? h('button', { class: 'btn ghost icon sm nodrag', title: t('Executar este nó (e o que ele precisa). Shift: gerar de novo'), onclick: (e) => run([n.id], e.shiftKey) }, icon('play', 14)) : null, menuBtn);
+      runs(n.type) ? h('button', { class: 'btn ghost icon sm nodrag', title: t('Executar este nó (e o que ele precisa). Shift: gerar de novo'), onclick: (e) => run([n.id], e.shiftKey) }, icon('play', 14)) : null, menuBtn);
     const ports = info.ins.length ? h('div', { class: 'ports' }, info.ins.map((p) => {
       const cnt = S.cv.edges.filter((e) => e.to === n.id && e.port === p.id).length;
       return h('div', { class: 'pin' }, h('span', { class: 'pt in' + (cnt && !p.multi ? ' full' : ''), dataset: { node: n.id, port: p.id }, style: { '--pc': OUT_COLOR[p.accepts[0]] }, title: t('Arraste uma conexão até aqui') }),
@@ -220,7 +219,7 @@ export default async function render(root, ctx, cid) {
   function addNode(type, x, y, params) {
     const max = (meta.limits && meta.limits.nodes) || 200;   // acima do limite o servidor descartaria o nó ao salvar (ele sumiria ao reabrir)
     if (S.cv.nodes.length >= max) { toast(t('Limite de {n} nós por projeto: apague algum nó ou crie outro projeto.', { n: max }), 'err'); return null; }
-    const n = { id: uid('n_'), type, x: Math.round(x), y: Math.round(y), w: ['editor', 'image', 'video'].includes(type) ? 300 : 280, title: '', params: Object.assign(deep(meta.defaults[type]), params || {}), result: deep(meta.default_result) };
+    const n = { id: uid('n_'), type, x: Math.round(x), y: Math.round(y), w: ['image', 'video'].includes(type) ? 300 : 280, title: '', params: Object.assign(deep(meta.defaults[type]), params || {}), result: deep(meta.default_result) };
     S.cv.nodes.push(n); addToDom(n); select(n.id, ''); paintHint(); dirty();
     return n;
   }
@@ -235,7 +234,7 @@ export default async function render(root, ctx, cid) {
   function nodeMenu(anchor, n) {
     const item = (label, ic, fn, cls) => h('div', { class: 'opt ' + (cls || ''), onclick: () => { pop.close(); fn(); } }, icon(ic, 15), label);
     const pop = popover(anchor, h('div', null,
-      RUNNABLE.includes(n.type) ? item(t('Gerar de novo'), 'refresh', () => run([n.id], true)) : null,
+      runs(n.type) ? item(t('Gerar de novo'), 'refresh', () => run([n.id], true)) : null,
       item(t('Duplicar'), 'copy', () => { const d = addNode(n.type, n.x + 40, n.y + 40, deep(n.params)); if (!d) return; d.title = n.title; refreshNode(d.id); }),
       item(t('Apagar nó'), 'trash', () => removeNode(n.id), 'danger')));
   }
@@ -400,7 +399,7 @@ export default async function render(root, ctx, cid) {
       h('div', { class: 'acts' },
         h('a', { href: c.url(a) + '?download=1', title: t('Baixar') }, icon('download', 12)),
         h('button', { title: t('Apagar'), onclick: async () => {
-          if (!(await confirmDialog(t('Apagar “{n}”? Ela sai de todos os nós e do Editor.', { n: a.name })))) return;
+          if (!(await confirmDialog(t('Apagar “{n}”? Ela sai de todos os nós.', { n: a.name })))) return;
           try { await save(); await api(`/api/projects/${cid}/assets/${a.id}`, { method: 'DELETE' }); await reload(); } catch (e) { toast(e.message, 'err'); }
         } }, icon('trash', 12)))));
     fill(assetsPanel, assetTabs(), h('div', { class: 'hd' }, h('span', { class: 'grow' }, t('Arquivos do projeto')), h('button', { class: 'btn sm', onclick: () => input.click() }, icon('plus', 13), t('Enviar')), input),
@@ -480,34 +479,10 @@ export default async function render(root, ctx, cid) {
     requestAnimationFrame(() => { drawEdges(); paintStale(); }); paintAssets(); paintHint();
   }
 
-  // ---------------------------------------------------------------------------------------------- Editor (linha do tempo)
-  async function openTimeline(n) {
-    const mod = await import('../canvas_timeline.js');
-    await mod.openTimeline({
-      cid, node: n, cv: S.cv, url: c.url, meta,
-      connected: () => connectedOutputs(n),
-      onChange: () => { dirty(); refreshNode(n.id); },
-      exportNow: async () => { await save(); await run([n.id], true); },
-      autofill: async () => { await save(); const r = await api(`/api/projects/${cid}/nodes/${n.id}/autofill`, { method: 'POST' }); n.params.timeline = r.timeline; dirty(); return r.timeline; },
-    });
-    refreshNode(n.id);
-  }
-  // saídas dos nós ligados ao Editor (cada arquivo, ou o texto), para a "bandeja" do Editor
-  function connectedOutputs(ed) {
-    const out = [];
-    for (const e of S.cv.edges.filter((x) => x.to === ed.id && x.port === 'clips')) {
-      const src = nodeById(e.from); if (!src) continue;
-      const ids = src.type === 'upload' ? src.params.files : (src.result.state === 'done' ? src.result.assets : []);
-      ids.forEach((id, idx) => { const a = c.asset(id); if (a) out.push({ node: src.id, idx, label: src.title || t(LABEL[src.type]), asset: a }); });
-      if (src.type === 'text' && src.params.text.trim()) out.push({ node: src.id, idx: 0, label: src.title || t(LABEL.text), text: src.params.text });
-    }
-    return out;
-  }
-
   // ---------------------------------------------------------------------------------------------- teclado e ciclo de vida
   const onKey = (e) => {
     if (!document.body.contains(rootEl)) return document.removeEventListener('keydown', onKey);
-    if (e.target.closest('input,textarea,select,[contenteditable]') || document.querySelector('.tl-bg,.cv-lb,.modal-bg')) return;
+    if (e.target.closest('input,textarea,select,[contenteditable]') || document.querySelector(".cv-lb,.modal-bg")) return;
     if ((e.key === 'Delete' || e.key === 'Backspace') && !S.job) {
       if (S.selEdge) { e.preventDefault(); removeEdge(S.selEdge); } else if (S.sel) { e.preventDefault(); removeNode(S.sel); }
     } else if (e.key === 'Escape') select('', '');
@@ -524,4 +499,5 @@ export default async function render(root, ctx, cid) {
     paintStale();
   });
   if (cv.job_id) attach(cv.job_id);
+  if ((cv.removed_nodes || []).length) toast(t('Este projeto tinha {n} nó(s) que não existem mais (Editor ou Modelo PyTorch/TensorFlow): eles saíram do canvas; os arquivos que geraram continuam no projeto.', { n: cv.removed_nodes.length }));
 }

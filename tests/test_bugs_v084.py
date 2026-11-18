@@ -1,4 +1,4 @@
-"""v0.84: bugs achados na caça — o fluxo das faixas Q2–Q8 de ponta a ponta, o campo de modelo do nó «Modelo PyTorch/TensorFlow» e a linha de comando:
+"""v0.84: bugs achados na caça — o fluxo das faixas Q2–Q8 de ponta a ponta, (o campo de modelo do nó «Modelo PyTorch/TensorFlow» saiu na v0.87) e a linha de comando:
 1. o campo do nó é texto livre: um nome comprido demais ou uma pasta sem permissão (/proc) dava OSError/PermissionError e a tela de status do nó recebia «erro interno» (500);
 2. `flow torch --index 'a b;rm -rf /'` mostrava um comando para copiar com o texto solto dentro; agora o índice é validado;
 3. `flow models quant --name x` (arquivo que não está baixado) dizia «só modelos de texto, imagem e vídeo»;
@@ -17,41 +17,7 @@ from unittest import mock
 
 from openflow.canvas import frameworks as fw
 from openflow.canvas import media as M
-from openflow.canvas import modelrun as mr
 from openflow.providers import ProviderError
-
-
-class ModelFieldTests(unittest.TestCase):
-    def test_hostile_strings_always_end_in_a_provider_error(self):
-        models = Path(tempfile.mkdtemp())
-        for s in ("x" * 5000, "a\x00b", "/proc", "/sys", "/dev/zero", "~", "~nobody/x", "\\\\srv\\sh\\m.pt", "C:\\a\\b.keras", "a::b", "o/n::..", "../../etc", ".", "/"):
-            try:
-                mr.resolve(s, "", models)
-            except ProviderError:
-                pass
-            except Exception as exc:  # noqa: BLE001
-                self.fail(f"{s[:20]!r}: {type(exc).__name__}: {exc}")
-
-    def test_kind_of_never_raises(self):
-        for s in ("x" * 5000, "/proc/1/cwd", "a\x00b"):
-            self.assertEqual(mr.kind_of(Path(s)), "")
-
-    def test_the_status_endpoint_answers_200_for_any_text(self):
-        from openflow.server import make_server
-        from openflow.storage import Store
-
-        httpd, _ = make_server("127.0.0.1", 0, Store(Path(tempfile.mkdtemp())))
-        threading.Thread(target=httpd.serve_forever, daemon=True).start()
-        port = httpd.server_address[1]
-        try:
-            for s in ("x" * 390, "/proc", "a%00b", "/sys", "~"):
-                url = f"http://127.0.0.1:{port}/api/tool/info?model={urllib.parse.quote(s)}"
-                with urllib.request.urlopen(url, timeout=20) as r:
-                    data = json.loads(r.read())
-                self.assertEqual((r.status, data["found"]), (200, False), s)
-        finally:
-            httpd.shutdown()
-            httpd.server_close()
 
 
 class TorchIndexTests(unittest.TestCase):
