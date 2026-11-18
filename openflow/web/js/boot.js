@@ -22,7 +22,7 @@
     var zoomOk = !window.CSS || !CSS.supports || CSS.supports('zoom', '1.1');
     r.style.setProperty('--z', zoomOk ? String(scale / 100) : '1');
     var accent = /^#[0-9a-f]{6}$/i.test(ui.accent || '') ? ui.accent.toLowerCase() : '';
-    if (accent) { r.style.setProperty('--accent-custom', accent); r.style.setProperty('--on-accent-custom', lum(accent) > 0.4 ? '#000' : '#fff'); }
+    if (accent) { r.style.setProperty('--accent-custom', accent); r.style.setProperty('--on-accent-custom', lum(accent) > 0.179 ? '#000' : '#fff'); }
     else { r.style.removeProperty('--accent-custom'); r.style.removeProperty('--on-accent-custom'); }
     var meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute('content', resolved === 'light' ? '#f6f6f4' : '#1e1f22');

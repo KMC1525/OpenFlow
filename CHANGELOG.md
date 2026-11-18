@@ -2,6 +2,24 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.88.0] — 2026-11-18
+
+### Caçando bugs 7 — o que foi procurado
+- **O contraste das cores (WCAG AA, 4,5:1)** com o axe-core — a regra que as caçadas anteriores deixaram de fora — nos dois temas (escuro e claro), em todas as cores de destaque da Aparência, nas telas de projetos, canvas (vazio, executado, com nó em erro, menu de nó), busca de modelos, Biblioteca (3 abas) e Configurações (todas as abas), mais avisos (normal, erro, ok).
+- **O foco do teclado:** percorrer a tela inteira com a tecla Tab (projetos, canvas, Biblioteca, Configurações) e conferir se cada elemento mostra para onde o foco foi.
+- **Concorrência na execução:** apagar o projeto, salvar o layout vazio, cancelar, duas execuções e renomear **durante** uma execução (o servidor aguentou todos).
+- Os nomes de arquivo de 40 variantes de quantização, a conversão de faixas (`with_weight_type`) em 14 tipos de arquivo × 8 pedidos, os comandos `flow`, o instalador `sh` (dash) e a compatibilidade com o Python 3.9–3.13.
+
+### Corrigido
+- **O texto «apagado» da interface não tinha contraste suficiente:** a cor usada nas dicas, rótulos pequenos, versão, «Salvo», títulos de grupo da paleta e descrições de Configurações tinha razão de contraste de 3,0 a 3,9 (o mínimo é 4,5) — difícil de ler, principalmente no tema claro. Agora fica acima de 4,5 em todos os fundos, nos dois temas; o axe-core não acha mais nenhum caso nas telas varridas.
+- **Texto sobre a cor de destaque ilegível em quatro das seis cores:** o OpenFlow escolhia texto preto ou branco por um limite que deixava branco sobre azul, rosa, vermelho e violeta com contraste de 3,2 a 4,2. Agora escolhe o preto ou o branco que tem MAIS contraste (botões, abas e avisos na cor de destaque).
+- **O campo «Buscar nós» da paleta não mostrava o foco do teclado** (não tinha contorno nem outro sinal): agora uma linha marca o campo quando ele está ativo; o nome do projeto no topo também ganhou um contorno mais nítido ao ser editado.
+- **O nó Vídeo mandava «(reference image N)» no prompt:** ao citar `@foto` no prompt de um vídeo, o texto enviado ao modelo trazia «foto (reference image 1)» (e, com duas citações, «(reference image 2)» — uma imagem que nunca chega, pois o vídeo usa uma só). O texto agora leva só o apelido; a primeira citada continua sendo a imagem inicial.
+
+### Ainda não verificado
+- Nenhum modelo real foi baixado ou executado (Hugging Face bloqueado, sem GPU aqui). O contraste foi medido pelo axe-core (automático) nas telas e estados listados; telas e estados que não foram varridos podem ter casos.
+- Não há leitor de tela de verdade na verificação.
+
 ## [0.87.0] — 2026-11-18
 
 ### Removido

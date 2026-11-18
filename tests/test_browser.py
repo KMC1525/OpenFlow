@@ -105,6 +105,12 @@ class BrowserTests(unittest.TestCase):
     def test_99_removed_nodes_are_gone_and_old_projects_say_so(self):
         self.run_script("removed_v087_ui.js")
 
+    def test_97_text_colors_keep_the_minimum_contrast(self):
+        self.run_script("contrast_v088_ui.js")
+
+    def test_96_the_node_search_field_shows_keyboard_focus(self):
+        self.run_script("focus_v088_ui.js")
+
     def test_98_utility_nodes_can_be_run_one_by_one(self):
         self.run_script("ext_run_v087_ui.js")
 

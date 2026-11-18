@@ -131,7 +131,8 @@ class EngineMentionTests(Base):
         n = next(x for x in self.cs.get(self.c["id"])["nodes"] if x["id"] == "vid")
         self.assertEqual(n["result"]["state"], "done", n["result"])
         self.assertEqual(seen["image"][0], self.cs.asset_path(self.c["id"], self.b["file"]).read_bytes())
-        self.assertIn("foto-perfil (reference image 1)", seen["prompt"])
+        self.assertIn("foto-perfil e depois fnaf-1-office", seen["prompt"])   # v0.88: o vídeo leva só o apelido, sem «(reference image N)»
+        self.assertNotIn("reference image", seen["prompt"])
         self.assertTrue(any("uma só imagem inicial" in w for e in ev if e.get("type") == "node" for w in e.get("warnings", [])))
 
 

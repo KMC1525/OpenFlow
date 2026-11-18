@@ -2,7 +2,7 @@
 :root{
   --bg:#1e1f22;--bg1:#25262a;--bg2:#2c2d32;--bg3:#35363c;
   --line:#2d2e33;--line2:#3a3b41;--line3:#4a4b53;
-  --text:#dedee0;--muted:#a0a1a8;--dim:#7a7b83;
+  --text:#dedee0;--muted:#b1b2b9;--dim:#9b9ca4;
   --strong:#f4f4f5;--accent:var(--accent-custom,#e8e8ea);--on-accent:var(--on-accent-custom,#1e1f22);--accent-h:color-mix(in srgb,var(--accent) 86%,#777);
   --ok:#7ee2a8;--warn:#f2c46d;--err:#ff7b72;--info:#7cb7ff;
   --scroll:#3a3b41;--scroll-h:#4b4c54;--ring:rgba(255,255,255,.05);--shadow:rgba(0,0,0,.45);--z:1;color-scheme:dark;
@@ -201,7 +201,7 @@ button.chip{cursor:pointer}button.chip:hover{border-color:var(--line3);color:var
 :root[data-theme="light"]{
   --bg:#f6f6f4;--bg1:#fff;--bg2:#f0f0ee;--bg3:#e6e6e3;
   --line:#e4e4e0;--line2:#d4d4cf;--line3:#b9b9b3;
-  --text:#18181a;--muted:#5f5f66;--dim:#8d8d94;
+  --text:#18181a;--muted:#55555c;--dim:#66666e;
   --strong:#000;--accent:var(--accent-custom,#17171a);--on-accent:var(--on-accent-custom,#fff);--accent-h:color-mix(in srgb,var(--accent) 80%,#888);
   --ok:#1f9d57;--warn:#b7791f;--err:#d1342b;--info:#2563c9;
   --scroll:#cfcfca;--scroll-h:#b4b4ae;--ring:rgba(0,0,0,.05);--shadow:rgba(0,0,0,.22);color-scheme:light;
@@ -216,7 +216,7 @@ button.chip{cursor:pointer}button.chip:hover{border-color:var(--line3);color:var
 :root[data-theme="light"] select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235f5f66' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")}
 :root[data-theme="light"] select option{background:#fff;color:#18181a}
 /* superfícies de "estúdio" (grafo do Canvas, editor de vídeo, visualizador) ficam sempre escuras, como nos editores de mídia */
-.cv-surface,.cv-lb{--bg:#1e1f22;--bg1:#25262a;--bg2:#2c2d32;--bg3:#35363c;--line:#2d2e33;--line2:#3a3b41;--line3:#4a4b53;--text:#dedee0;--muted:#a0a1a8;--dim:#7a7b83;--strong:#f4f4f5;--accent:var(--accent-custom,#e8e8ea);--on-accent:var(--on-accent-custom,#1e1f22);--ring:rgba(255,255,255,.04);--shadow:rgba(0,0,0,.7);--ok:#7ee2a8;--warn:#f2c46d;--err:#ff7b72;color:var(--text);color-scheme:dark}
+.cv-surface,.cv-lb{--bg:#1e1f22;--bg1:#25262a;--bg2:#2c2d32;--bg3:#35363c;--line:#2d2e33;--line2:#3a3b41;--line3:#4a4b53;--text:#dedee0;--muted:#b1b2b9;--dim:#9b9ca4;--strong:#f4f4f5;--accent:var(--accent-custom,#e8e8ea);--on-accent:var(--on-accent-custom,#1e1f22);--ring:rgba(255,255,255,.04);--shadow:rgba(0,0,0,.7);--ok:#7ee2a8;--warn:#f2c46d;--err:#ff7b72;color:var(--text);color-scheme:dark}
 /* densidade compacta */
 :root[data-density="compact"] .page{padding:20px 22px 56px}
 :root[data-density="compact"] .card{padding:14px}
