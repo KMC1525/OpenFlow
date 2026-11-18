@@ -2,6 +2,24 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.85.0] — 2026-11-18
+
+### Bug hunt 5 — what was searched
+- **The model downloader**, with a local server that breaks on purpose: no `Range` support, `chunked` response without a size, a connection dropping mid-way (with and without a size), `429` at the start, redirects, a half, a complete, an other-version and a legacy `.part` — with 1 and 4 connections.
+- **Accessibility** of the main screens with axe-core (rules about names, labels and headings; colour contrast was not evaluated): projects, editor, Library (3 tabs), the 5 Settings tabs, the welcome, the open model search and a selected node, in Portuguese and English.
+- Background jobs and what lists them; the full path of the Q2–Q8 tiers (no new problems beyond the ones below).
+
+### Fixed
+- **A download whose chunked response was cut mid-way crashed:** when the server (or a proxy) sends the file as `Transfer-Encoding: chunked` and the connection drops, Python raises `IncompleteRead`, which the downloader did not treat as a network drop: the download failed instead of resuming. It now resumes (with one and with several connections).
+- **A leftover of ANOTHER version of the file was returned as "complete":** if the `.part` ended up bigger than the new file, the server answered `416` and the downloader accepted the `.part` as done — a corrupt model, bigger than the original. It now checks the size the server reports and, if it does not match, discards the leftover and downloads again.
+- **An error, login or network-portal page (hotel Wi-Fi) became a "model":** downloaded with status 200, it was saved as `.gguf` and only failed on load, with an error unrelated to the download. Every downloaded `.gguf` is now checked ("GGUF" at the start) before getting its final name; if it is not, the file is deleted and the error says what probably happened. The good parts of a split model stay for the next download to continue.
+- **"Create tier" and the "Own model" download did not show in the Downloads tab** (nor in the counter next to the search) and **did not stop** disk cleaning or moving the Library folder while they were writing to disk. They now show up, with title and messages, and count as a download in progress.
+- **Accessibility (axe-core):** the logo link had a name that did not start with the visible text (now "OpenFlow — home" from its content, with the "F" hidden from screen readers); the project editor had no page heading (now there is a screen-reader-only `h1`); the headings of the Settings cards, the Library, the empty project list and the palette groups skipped a level (now level 2); the "custom colour" field only had a `title` (it got a name); each project card's link had a label that did not contain the visible text (the name now comes from the content).
+
+### Not verified yet
+- No real model was downloaded or run (Hugging Face blocked); the downloader was tested with a local server, not Hugging Face's CDN. There is no real screen reader in the check: axe-core is automatic and only finds part of the problems.
+- The hunt does not exhaust the program: it covered the paths above.
+
 ## [0.84.0] — 2026-11-18
 
 ### Bug hunt 4 — what was searched

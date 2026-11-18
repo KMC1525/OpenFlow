@@ -412,8 +412,31 @@ def download(
     from . import diskuse
 
     dl.fetch(url, part, _headers(token), diskuse.download_connections(dest.parent, connections or CONNECTIONS), progress, cancelled)   # várias conexões, retomada e novas tentativas (v0.25)
+    _verify(part, dest.name)
     os.replace(part, dest)
     return dest
+
+
+def _verify(part: Path, name: str) -> None:
+    """Confere o arquivo baixado ANTES de ele ganhar o nome final (v0.85): um .gguf tem que começar com «GGUF». Uma página de erro, de login ou de portal de rede (Wi-Fi de hotel…), antes, virava um «modelo»
+    que só falhava mais tarde, ao carregar, com um erro sem relação com o download. (O tamanho já é conferido pelo próprio download, contra o Content-Length.)"""
+    if not name.lower().endswith(".gguf"):
+        return
+    try:
+        with open(part, "rb") as fh:
+            head = fh.read(4)
+    except OSError as exc:
+        raise ProviderError(f"Não consegui conferir o arquivo baixado: {exc}") from None
+    if head != b"GGUF":
+        part.unlink(missing_ok=True)
+        try:
+            from . import dl
+
+            dl._sidecar(part).unlink(missing_ok=True)
+        except Exception:  # noqa: BLE001
+            pass
+        raise ProviderError(f"O arquivo «{name}» baixado não é um modelo GGUF (não começa com «GGUF»: provavelmente é uma página de erro, de login ou de uma rede com portal). Apaguei o arquivo; tente baixar de novo "
+                            "(confira a conexão, o token do Hugging Face e se o repositório exige aceitar uma licença).")
 
 
 def download_many(

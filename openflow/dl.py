@@ -6,6 +6,7 @@ para um `.part` pré-alocado; um arquivo `.seg` ao lado guarda quanto de cada fa
 """
 from __future__ import annotations
 
+from http.client import HTTPException
 import json
 import os
 import re
@@ -112,8 +113,16 @@ def single(url: str, part: Path, headers: Dict[str, str], progress: Optional[Cal
             else:
                 resp = http.request(url, headers=hdrs, timeout=60)
         except ProviderError as exc:
-            if getattr(exc, "status", None) == 416 and start:   # o .part já tem o arquivo inteiro
-                return start
+            if getattr(exc, "status", None) == 416 and start:   # o servidor diz que o .part passa do fim: ou ele já tem o arquivo inteiro, ou é um resto de OUTRA versão do arquivo
+                try:
+                    known = probe(url, headers)[1]
+                except ProviderError:
+                    known = 0
+                if known and known == start:
+                    return start
+                part.unlink(missing_ok=True)   # v0.85: antes devolvia o .part como se estivesse completo (arquivo corrompido, maior que o original)
+                _sidecar(part).unlink(missing_ok=True)
+                continue
             st = getattr(exc, "status", None)
             transient = st in (429, 500, 502, 503, 504) or (st is None and start > 0)   # sem internet logo de cara: avisa já; já tinha começado: a rede pode voltar
             if attempt >= RETRIES or not transient:
@@ -142,7 +151,7 @@ def single(url: str, part: Path, headers: Dict[str, str], progress: Optional[Cal
             if total and done < total:
                 raise OSError("conexão encerrada antes do fim")
             return done
-        except (OSError, ProviderError) as exc:   # queda de rede no meio: retoma
+        except (OSError, HTTPException, ProviderError) as exc:   # queda de rede no meio (v0.85: inclui o corte de uma resposta em pedaços, `IncompleteRead`): retoma
             if isinstance(exc, ProviderError) and str(exc) == "cancelado":
                 raise
             if attempt >= RETRIES:
@@ -198,7 +207,7 @@ def parallel(url: str, final: str, total: int, part: Path, headers: Dict[str, st
                             if s + done[i] > e:
                                 break
                         attempt = 0 if s + done[i] > e else attempt
-                    except OSError:
+                    except (OSError, HTTPException):
                         pass   # queda no meio da faixa: abaixo tenta de novo do ponto em que parou
                     finally:
                         resp.close()

@@ -21,7 +21,7 @@ export default async function render(root, ctx) {
   paintTabs(); await paintBody();
 }
 
-const cfgCard = (title, ...kids) => h('div', { class: 'card', style: { marginBottom: '16px' } }, title ? h('h3', null, title) : null, ...kids);
+const cfgCard = (title, ...kids) => h('div', { class: 'card', style: { marginBottom: '16px' } }, title ? h('h3', { role: 'heading', 'aria-level': '2' }, title) : null, ...kids);   // v0.84: a página só tem o h1; o título de cada cartão é de nível 2
 
 const saveRow = (fn) => h('div', { class: 'row', style: { justifyContent: 'flex-end' } }, h('button', { class: 'btn primary', type: 'button', id: 'cfg-save', onclick: async () => { try { await fn(); toast(t('Salvo'), 'ok'); } catch (e) { toast(e.message, 'err'); } } }, icon('check', 15), t('Salvar')));
 
@@ -35,7 +35,7 @@ async function providers() {
   const container = h('div');
   const rolesCard = () => {
     const S = state.settings;
-    return h('div', { class: 'card', style: { marginBottom: '16px' } }, h('h3', null, t('Quem escreve os textos')),
+    return h('div', { class: 'card', style: { marginBottom: '16px' } }, h('h3', { role: 'heading', 'aria-level': '2' }, t('Quem escreve os textos')),
       field(t('Modelo de texto (IA)'), select(presets.map((p) => [p.id, t(p.label)]), S.active.generation, async (v) => { await saveSettings({ active: { generation: v } }); await refreshState(); renderSide(); paint(); }),
         t('Usado pelo nó Texto IA e para descrever as pastas de estilo. «Demo» funciona offline, sem IA, para testar.')));
   };
@@ -380,14 +380,14 @@ async function media() {
 
   const reload = async () => { data = await api('/api/media/providers'); await refreshState(); paint(); };
   function defaults() {
-    return h('div', { class: 'card', style: { marginBottom: '16px' } }, h('h3', null, t('Modelo padrão de cada tipo de mídia')),
+    return h('div', { class: 'card', style: { marginBottom: '16px' } }, h('h3', { role: 'heading', 'aria-level': '2' }, t('Modelo padrão de cada tipo de mídia')),
       h('p', { class: 'muted small', style: { marginTop: 0 } }, t('Cada nó do OpenFlow pode escolher outro provedor. Aqui fica o padrão do projeto. “Demo” funciona offline, sem IA, para testar os fluxos.')),
       h('div', { class: 'grid2' }, CAPS.map(([cap, label]) => field(t(label), select(data.providers.filter((p) => p.caps.includes(cap)).map((p) => [p.id, t(p.label)]), data.active[cap] || 'demo',
         async (v) => { await saveSettings({ media: { active: { [cap]: v } } }); data.active[cap] = v; toast(t('Salvo'), 'ok'); })))));
   }
   function demoCard() {
     const d = data.providers.find((p) => p.id === 'demo');
-    return h('div', { class: 'card', style: { marginTop: '16px' } }, h('h3', null, t(d.label)), h('p', { class: 'muted small', style: { margin: 0 } }, t(d.hint)));
+    return h('div', { class: 'card', style: { marginTop: '16px' } }, h('h3', { role: 'heading', 'aria-level': '2' }, t(d.label)), h('p', { class: 'muted small', style: { margin: 0 } }, t(d.hint)));
   }
   function card(p) {
     const draft = { models: Object.assign({}, p.models) };

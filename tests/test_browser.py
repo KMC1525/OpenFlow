@@ -138,6 +138,9 @@ class BrowserTests(unittest.TestCase):
     def test_35_new_ui_stays_inside_the_screen_on_phone_tablet_and_desktop(self):
         self.run_script("layout_v083_ui.js")
 
+    def test_36_accessibility_names_headings_and_labels_found_with_axe(self):
+        self.run_script("a11y_v085_ui.js")
+
     def test_19_the_ai_flow_generator_and_the_team_picker_are_gone(self):
         self.run_script("no_flow_ai_ui.js")
 
