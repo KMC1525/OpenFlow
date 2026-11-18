@@ -4,7 +4,7 @@
   Nomes repetidos ficam com `-2`, `-3`… (a mais antiga mantém o apelido simples), então um apelido sempre aponta para uma imagem só.
 * Na hora de gerar, cada `@apelido` achado no prompt vira `apelido (reference image N)` e a imagem entra como referência N (na ordem em que foi citada). Um **vídeo** citado entra pelo
   quadro do meio (`apelido (reference image N, a frame of the video)`); um **som** não é imagem: fica no texto como `apelido (audio reference)` e o nó avisa que modelos de imagem/vídeo não usam áudio.
-* O `@` vale em qualquer texto que chegue a um nó Imagem ou Vídeo — o prompt do próprio nó ou um nó de Texto ligado a ele.
+* O `@` vale em qualquer texto que chegue a um nó Imagem ou Vídeo — o prompt do próprio nó ou um nó de Texto ligado a ele. No nó **Vídeo** (v0.88) só a 1ª imagem citada vira a imagem inicial (um vídeo citado entra pelo último quadro) e o texto leva só o apelido, sem «(reference image N)».
 * Um `@` que não casa com nenhuma imagem fica como está no texto e vira aviso; e-mails (`a@b.com`) nunca são tomados por menção.
 """
 from __future__ import annotations

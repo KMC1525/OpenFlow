@@ -2,6 +2,24 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.88.0] — 2026-11-18
+
+### Bug hunt 7 — what was searched
+- **Colour contrast (WCAG AA, 4.5:1)** with axe-core — the rule earlier hunts left out — in both themes (dark and light), in every accent colour of Appearance, on the projects, canvas (empty, executed, with a node in error, node menu), model search, Library (3 tabs) and Settings (all tabs) screens, plus notices (normal, error, ok).
+- **Keyboard focus:** tabbing through the whole screen (projects, canvas, Library, Settings) and checking that each element shows where the focus went.
+- **Concurrency during a run:** deleting the project, saving an empty layout, cancelling, two runs and renaming **while** a run is in progress (the server survived them all).
+- The file names of 40 quantization variants, tier conversion (`with_weight_type`) over 14 file types × 8 requests, the `flow` commands, the `sh` (dash) installer and compatibility with Python 3.9–3.13.
+
+### Fixed
+- **The «dimmed» text of the interface had too little contrast:** the colour used in hints, small labels, the version, «Saved», palette group titles and Settings descriptions had a contrast ratio of 3.0 to 3.9 (the minimum is 4.5) — hard to read, especially in the light theme. It is now above 4.5 on every background, in both themes; axe-core finds no case left on the scanned screens.
+- **Text on the accent colour unreadable in four of the six colours:** OpenFlow picked black or white text with a threshold that left white on blue, pink, red and violet at a contrast of 3.2 to 4.2. It now picks whichever of black or white has MORE contrast (buttons, tabs and notices in the accent colour).
+- **The palette's «Search nodes» field showed no keyboard focus** (no outline or other sign): a line now marks the field when active; the project name at the top also got a clearer outline while being edited.
+- **The Video node sent «(reference image N)» in the prompt:** citing `@photo` in a video prompt sent the model «photo (reference image 1)» (and, with two mentions, «(reference image 2)» — an image that never arrives, since video uses a single one). The text now carries only the nickname; the first one cited is still the start image.
+
+### Not verified yet
+- No real model was downloaded or run (Hugging Face blocked, no GPU here). Contrast was measured by axe-core (automatic) on the screens and states listed; screens and states that were not scanned may have cases.
+- There is no real screen reader in the verification.
+
 ## [0.87.0] — 2026-11-18
 
 ### Removed

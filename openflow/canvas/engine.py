@@ -769,8 +769,10 @@ class CanvasEngine:
             return {"assets": ids, "text": "", "warnings": warnings}
         if t == "video":
             base = "\n\n".join(x for x in (self.inputs(canvas, node, "prompt")["text"], p["prompt"].strip()) if x)
+            raw_base = base
             base, ment_ids, missing = mentions_mod.resolve(canvas, base)
             warnings += [f"@{m}: não há mídia com esse apelido neste canvas — ficou como texto." for m in missing]
+            base = mentions_mod.plain(canvas, raw_base)   # v0.88: o vídeo usa UMA imagem inicial; «(reference image N)» não diz nada a um modelo de vídeo (e com duas citações apontava para uma imagem que não chega): só o apelido fica no texto
             ment_refs, ment_warn = self._mention_media(canvas, ment_ids, "vídeo", last=True)
             warnings += ment_warn
             first = next(iter(self.image_inputs(canvas, node, "image", last=True)), None) or next(iter(ment_refs), None)   # v0.86: um vídeo na «Imagem inicial» continua do ÚLTIMO quadro dele; senão, a 1ª imagem (ou quadro de vídeo) citada vira a imagem inicial
