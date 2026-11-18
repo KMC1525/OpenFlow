@@ -15,7 +15,7 @@ import importlib.util
 import os
 import re
 import sys
-from typing import Any, Dict, List, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 #: índices de pacotes do PyTorch por tipo de placa, do mais novo para o mais antigo (o `flow torch --install` tenta um depois do outro; `OPENFLOW_TORCH_INDEX` força um)
 TORCH_INDEXES = {"nvidia": ["cu130", "cu128", "cu126"], "amd": ["rocm7.1", "rocm7.0", "rocm6.4"], "intel": ["xpu"], "cpu": ["cpu"]}
@@ -69,9 +69,19 @@ def vendors() -> List[str]:
 
 
 # ----------------------------------------------------------------------------- PyTorch
+_INDEX_OK = re.compile(r"^(?!.*\.\.)[A-Za-z0-9][A-Za-z0-9._/-]{0,39}$")
+
+
+def valid_index(index: str) -> bool:
+    """O nome de um índice do PyTorch (`cu130`, `rocm7.1`, `nightly/cu130`): letras, números, ponto, traço e barra, sem «..». Vai parar numa URL e num comando que a pessoa copia: nada de espaços ou «;» (v0.84)."""
+    return bool(_INDEX_OK.match(index or ""))
+
+
 def torch_command(vendor: str, system: str, index: str = "") -> str:
     """O comando do pip para instalar o PyTorch certo para a placa `vendor` neste `system` («Linux», «Windows», «Darwin»). Sem placa suportada, a versão só de CPU."""
     exe = "python -m pip install --upgrade torch torchvision"
+    if index and not valid_index(index):
+        raise ValueError(f"Índice do PyTorch inválido: {index!r} (use algo como cu130, rocm7.1, xpu ou cpu).")
     if system == "Darwin":
         return exe   # no macOS o pacote padrão já traz o MPS (placa da Apple)
     kind = vendor if vendor in TORCH_INDEXES else "cpu"
@@ -89,6 +99,8 @@ def torch_install(vendor: str, system: str, index: str = "", run: Any = None) ->
     if kind == "amd" and system != "Linux":
         kind = "cpu"
     forced = index or os.environ.get("OPENFLOW_TORCH_INDEX", "")
+    if forced and not valid_index(forced):
+        raise ValueError(f"Índice do PyTorch inválido: {forced!r} (use algo como cu130, rocm7.1, xpu ou cpu).")
     candidates = [forced] if forced else ([""] if system == "Darwin" else list(TORCH_INDEXES[kind]))
     tried: List[str] = []
     for idx in candidates:
@@ -147,6 +159,18 @@ def torch_info(probe: bool = True) -> Dict[str, Any]:
         pass
     info["devices"] = devices
     return info
+
+
+def quick_torch_hint(version: str, gpu_vendors: Sequence[str], system: str) -> Optional[Dict[str, str]]:
+    """O aviso barato (sem importar o PyTorch) para o fim de `flow libs`/`flow update`: no Windows o pacote do PyPI é a versão SÓ DE CPU; se o computador tem uma placa NVIDIA e o PyTorch instalado não vem de um
+    índice de placa («2.15.0+cu130»), diz o comando. None se não há o que avisar."""
+    if not version or system != "Windows" or "nvidia" not in gpu_vendors:
+        return None
+    local = version.split("+", 1)[1].lower() if "+" in version else ""
+    if local and not local.startswith("cpu"):
+        return None
+    return _a("warn", f"Há uma placa NVIDIA, mas o PyTorch {version} do PyPI no Windows é a versão só de CPU: os modelos locais ficam muito mais lentos. Para usar a placa:  flow torch --install",
+              f"There is an NVIDIA card, but PyTorch {version} from PyPI on Windows is the CPU-only build: local models get much slower. To use the card:  flow torch --install", torch_command("nvidia", system))
 
 
 def best_device(info: Dict[str, Any]) -> str:

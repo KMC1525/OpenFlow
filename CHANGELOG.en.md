@@ -2,6 +2,24 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.84.0] — 2026-11-18
+
+### Bug hunt 4 — what was searched
+- **The full path of the Q2, Q3, Q4, Q6 and Q8 tiers:** choosing and downloading (GGUF and original format), creating (text, image, video), using on load (image, video, editing) and the screens of each step; plus hostile Dubbing-with-cloned-voice scenarios (lines with the same start, zero duration, outside the audio, 300 lines, huge text, Unicode, silence), the options of **every list and range field** of **every node** (what the screen offers against what the server accepts), the command line, corrupt media, 1018 malformed API calls and 160 random graphs.
+- The API, the engine, Dubbing and the nodes' options held up to everything; what turned up is below.
+
+### Fixed
+- **`flow update` took the graphics card away from PyTorch:** whoever installed the graphics-card PyTorch with `flow torch --install` ("2.15.0+cu130", "+rocm…", "+xpu") had it replaced, on the next update, by the PyPI build — which on Windows is the **CPU-only** one. `flow libs`/`flow update` now keep a graphics-card-index PyTorch and torchvision (and say how to update them: `flow torch --install`). Also, at the end of an install/update on Windows with an NVIDIA card and the "default" PyTorch, OpenFlow warns and shows the command.
+- **The original format's Q… tiers had no explanation in the model search** (the panel had an old copy of the texts, with only fp32/fp16/bf16): it now uses the full texts.
+- **"Quantization on load" on LTX-2 was silently ignored** (it runs through diffusers, not stable-diffusion.cpp), and so was the tier chosen on the modular pipeline (FLUX.3): the node now says so and how to get another tier (its GGUF file).
+- **The "Model" field of the "PyTorch/TensorFlow model" node got "internal error"** with a too-long name or a folder without permission (like `/proc`): the node's status now always answers, and the node's file checks never raise.
+- **`flow torch --index 'a b;rm -rf /'` showed a command to copy with that text loose inside:** the index is now validated (letters, digits, `.`, `-`, `/`, no `..`) on every path, including `OPENFLOW_TORCH_INDEX`.
+- **`flow models quant --name x`**, with a file that is not downloaded, said "only text, image and video models": it now says it could not find the file and how to see the list.
+
+### Not verified yet
+- No real model was downloaded or run (Hugging Face blocked), nothing ran on a graphics card, and `flow torch --install`/`flow update` were tested with a simulated pip.
+- The hunt does not exhaust the program: it covered the paths above.
+
 ## [0.83.0] — 2026-11-17
 
 ### Bug hunt 3 — what was searched

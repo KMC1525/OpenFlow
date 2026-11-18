@@ -1,6 +1,7 @@
 import { api, events } from '../api.js';
 import { t } from '../i18n.js';
 import { ROLE_LABEL } from '../labels.js';
+import { PREC_HINT } from '../model_labels.js';
 import { fill, h, icon, toast } from '../ui.js';
 
 // Barra de pesquisa de modelos no topo do Canvas (Hugging Face): procura, mostra TODAS as quantizações de cada modelo, baixa e passa a usar — no nó selecionado e como padrão do tipo.
@@ -11,7 +12,7 @@ const REPO_RE = /^[A-Za-z0-9][\w.-]{0,95}\/[A-Za-z0-9][\w.-]{0,95}$/;
 const SOUND_CAPS = ['sound', 'voice', 'stt'];   // v0.65: pesquisam por assunto (música, efeitos, voz, dublagem…) e já abrem com os mais baixados
 const NODE_OF = { image: 'image', video: 'video', sound: 'sound', voice: 'voice', stt: 'transcribe', text: 'llm', model3d: 'model3d', tool: 'ai_model' };
 const QUALITY = { very_low: 'qualidade muito baixa', low: 'qualidade baixa', good: 'boa qualidade', very_good: 'ótima qualidade', high: 'alta qualidade', lossless: 'quase sem perdas', original: 'original' };
-const PREC_HINT = { fp32: 'Maior e mais lento; funciona em qualquer computador', fp16: 'Metade do tamanho; ideal com placa de vídeo', bf16: 'Como o fp16, com a faixa do fp32' };
+
 const bytes = (n) => (n >= 1 << 30 ? (n / (1 << 30)).toFixed(1) + ' GB' : n >= 1 << 20 ? Math.round(n / (1 << 20)) + ' MB' : n ? Math.round(n / 1024) + ' KB' : '?');
 const compact = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'k' : String(n || 0));
 

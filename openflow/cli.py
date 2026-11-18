@@ -186,6 +186,33 @@ def _installed_version(req: str):
         return None
 
 
+def _warn_cpu_torch() -> None:
+    """Depois de instalar/atualizar: no Windows com placa NVIDIA e o PyTorch «padrão» (só de CPU), avisa e diz o comando (v0.84). Nunca derruba o `flow libs`."""
+    try:
+        import platform
+
+        from .canvas import frameworks as fw
+
+        hint = fw.quick_torch_hint(fw.dist_version("torch"), fw.vendors(), platform.system())
+        if hint:
+            print("\n⚠  " + (hint["text_en"] if system_lang() == "en" else hint["text"]) + "\n      " + hint["command"])
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _keep_gpu_torch(reqs: list) -> tuple:
+    """(requisitos, mantidos): tira da lista o `torch` e o `torchvision` instalados de um índice de placa de vídeo (versão «2.15.0+cu130», «+rocm…», «+xpu»). O pip, com `--upgrade`, os trocaria pela versão do
+    PyPI — no Windows a SÓ DE CPU — e o `flow update` tiraria a GPU de quem rodou `flow torch --install` (v0.84). Para atualizá-los: `flow torch --install`."""
+    keep, kept = [], []
+    for r in reqs:
+        v = _installed_version(r) if _req_name(r).lower() in ("torch", "torchvision") else None
+        if v and "+" in v and not v.split("+", 1)[1].lower().startswith("cpu"):
+            kept.append(f"{_req_name(r)} {v}")
+        else:
+            keep.append(r)
+    return keep, kept
+
+
 def _ensure_pip() -> bool:
     """O Python embutido do instalador do Windows não traz o pip: instala (ensurepip ou, se faltar, o get-pip.py oficial). True se o pip está disponível."""
     import importlib.util
@@ -291,6 +318,12 @@ def _libs(args: argparse.Namespace) -> int:
         if not reqs:
             print(_("Bibliotecas «{x}»: nenhuma listada nesta versão — pulando.", x=extra))
             continue
+        reqs, kept = _keep_gpu_torch(reqs)
+        if kept:
+            print("\n" + _("PyTorch com placa de vídeo mantido: {l}. O pip o trocaria pela versão do PyPI (no Windows, só de CPU); para atualizá-lo:  flow torch --install", l=", ".join(kept)))
+        if not reqs:
+            present.append(extra)
+            continue
         have = {r: _installed_version(r) for r in reqs}
         missing = [r for r in reqs if not have[r]]
         base = [sys.executable, "-m", "pip", "install", "--upgrade", "--upgrade-strategy", "eager", "--disable-pip-version-check"]
@@ -335,6 +368,7 @@ def _libs(args: argparse.Namespace) -> int:
     ok = [e for e in chosen if e not in failed]
     print("\n" + _("Bibliotecas prontas: {l}", l=", ".join(ok) or _("nenhuma")) + (_(" (já estavam instaladas: {p})", p=", ".join(present)) if present else "")
           + (_(" · com falha: {f}", f=", ".join(failed)) if failed else ""))
+    _warn_cpu_torch()
     return 1 if failed else 0
 
 
@@ -694,6 +728,9 @@ def _models_quant(store, args: argparse.Namespace) -> int:
 
     if args.name:
         kind = args.kind or next((k for k in ("image", "video", "text") if any(m["name"] == args.name for m in hf.local_models(store.models_dir, k))), "")
+        if not kind:   # v0.84: «x» que não está baixado dizia «só modelos de texto, imagem e vídeo»: confuso
+            print(_("⚠  Não achei «{n}» entre os modelos GGUF baixados (texto, imagem e vídeo). Veja a lista com:  flow models quant", n=args.name))
+            return 1
         try:
             path = requant.create(store.models_dir, kind, args.name, (args.tier or "").upper(), lambda: False, lambda m: print("  " + m, flush=True))
         except ProviderError as exc:
@@ -747,6 +784,10 @@ def _torch(args: argparse.Namespace) -> int:
     import platform
 
     system = platform.system()
+    forced = args.index or os.environ.get("OPENFLOW_TORCH_INDEX", "")
+    if forced and not fw.valid_index(forced):
+        print(_("⚠  Índice do PyTorch inválido: {i} (use algo como cu130, rocm7.1, xpu ou cpu).", i=forced))
+        return 2
     if not args.install:
         print(_("Placa detectada: {g}", g=vend if vend != "cpu" else _("nenhuma que o PyTorch use (CPU)")))
         print(_("Comando recomendado:"))

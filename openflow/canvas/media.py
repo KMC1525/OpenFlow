@@ -899,6 +899,8 @@ class LocalHFMedia(MediaProvider):
 
         def load() -> Any:
             if self._is_modular(model):
+                if ready.get("tier"):   # v0.84: o pipeline modular (FLUX.3) não passa pela compressão ao carregar: o aviso substitui o silêncio
+                    self.ctl.note(f"A faixa {ready['tier']} ainda não vale para o pipeline modular (FLUX.3): carregando sem compressão (nos pesos do fp16). Para economizar memória, use o GGUF.")
                 return _slim(self._load_modular(diffusers, model, ready), dev)
             kw: Dict[str, Any] = {"torch_dtype": ready["dtype"], "local_files_only": True, **self._quant_kw(model, ready, diffusers)}
             if ready["variant"]:
@@ -2332,6 +2334,8 @@ class GGUFMedia(MediaProvider):
         fam = support.family_of(path.name)
         fam = fam if fam and fam.get("cap") == "video" else None
         if fam and fam.get("engine") == "ltx2":   # LTX-2.x: pelo diffusers (ltx2.py), não pela stable-diffusion.cpp
+            if str(extra.pop("quant", "") or "").strip():   # v0.84: a recompressão ao carregar é da stable-diffusion.cpp; o LTX-2 carrega o arquivo como ele é
+                self.ctl.note("A «Quantização ao carregar» não vale para o LTX-2 (ele roda pelo diffusers): usando o arquivo como ele é. Para outra faixa, baixe ou crie o arquivo dela.")
             return self._video_ltx2(path, prompt, duration, aspect, image, seed, long_side, extra)
         base: Dict[str, Any] = {}
         if fam and not extra.get("load"):   # família conhecida (Wan2.2 TI2V…, ver `support.FAMILIES`): acha o VAE e o codificador de texto ao lado do modelo
