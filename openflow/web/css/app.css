@@ -216,7 +216,7 @@ button.chip{cursor:pointer}button.chip:hover{border-color:var(--line3);color:var
 :root[data-theme="light"] select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235f5f66' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")}
 :root[data-theme="light"] select option{background:#fff;color:#18181a}
 /* superfícies de "estúdio" (grafo do Canvas, editor de vídeo, visualizador) ficam sempre escuras, como nos editores de mídia */
-.cv-surface,.tl-bg,.cv-lb{--bg:#1e1f22;--bg1:#25262a;--bg2:#2c2d32;--bg3:#35363c;--line:#2d2e33;--line2:#3a3b41;--line3:#4a4b53;--text:#dedee0;--muted:#a0a1a8;--dim:#7a7b83;--strong:#f4f4f5;--accent:var(--accent-custom,#e8e8ea);--on-accent:var(--on-accent-custom,#1e1f22);--ring:rgba(255,255,255,.04);--shadow:rgba(0,0,0,.7);--ok:#7ee2a8;--warn:#f2c46d;--err:#ff7b72;color:var(--text);color-scheme:dark}
+.cv-surface,.cv-lb{--bg:#1e1f22;--bg1:#25262a;--bg2:#2c2d32;--bg3:#35363c;--line:#2d2e33;--line2:#3a3b41;--line3:#4a4b53;--text:#dedee0;--muted:#a0a1a8;--dim:#7a7b83;--strong:#f4f4f5;--accent:var(--accent-custom,#e8e8ea);--on-accent:var(--on-accent-custom,#1e1f22);--ring:rgba(255,255,255,.04);--shadow:rgba(0,0,0,.7);--ok:#7ee2a8;--warn:#f2c46d;--err:#ff7b72;color:var(--text);color-scheme:dark}
 /* densidade compacta */
 :root[data-density="compact"] .page{padding:20px 22px 56px}
 :root[data-density="compact"] .card{padding:14px}

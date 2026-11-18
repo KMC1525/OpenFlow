@@ -37,7 +37,6 @@ run('layout_v083', async ({ api, open, check, expectError }) => {
       await page.route('**/api/hf/tiers*', (r) => json(r, { repo: REPO, tiers, alternatives: [{ repo: 'city96/un-nome-de-repositorio-bem-comprido-gguf-quantizado', downloads: 40, tiers: ['Q2', 'Q3', 'Q4'], missing_covered: ['Q2', 'Q3'] }] }));
       await page.route('**/api/hf/local*', (r) => json(r, { models: [], kinds: {} }));
       await page.route('**/api/library/items*', (r) => json(r, { folders: [], items: [{ key: 'model:image/modelo-com-nome-muito-comprido-de-verdade-Q8_0.gguf', scope: 'models', kind: 'image', name: 'modelo-com-nome-muito-comprido-de-verdade-Q8_0.gguf', size: 7000000000, quant: 'Q8_0', bits: 8, tier: 'Q8', parts: 1, mtime: 1 }], path: [], search: false }));
-      await page.route('**/api/tool/info*', (r) => json(r, { found: true, kind: 'keras', framework: 'tf', label: 'esrgan-x4-versao-final-2026-novembro.keras', libs: { torch: true, tf: false }, missing_lib: 'TensorFlow' }));
       // Configurações → card do PyTorch/TensorFlow
       await page.evaluate(() => { location.hash = '#/settings'; }); await page.waitForSelector('.cfgtabs button', { timeout: 10000 });
       const tabs = page.locator('.cfgtabs button'); const n = await tabs.count();
@@ -63,9 +62,9 @@ run('layout_v083', async ({ api, open, check, expectError }) => {
       check(tag + ':biblioteca-sem-rolagem-lateral', bad.length === 0); if (bad.length) console.error(tag, 'biblioteca', JSON.stringify(bad.slice(0, 5)));
       // Canvas: barra de pesquisa com as faixas e o nó de modelo próprio
       const cv = await api('/api/projects', { method: 'POST', body: { name: 'Layout ' + tag, template: 'blank' } });
-      await api('/api/projects/' + cv.id, { method: 'PUT', body: { name: 'Layout', nodes: [{ id: 'n1', type: 'ai_model', x: 20, y: 80, params: { model: LONG } }, { id: 'n2', type: 'image', x: 20, y: 700, params: { provider: 'gguf_local', extra: { quant: 'Q4' } } }], edges: [] } });
+      await api('/api/projects/' + cv.id, { method: 'PUT', body: { name: 'Layout', nodes: [{ id: 'n1', type: 'image', x: 20, y: 80, params: { provider: 'gguf_local', model: LONG } }, { id: 'n2', type: 'image', x: 20, y: 700, params: { provider: 'gguf_local', extra: { quant: 'Q4' } } }], edges: [] } });
       await page.evaluate((id) => { location.hash = '#/project/' + id; }, cv.id); await page.waitForSelector('#hub-q', { timeout: 15000 });
-      await page.waitForSelector('.cv-node[data-id="n1"] [data-toolstatus]', { timeout: 8000 }); await page.waitForTimeout(600);
+      await page.waitForSelector('.cv-node[data-id="n1"]', { timeout: 8000 }); await page.waitForTimeout(600);
       bad = await page.evaluate(overflow);
       check(tag + ':canvas-nos-novos-dentro-do-cartao', bad.length === 0); if (bad.length) console.error(tag, 'canvas', JSON.stringify(bad.slice(0, 5)));
       await page.locator('#hub-q').focus(); await page.waitForSelector('#hub-recs', { timeout: 8000 });

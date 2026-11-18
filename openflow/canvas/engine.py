@@ -25,7 +25,6 @@ from ..util import now_iso
 from . import procedural as proc
 from . import media as media_mod
 from .media import Ctl, Media, build_media, media_config, pick_provider
-from .render import render_timeline
 from . import mentions as mentions_mod
 from . import styles as styles_mod
 from . import upsample
@@ -34,7 +33,7 @@ from . import speech
 from . import voicestyle
 from .schema import EXT_TYPES, GENERATORS, NODE_TYPES, normalize_result, style_files
 
-RUNNABLE = GENERATORS + ("editor",) + EXT_TYPES
+RUNNABLE = GENERATORS + EXT_TYPES
 IMAGE_DEFAULT_SECONDS = 3.0
 STYLE_IMAGES_MAX = 3
 KEEP_HISTORY = 24
@@ -249,7 +248,7 @@ class CanvasEngine:
             return {"text": r["text"] if r["state"] == "done" else "", "assets": []}
         if t in EXT_TYPES:  # nós novos que entregam arquivos (a Galeria entrega também o texto que recebeu)
             return {"text": r["text"] if r["state"] == "done" and t == "out_gallery" else "", "assets": [assets[i] for i in r["assets"] if i in assets] if r["state"] == "done" else []}
-        if t in ("image", "video", "sound", "music", "sfx", "voice", "dub", "editor", "model3d"):
+        if t in ("image", "video", "sound", "music", "sfx", "voice", "dub", "model3d"):
             return {"text": "", "assets": [assets[i] for i in r["assets"] if i in assets] if r["state"] == "done" else []}
         return {"text": "", "assets": []}
 
@@ -479,7 +478,7 @@ class CanvasEngine:
     def node_hash(self, canvas: Dict[str, Any], node: Dict[str, Any]) -> str:
         t = node["type"]
         data: Dict[str, Any] = {"type": t, "params": node["params"]}
-        if t in ("image", "video", "sound", "music", "sfx", "voice", "dub", "transcript", "sub", "llm", "transcribe", "editor", "model3d") or t in EXT_TYPES:
+        if t in ("image", "video", "sound", "music", "sfx", "voice", "dub", "transcript", "sub", "llm", "transcribe", "model3d") or t in EXT_TYPES:
             ports: Dict[str, Any] = {}
             for pid_, _label, _acc, _multi in NODE_TYPES[t]["ins"]:
                 if pid_ == "style":
@@ -495,8 +494,6 @@ class CanvasEngine:
                         items.append([_sig(o["text"]), [a["id"] for a in o["assets"]]])
                 ports[pid_] = items
             data["in"] = ports
-        if t == "ai_model":   # v0.82: o arquivo do modelo (tamanho e data) conta: trocá-lo sem trocar o nome refaz o nó
-            data["model_sig"] = nodes_ext.model_signature(self, node)
         if t in ("image", "video"):   # as imagens citadas com @ no prompt entram no hash: citar outra (ou trocar o arquivo) deixa o nó desatualizado
             txt = "\n\n".join(x for x in (self.inputs(canvas, node, "prompt")["text"], node["params"].get("prompt", "").strip()) if x)   # o @ vale também no texto de um nó Texto ligado
             data["mentions"] = mentions_mod.ids_in(canvas, txt)
@@ -645,8 +642,6 @@ class CanvasEngine:
             return nodes_ext.RUNNERS[t](self, canvas, node)
         if t in speech.RUNNERS:
             return speech.RUNNERS[t](self, canvas, node)
-        if t == "editor":
-            return self._editor(canvas, node)
         if t == "llm":
             return self._llm(canvas, node)
         if t == "transcribe":
@@ -934,61 +929,6 @@ class CanvasEngine:
         if not a or not path or a["kind"] not in ("image", "video", "audio"):
             return None
         return {"path": path, "kind": a["kind"], "duration": a["duration"] or (IMAGE_DEFAULT_SECONDS if a["kind"] == "image" else 3.0), "asset": a}
-
-    def auto_timeline(self, canvas: Dict[str, Any], node: Dict[str, Any]) -> Dict[str, Any]:
-        """Monta uma linha do tempo com as saídas dos nós ligados: imagens/vídeos em sequência, áudios juntos a partir do início, textos como legenda."""
-        tl = node["params"]["timeline"]
-        vtrack = next((t["id"] for t in tl["tracks"] if t["kind"] == "video"), "t_v1")
-        atracks = [t["id"] for t in tl["tracks"] if t["kind"] == "audio"] or ["t_a1"]
-        ttrack = next((t["id"] for t in tl["tracks"] if t["kind"] == "text"), "")
-        tracks = list(tl["tracks"])
-        if not any(t["id"] == vtrack for t in tracks):
-            tracks.insert(0, {"id": vtrack, "kind": "video", "name": "V1", "muted": False, "hidden": False})
-        clips: List[Dict[str, Any]] = []
-        cursor, n_audio, captions = 0.0, 0, []
-        for src in self._edges_to(canvas, node["id"], "clips"):
-            sn = self._node(canvas, src)
-            if not sn:
-                continue
-            outs = self.output(canvas, sn)
-            if outs["text"].strip():
-                captions.append(outs["text"].strip())
-            for idx, a in enumerate(outs["assets"]):
-                dur = a["duration"] or (IMAGE_DEFAULT_SECONDS if a["kind"] == "image" else 3.0)
-                base = {"asset": a["id"], "node": src, "idx": idx, "dur": round(dur, 2)}
-                if a["kind"] in ("image", "video"):
-                    clips.append({**base, "track": vtrack, "start": round(cursor, 2), "fit": "contain"})
-                    cursor += dur
-                elif a["kind"] == "audio":
-                    while len(atracks) <= n_audio and len(atracks) < 6:
-                        tid = f"t_a{len(atracks) + 1}"
-                        tracks.append({"id": tid, "kind": "audio", "name": f"A{len(atracks) + 1}", "muted": False, "hidden": False})
-                        atracks.append(tid)
-                    clips.append({**base, "track": atracks[min(n_audio, len(atracks) - 1)], "start": 0})
-                    n_audio += 1
-        if captions:
-            if not ttrack:
-                ttrack = "t_t1"
-                tracks.append({"id": ttrack, "kind": "text", "name": "T1", "muted": False, "hidden": False})
-            total = max([c["start"] + c["dur"] for c in clips] + [3.0])
-            clips.append({"track": ttrack, "text": captions[0][:300], "start": 0, "dur": round(total, 2), "size": 44, "bg": "#000000", "pos": "bottom"})
-        return {**tl, "tracks": tracks, "clips": clips}
-
-    def _editor(self, canvas: Dict[str, Any], node: Dict[str, Any]) -> Dict[str, Any]:
-        p = node["params"]
-        tl = p["timeline"]
-        if not tl["clips"]:
-            tl = self.auto_timeline(canvas, node)
-            self.cs.patch_node_params(self.cid, node["id"], {"timeline": tl})
-            tl = self._node(self.canvas(), node["id"])["params"]["timeline"]
-        with tempfile.TemporaryDirectory() as tmp:
-            out = Path(tmp) / "out.mp4"
-            warnings = render_timeline(tl, p["width"], p["height"], p["fps"], p["bg"], lambda c: self.resolve_clip(canvas, c), out, self.ctl)
-            data = out.read_bytes()
-        a = self.cs.add_asset(self.cid, data, "mp4", "video", name=self._title(node, "Montagem"), mime="video/mp4", node=node["id"], provider="editor", w=p["width"], h=p["height"])
-        if not a:
-            raise ProviderError("Não foi possível salvar o vídeo exportado.")
-        return {"assets": [a["id"]], "text": "", "warnings": warnings}
 
 
 STYLE_SYSTEM = styles_mod.FOLDER_SYSTEM   # v0.73: o system prompt interno do Style Folder está em styles.py

@@ -40,7 +40,6 @@ NODE_TYPES: Dict[str, Dict[str, Any]] = {
     "transcribe": {"label": "Transcrever", "icon": "doc", "out": "text", "ins": [("audio", "Áudio/vídeo", ["audio", "video"], False)]},
     "style_prompt": {"label": "Style Prompt", "icon": "palette", "out": "style", "ins": []},
     "style_folder": {"label": "Style Folder", "icon": "folder", "out": "style", "ins": []},
-    "editor": {"label": "Editor", "icon": "film", "out": "video", "ins": [("clips", "Clipes", ["image", "video", "audio", "text"], True)]},
 }
 for _k, _v in nodes_ext.SPECS.items():  # v0.11: 5 nós novos por tipo (nodes_ext.py)
     NODE_TYPES[_k] = {"label": _v["label"], "icon": _v["icon"], "out": _v["out"], "ins": _v["ins"]}
@@ -48,12 +47,12 @@ GENERATORS = ("llm", "image", "video", "sound", "music", "sfx", "voice", "dub", 
 EXT_TYPES = tuple(nodes_ext.SPECS)  # nós novos: rodam ffmpeg/Python (só «Refinar com IA» usa o modelo de texto)
 # ordem e grupos da paleta: Texto, Imagem, Vídeo, Som, Input, Output
 PALETTE = [("Texto", ["text", "llm", "transcribe", "text_template", "text_join", "text_edit", "text_pick", "text_refine", "text_extract", "text_count"]),
-           ("Imagem", ["image", "img_resize", "img_filter", "img_text", "img_collage", "img_frame", "img_crop", "img_watermark", "ai_model", "char_sheet", "comic_page"]),
+           ("Imagem", ["image", "img_resize", "img_filter", "img_text", "img_collage", "img_frame", "img_crop", "img_watermark", "char_sheet", "comic_page"]),
            ("Vídeo", ["video", "vid_trim", "vid_join", "vid_speed", "vid_look", "vid_slideshow", "vid_reframe", "vid_loop", "vid_audio"]),
            ("Som", ["music", "lyrics", "sfx", "sound", "voice", "dub", "transcript", "sub", "aud_trim", "aud_mix", "aud_fx", "aud_from_video", "aud_loop", "aud_silence_cut"]),
            ("Input", ["upload", "style_prompt", "style_folder", "in_color", "in_silence", "in_url", "in_random", "in_vars", "in_pattern"]),
            ("3D", ["model3d", "tex3d", "rig3d", "anim3d"]),
-           ("Output", ["editor", "out_export", "out_gif", "out_audio", "out_image", "out_thumbnail", "out_gallery"])]
+           ("Output", ["out_export", "out_gif", "out_audio", "out_image", "out_thumbnail", "out_gallery"])]
 
 
 def compatible(out_type: str, accepts: List[str]) -> bool:
@@ -74,7 +73,7 @@ def port_def(ntype: str, port: str) -> Optional[Dict[str, Any]]:
 
 
 def describe_types() -> List[Dict[str, Any]]:
-    return [{"type": k, "label": v["label"], "icon": v["icon"], "out": v["out"], "group": next((g for g, ts in PALETTE if k in ts), ""),
+    return [{"type": k, "label": v["label"], "icon": v["icon"], "out": v["out"], "group": next((g for g, ts in PALETTE if k in ts), ""), "runs": k in GENERATORS or k in EXT_TYPES,
              "ins": [{"id": i[0], "label": i[1], "accepts": i[2], "multi": i[3]} for i in v["ins"]]} for k, v in NODE_TYPES.items()]
 
 
@@ -280,9 +279,6 @@ def normalize_params(ntype: str, p: Any) -> Dict[str, Any]:
         return {"files": _files(p.get("files")), "folders": normalize_folders(p.get("folders")), "notes": text(p.get("notes"), "", 4000), "global": p.get("global", True) is not False}
     if ntype in nodes_ext.SPECS:
         return nodes_ext.normalize(ntype, p)
-    if ntype == "editor":
-        return {"timeline": normalize_timeline(p.get("timeline")), "width": int(num(p.get("width"), 1280, 160, 3840)), "height": int(num(p.get("height"), 720, 160, 2160)),
-                "fps": int(num(p.get("fps"), 30, 10, 60)), "bg": _color(p.get("bg"), "#000000")}
     return {}
 
 
@@ -360,10 +356,17 @@ def normalize_asset(a: Any) -> Optional[Dict[str, Any]]:
             "prompt": text(a.get("prompt"), "", 600), "provider": text(a.get("provider"), "", 40), "model": text(a.get("model"), "", 120)}
 
 
+#: tipos de nó que deixaram de existir (v0.87): um projeto antigo que os tinha abre sem eles e a tela avisa (`removed_nodes`); os arquivos que eles geraram continuam na Biblioteca do projeto
+REMOVED_TYPES = {"editor": "Editor", "ai_model": "Modelo PyTorch/TensorFlow"}
+
+
 def normalize_canvas(data: Any, keep_id: Optional[str] = None) -> Dict[str, Any]:
     data = data if isinstance(data, dict) else {}
     nodes, ids = [], set()
+    removed: List[Dict[str, str]] = [{"type": text(r.get("type"), "", 24), "title": text(r.get("title"), "", 40)} for r in (data.get("removed_nodes") if isinstance(data.get("removed_nodes"), list) else []) if isinstance(r, dict)][:20]
     for n in (data.get("nodes") if isinstance(data.get("nodes"), list) else [])[:MAX_NODES]:
+        if isinstance(n, dict) and n.get("type") in REMOVED_TYPES and len(removed) < 20:
+            removed.append({"type": n["type"], "title": text(n.get("title"), "", 40) or REMOVED_TYPES[n["type"]]})
         nn = normalize_node(n)
         if nn and nn["id"] not in ids:
             ids.add(nn["id"])
@@ -384,7 +387,8 @@ def normalize_canvas(data: Any, keep_id: Optional[str] = None) -> Dict[str, Any]
         n["result"]["assets"] = [f for f in n["result"]["assets"] if f in aids]
     return {"schema": SCHEMA, "id": keep_id or text(data.get("id"), "", 60), "name": text(data.get("name"), "Novo canvas", 80), "description": text(data.get("description"), "", 400),
             "viewport": {"x": round(num(vp.get("x"), 0, -100000, 100000), 1), "y": round(num(vp.get("y"), 0, -100000, 100000), 1), "zoom": round(num(vp.get("zoom"), 1, 0.2, 2.5), 3)},
-            "nodes": nodes, "edges": normalize_edges(data.get("edges"), nodes), "assets": assets, "created": text(data.get("created"), "", 40), "updated": text(data.get("updated"), "", 40)}
+            "nodes": nodes, "edges": normalize_edges(data.get("edges"), nodes), "assets": assets, "created": text(data.get("created"), "", 40), "updated": text(data.get("updated"), "", 40),
+            **({"removed_nodes": removed} if removed else {})}
 
 
 # --------------------------------------------------------------------------- modelos de partida
@@ -403,7 +407,7 @@ TEMPLATES = [
     {"id": "text_image", "label": "Texto → Imagem", "hint": "Um prompt de texto que vira uma imagem."},
     {"id": "image_video", "label": "Texto → Imagem → Vídeo", "hint": "Gera uma imagem e anima em um vídeo curto."},
     {"id": "styled", "label": "Com estilo do projeto", "hint": "Style Prompt + prompt + imagem: o estilo vale para todo o canvas."},
-    {"id": "scene", "label": "Cena completa (imagem, voz e Editor)", "hint": "Roteiro → imagem → vídeo + narração + som, tudo montado no Editor."},
+    {"id": "scene", "label": "Cena completa (imagem, voz e vídeo final)", "hint": "Roteiro → imagem → vídeo + narração + som, tudo reunido em um Vídeo final."},
 ]
 
 
@@ -426,7 +430,7 @@ def build_template(template: str, prompt: str = "") -> Dict[str, Any]:
         im, vd = _n("image", 400, 20), _n("video", 780, 20, duration=5)
         vo = _n("voice", 400, 700, text="A tempestade chegou, mas a luz do farol não vai se apagar.")
         sf = _n("sound", 780, 640, kind="sfx", prompt="trovão distante e ondas batendo nas rochas", duration=8)
-        ed = _n("editor", 1160, 260)
+        ed = _n("out_export", 1160, 260)
         nodes = [st, sc, im, vd, vo, sf, ed]
-        edges = [_e(sc, im, "prompt"), _e(sc, vd, "prompt"), _e(im, vd, "image"), _e(vd, ed, "clips"), _e(vo, ed, "clips"), _e(sf, ed, "clips")]
+        edges = [_e(sc, im, "prompt"), _e(sc, vd, "prompt"), _e(im, vd, "image"), _e(vd, ed, "video"), _e(vo, ed, "audio"), _e(sf, ed, "audio")]
     return {"nodes": nodes, "edges": edges}

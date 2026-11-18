@@ -2,6 +2,26 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.87.0] — 2026-11-18
+
+### Removed
+- **The «Editor» node (video timeline) is gone.** To gather video, voice and sound in one final file use **Final video**; to join clips, **Join clips**; for images, **Images to video** — all of them already existed. The «Full scene» project template now ends in a **Final video** (it used to end in the Editor).
+- **The «PyTorch/TensorFlow model» node is gone**, together with the «Own models» tab of the model search, the `/api/tool/*` endpoints and the Keras/TorchScript model loader (`modelrun`). What stays of PyTorch/TensorFlow is the card in Settings, `flow frameworks` and `flow torch` (local models keep using PyTorch).
+- **Old projects open normally:** nodes that no longer exist leave the canvas and the screen tells how many; the files they generated (including the Editor's videos) **stay in the project and the Library**. Only the node drawing is lost (the timeline built inside the Editor and the other node's model path).
+
+### Bug hunt 6 — what was searched
+- The image, video, sound and voice nodes run one by one, the command line (`doctor`, `models`, `frameworks`, `torch`, `native`, `folder`, `libs`, `update`), the interface at every screen size and the file names of every quantization tier (Q2, Q3, Q4, Q6, Q8 and the IQ, UD, MXFP4, TQ variants).
+
+### Fixed
+- **Utility nodes could not be run one by one:** Filters and colour, Resize, Final video, Join clips etc. showed no status dot («out of date»/«up to date»), no «Run this node» button and no «Generate again» in the menu — only the AI nodes had them. Every node the server runs now shows all three.
+- **Ternary quants (TQ1_0, TQ2_0) were not recognised** from the file name: they showed up with no tier. They now count as Q2 (and the «edit only copied the image» warning catches them too).
+- **Long notices vanished after 3 seconds:** the on-screen notice now stays 6 seconds when the message is over 90 characters.
+- **The PyTorch/TensorFlow card text** said TensorFlow is «only needed for the PyTorch/TensorFlow model node»; it now says OpenFlow does not need it.
+
+### Not verified yet
+- No real model was downloaded or run (Hugging Face blocked, no GPU here); ffmpeg for the «Final video» was tested with Demo-mode files.
+- The hunt does not exhaust the program: it covered the paths described above.
+
 ## [0.86.0] — 2026-11-18
 
 ### Editing bugs — what was searched

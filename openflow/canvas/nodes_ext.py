@@ -44,7 +44,6 @@ SPECS: Dict[str, Dict[str, Any]] = {
     "img_frame": {"label": "Quadro do vídeo", "icon": "video", "out": "image", "group": "Imagem", "ins": [("video", "Vídeo", VID, False)]},
     "img_crop": {"label": "Recortar imagem", "icon": "scissors", "out": "image", "group": "Imagem", "ins": [("image", "Imagem", IMG, False)]},
     "img_watermark": {"label": "Marca d'água", "icon": "image", "out": "media", "group": "Imagem", "ins": [("image", "Imagem ou vídeo", IMG, False), ("logo", "Marca (para pôr)", ["image"], False), ("mask", "Máscara (para remover, opcional)", ["image"], False)]},
-    "ai_model": {"label": "Modelo PyTorch/TensorFlow", "icon": "layers", "out": "image", "group": "Imagem", "ins": [("image", "Imagem", ["image"], False)]},
     # ---- 3D (v0.58): esqueleto, animação e textura de modelos 3D (GLB/OBJ → GLB)
     "tex3d": {"label": "Textura 3D", "icon": "palette", "out": "model3d", "group": "3D", "ins": [("model", "Modelo 3D", ["model3d"], False), ("image", "Imagem", ["image", "video"], False)]},
     "rig3d": {"label": "Esqueleto 3D", "icon": "cube", "out": "model3d", "group": "3D", "ins": [("model", "Modelo 3D", ["model3d"], False)]},
@@ -158,12 +157,6 @@ def normalize(t: str, p: Dict[str, Any]) -> Dict[str, Any]:
         return {"pos": _pick(p.get("pos"), ("br", "bl", "tr", "tl", "center"), "br"), "scale": round(n("scale", 20, 2, 80), 1), "opacity": round(n("opacity", 0.85, 0.05, 1), 2), "margin": int(n("margin", 3, 0, 20)),
                 "mode": _pick(p.get("mode"), ("add", "remove"), "add"), "where": _pick(p.get("where"), ("corner", "box", "auto"), "corner"), "rm_w": round(n("rm_w", 22, 1, 100), 1), "rm_h": round(n("rm_h", 10, 1, 100), 1),
                 "rm_x": round(n("rm_x", 70, 0, 100), 1), "rm_y": round(n("rm_y", 85, 0, 100), 1)}
-    if t == "ai_model":   # v0.82: um modelo de imagem → imagem em PyTorch (TorchScript) ou TensorFlow/Keras (ver modelrun.py)
-        from . import modelrun
-
-        return {"model": text(p.get("model"), "", 400), "framework": _pick(p.get("framework"), ("auto", "torch", "tf"), "auto"), "range_in": _pick(p.get("range_in"), modelrun.RANGES, "0-1"),
-                "range_out": _pick(p.get("range_out"), modelrun.RANGES_OUT, "auto"), "layout": _pick(p.get("layout"), ("auto", "NHWC", "NCHW"), "auto"), "channels": int(n("channels", 0, 0, 4)) if int(n("channels", 0, 0, 4)) in (0, 1, 3, 4) else 0,
-                "max_side": int(n("max_side", 1024, 0, 8192)), "tile": int(n("tile", 0, 0, 4096)), "multiple": int(n("multiple", 1, 1, 128))}
     if t == "rig3d":
         return {"style": _pick(p.get("style"), ops3d.RIG_STYLES, "humanoid"), "bones": int(n("bones", 8, 2, 32)), "smooth": round(n("smooth", 0.5, 0, 1), 2)}
     if t == "anim3d":
@@ -1316,95 +1309,6 @@ def run_img_watermark(eng, canvas, node):
         # a marca ocupa `scale`% da altura da imagem; scale2ref mantém a proporção dela
         _ff(eng, ["-i", str(base), "-i", str(logo), "-filter_complex", flt, "-map", "[o]", "-frames:v", "1", str(out)])
         return _img_out(eng, node, tmp, out, _title(node, "Imagem com marca"))
-
-
-_SIG_CACHE: Dict[Tuple[str, str], Tuple[float, str]] = {}
-
-
-def model_signature(eng: Any, node: Dict[str, Any]) -> str:
-    """O «carimbo» do arquivo do modelo do nó (tamanho e data): trocar o arquivo sem trocar o nome deixa o nó desatualizado. «» se o modelo não foi achado (o erro aparece ao rodar). É chamado a cada vez que o
-    canvas confere o que está desatualizado (várias vezes por segundo): o resultado vale 3 s (v0.83; antes cada chamada varria a pasta do modelo)."""
-    import time
-
-    from . import modelrun
-
-    key = (str(node["params"].get("model", "")), str(node["params"].get("framework", "auto")))
-    hit = _SIG_CACHE.get(key)
-    now = time.monotonic()
-    if hit and now - hit[0] < 3.0:
-        return hit[1]
-    try:
-        path, _kind = modelrun.resolve(key[0], {"auto": "", "torch": "torch", "tf": "tf"}[key[1]], getattr(eng.store, "models_dir", None))
-        sig = f"{path}|{modelrun.fingerprint(path)}"
-    except Exception:  # noqa: BLE001
-        sig = ""
-    if len(_SIG_CACHE) > 256:
-        _SIG_CACHE.clear()
-    _SIG_CACHE[key] = (now, sig)
-    return sig
-
-
-def run_ai_model(eng, canvas, node):
-    """Aplica o modelo PyTorch/TensorFlow do nó à imagem ligada (v0.82)."""
-    from PIL import Image
-
-    from . import media as media_mod
-    from . import modelrun
-
-    p = node["params"]
-    a = _first(eng, canvas, node, "image", ("image",), "uma imagem")
-    path, kind = modelrun.resolve(p["model"], {"auto": "", "torch": "torch", "tf": "tf"}[p["framework"]], getattr(eng.store, "models_dir", None))
-    eng._check()
-    label = {"keras": "Keras", "savedmodel": "SavedModel (TensorFlow)", "torchscript": "TorchScript (PyTorch)", "torchexport": "torch.export (PyTorch)"}[kind]
-    eng.ctl.note(f"Carregando {path.name} ({label})…")
-    media_mod._TLS.ctl = eng.ctl
-    if kind in ("torchscript", "torchexport"):
-        dev, _ = media_mod._device()
-        key = f"{path}|{modelrun.fingerprint(path)}|{dev}"
-        loader = modelrun.load_torchexport if kind == "torchexport" else modelrun.load_torchscript
-        runner = media_mod._local_load("tool-torch", key, lambda: loader(path, dev))
-    else:
-        cpu = media_mod._perf.device() == "cpu"
-        key = f"{path}|{modelrun.fingerprint(path)}|{'cpu' if cpu else 'auto'}"
-        runner = media_mod._local_load("tool-tf", key, lambda: modelrun.load_keras(path, kind, cpu))
-    if p["layout"] != "auto" and runner.layout != p["layout"]:
-        runner = modelrun.Runner(runner.kind, runner.path, runner.infer, runner.fixed_hw, runner.channels, p["layout"], runner.label)
-    framework_is_tf = modelrun.framework_of(kind) == "tf"
-    notes: List[str] = []
-    try:
-        with Image.open(_path(eng, a)) as im:
-            im.load()
-            img = im.copy()
-    except Image.DecompressionBombError:
-        raise ValueError(f"A imagem de entrada é grande demais ({Image.MAX_IMAGE_PIXELS / 1e6:.0f} megapixels ou mais): reduza-a antes (nó «Redimensionar»).") from None
-    except (OSError, ValueError, SyntaxError):
-        raise ValueError("Não consegui ler a imagem de entrada (o arquivo está corrompido ou incompleto).") from None
-    from . import lowmem
-
-    try:
-        if framework_is_tf and media_mod._perf.device() == "cpu":
-            from . import frameworks
-
-            with frameworks.import_tensorflow().device("/CPU:0"):
-                out = modelrun.apply(runner, img, rng_in=p["range_in"], rng_out=p["range_out"], max_side=p["max_side"], tile=p["tile"], multiple=p["multiple"], channels=p["channels"], check=eng._check, note=notes.append)
-        else:
-            out = modelrun.apply(runner, img, rng_in=p["range_in"], rng_out=p["range_out"], max_side=p["max_side"], tile=p["tile"], multiple=p["multiple"], channels=p["channels"], check=eng._check, note=notes.append)
-    except ProviderError:
-        raise
-    except Exception as exc:  # noqa: BLE001 — o framework explica a forma que não serviu; a falta de memória tem um conselho próprio
-        kind_oom = lowmem.oom_kind(exc) or ("ram" if "resourceexhausted" in f"{type(exc).__name__}".lower().replace("_", "") else "")
-        if kind_oom:
-            raise ProviderError(f"Acabou a memória {lowmem.where(kind_oom)} ao rodar o modelo. Use «Processar em blocos» (ex.: 256) ou um «Lado maior máximo» menor.") from None
-        raise ProviderError(f"O modelo falhou ao processar a imagem: {type(exc).__name__}: {str(exc)[:300]}. Confira a faixa de valores, o layout e o número de canais do modelo nos ajustes do nó.") from None
-    for m in notes[:3]:
-        eng.ctl.note(m)
-    with tempfile.TemporaryDirectory() as td:
-        outp = Path(td) / "o.png"
-        out.save(outp)
-        res = _img_out(eng, node, Path(td), outp, _title(node, f"{path.stem} (modelo)"))
-    if notes:
-        res["warnings"] = [m for m in notes if not m.startswith("Bloco ")]
-    return res
 
 
 def _remove_watermark(eng, canvas, node):

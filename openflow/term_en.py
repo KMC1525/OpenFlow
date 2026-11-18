@@ -185,7 +185,7 @@ EN = {
     'índice do PyTorch a usar (ex.: cu126, rocm6.4, xpu, cpu)': 'PyTorch index to use (e.g. cu126, rocm6.4, xpu, cpu)',
     'não instalado': 'not installed',
     '  (detalhes e placa de vídeo: flow frameworks)': '  (details and graphics card: flow frameworks)',
-    'TensorFlow/Keras, para rodar no nó «Modelo PyTorch/TensorFlow» os modelos feitos para eles (.keras, .h5, SavedModel); pesado (centenas de MB) e NÃO vem no «all»: peça com --extras tensorflow': 'TensorFlow/Keras, to run in the “PyTorch/TensorFlow model” node the models made for them (.keras, .h5, SavedModel); heavy (hundreds of MB) and NOT part of “all”: ask for it with --extras tensorflow',
+    'TensorFlow/Keras, opcional (para quem quer o TensorFlow neste Python; nenhum nó do OpenFlow o exige); pesado (centenas de MB) e NÃO vem no «all»: peça com --extras tensorflow': 'TensorFlow/Keras, optional (for those who want TensorFlow in this Python; no OpenFlow node requires it); heavy (hundreds of MB) and NOT part of “all”: ask for it with --extras tensorflow',
     '⚠  Índice do PyTorch inválido: {i} (use algo como cu130, rocm7.1, xpu ou cpu).': '⚠  Invalid PyTorch index: {i} (use something like cu130, rocm7.1, xpu or cpu).',
     '⚠  Não achei «{n}» entre os modelos GGUF baixados (texto, imagem e vídeo). Veja a lista com:  flow models quant': '⚠  Could not find “{n}” among the downloaded GGUF models (text, image and video). See the list with:  flow models quant',
     'PyTorch com placa de vídeo mantido: {l}. O pip o trocaria pela versão do PyPI (no Windows, só de CPU); para atualizá-lo:  flow torch --install': 'PyTorch with graphics-card support kept: {l}. pip would replace it with the PyPI build (CPU-only on Windows); to update it:  flow torch --install',

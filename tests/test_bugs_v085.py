@@ -193,12 +193,12 @@ class DownloadsPanelTests(unittest.TestCase):
             job.emit({"type": "start", "file": "flux-Q4_K.gguf"})
             job.emit({"type": "note", "message": "Criando flux-Q4_K.gguf"})
             gate.wait(20)
-        jobs = [self.app.jobs.start("requant", work, {"title": "flux-Q4_K.gguf"}), self.app.jobs.start("tool_model", work, {"title": "acme/esrgan"})]
+        jobs = [self.app.jobs.start("requant", work, {"title": "flux-Q4_K.gguf"}), self.app.jobs.start("requant", work, {"title": "outro-Q8_0.gguf"})]
         try:
             time.sleep(0.3)
             data = self.downloads()
             kinds = {d["kind"]: d for d in data["downloads"]}
-            self.assertEqual({k: kinds[k]["label"] for k in ("requant", "tool_model")}, {"requant": "Criar faixa (Q2–Q8)", "tool_model": "Modelo próprio"})
+            self.assertEqual(kinds["requant"]["label"], "Criar faixa (Q2–Q8)")   # v0.87: o tipo «Modelo próprio» saiu junto com o nó
             self.assertEqual(kinds["requant"]["title"], "flux-Q4_K.gguf")
             self.assertEqual(data["running"], 2)
         finally:

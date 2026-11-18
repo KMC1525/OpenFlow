@@ -183,7 +183,7 @@ function frameworksCard() {
   };
   const load = (fresh, deep) => api('/api/media/frameworks' + (deep ? '?tf=1' : fresh ? '?refresh=1' : '')).then(paint).catch((e) => body.replaceChildren(h('span', { class: 'muted small' }, e.message)));
   load(false);
-  return cfgCard(t('PyTorch e TensorFlow'), h('p', { class: 'muted small', style: { marginTop: 0 } }, t('Os modelos locais usam o PyTorch; o TensorFlow só é preciso para os modelos feitos para ele (Keras, SavedModel), no nó «Modelo PyTorch/TensorFlow». Aqui você vê se cada um usa a placa de vídeo e o que fazer se não usa. No terminal: flow frameworks e flow torch.')), body);
+  return cfgCard(t('PyTorch e TensorFlow'), h('p', { class: 'muted small', style: { marginTop: 0 } }, t('Os modelos locais usam o PyTorch; o OpenFlow não precisa do TensorFlow (ele aparece aqui só para quem o usa neste Python). Aqui você vê se cada um usa a placa de vídeo e o que fazer se não usa. No terminal: flow frameworks e flow torch.')), body);
 }
 
 // Aceleração por placa de vídeo (v0.29): NVIDIA/AMD/Intel, se o llama.cpp instalado usa a placa e quanto cada modelo de texto deve render nela

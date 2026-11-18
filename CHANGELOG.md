@@ -2,6 +2,26 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.87.0] — 2026-11-18
+
+### Removido
+- **O nó «Editor» (linha do tempo de vídeo) saiu.** Para reunir vídeo, voz e som num arquivo final use o **Vídeo final**; para emendar clipes, **Juntar clipes**; para imagens, **Imagens em vídeo** — todos já existiam. O modelo de projeto «Cena completa» agora termina num **Vídeo final** (antes, no Editor).
+- **O nó «Modelo PyTorch/TensorFlow» saiu**, com a aba «Modelos próprios» da busca de modelos, os endereços `/api/tool/*` e o carregador de modelos Keras/TorchScript (`modelrun`). O que fica do PyTorch/TensorFlow é o cartão em Configurações, `flow frameworks` e `flow torch` (os modelos locais continuam usando o PyTorch).
+- **Projetos antigos abrem normalmente:** os nós que não existem mais saem do canvas e a tela avisa quantos foram; os arquivos que eles geraram (inclusive os vídeos do Editor) **continuam no projeto e na Biblioteca**. O que se perde é só o desenho do nó (a linha do tempo montada dentro do Editor e o caminho do modelo do outro nó).
+
+### Caçando bugs 6 — o que foi procurado
+- Os nós de imagem, vídeo, som e voz executados um a um, a linha de comando (`doctor`, `models`, `frameworks`, `torch`, `native`, `folder`, `libs`, `update`), a interface em todos os tamanhos de tela e os nomes de arquivo de todas as faixas de quantização (Q2, Q3, Q4, Q6, Q8 e as variantes IQ, UD, MXFP4, TQ).
+
+### Corrigido
+- **Os nós utilitários não tinham como ser executados um a um:** Filtros e cor, Redimensionar, Vídeo final, Juntar clipes etc. não mostravam o ponto de estado («desatualizado»/«atualizado») nem o botão «Executar este nó» nem «Gerar de novo» no menu — só os nós de IA tinham. Agora todo nó que o servidor executa mostra os três.
+- **Quantizações ternárias (TQ1_0, TQ2_0) não eram reconhecidas** pelo nome do arquivo: apareciam sem faixa. Agora contam como Q2 (e o aviso de «edição só copiou a imagem» também as pega).
+- **Avisos longos sumiam em 3 segundos:** o aviso da tela agora fica 6 segundos quando a mensagem passa de 90 caracteres.
+- **Texto do cartão PyTorch/TensorFlow** dizia que o TensorFlow «só é preciso para os modelos do nó Modelo PyTorch/TensorFlow»; agora diz que o OpenFlow não precisa dele.
+
+### Ainda não verificado
+- Nenhum modelo real foi baixado ou executado (Hugging Face bloqueado, sem GPU aqui); o ffmpeg do «Vídeo final» foi testado com os arquivos do modo Demo.
+- A caça não esgota o programa: foram os caminhos descritos acima.
+
 ## [0.86.0] — 2026-11-18
 
 ### Bugs ao editar — o que foi procurado

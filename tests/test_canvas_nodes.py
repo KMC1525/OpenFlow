@@ -25,7 +25,7 @@ class SchemaTests(unittest.TestCase):
         groups = {}
         for k, v in nodes_ext.SPECS.items():
             groups.setdefault(v["group"], []).append(k)
-        self.assertEqual({g: len(v) for g, v in groups.items()}, {"Texto": 7, "Imagem": 10, "Vídeo": 8, "Som": 7, "Input": 6, "Output": 6, "3D": 3})   # v0.34: +10 nós; v0.58: +3 nós 3D (textura, esqueleto, animação); v0.61: +1 nó de som (Letra; Música e SFX são geradores, fora desta lista); v0.82: +1 nó de imagem (Modelo PyTorch/TensorFlow)
+        self.assertEqual({g: len(v) for g, v in groups.items()}, {"Texto": 7, "Imagem": 9, "Vídeo": 8, "Som": 7, "Input": 6, "Output": 6, "3D": 3})   # v0.34: +10 nós; v0.58: +3 nós 3D (textura, esqueleto, animação); v0.61: +1 nó de som (Letra; Música e SFX são geradores, fora desta lista); v0.82: +1 nó de imagem (Modelo PyTorch/TensorFlow)
         self.assertEqual([g for g, _ in schema.PALETTE], ["Texto", "Imagem", "Vídeo", "Som", "Input", "3D", "Output"])
         listed = [t for _, ts in schema.PALETTE for t in ts]
         self.assertEqual(sorted(listed), sorted(schema.NODE_TYPES))  # todo nó (antigo e novo) está na paleta, uma vez só
@@ -37,11 +37,10 @@ class SchemaTests(unittest.TestCase):
             self.assertIn(k, nodes_ext.RUNNERS)
 
     def test_every_output_type_can_reach_a_node_that_uses_it(self):
-        """Integração: de cada tipo de saída (texto, imagem, vídeo, áudio, mídia) existe porta compatível em nós antigos e novos, e tudo entra no Editor e na Galeria."""
+        """Integração: de cada tipo de saída (texto, imagem, vídeo, áudio, mídia) existe porta compatível em nós antigos e novos, e tudo entra na Galeria (o nó Editor saiu na v0.87)."""
         for out in ("text", "image", "video", "audio", "media"):
             targets = [(t, p["id"]) for t, v in schema.NODE_TYPES.items() for p in [schema.port_def(t, i[0]) for i in v["ins"]] if schema.compatible(out, p["accepts"])]
             self.assertGreaterEqual(len(targets), 4, out)
-            self.assertIn(("editor", "clips"), targets)
             self.assertIn(("out_gallery", "items"), targets)
         self.assertTrue(schema.compatible("video", schema.port_def("image", "refs")["accepts"]))   # vídeo vira imagem de referência (quadro)
         self.assertTrue(schema.compatible("video", schema.port_def("video", "image")["accepts"]))

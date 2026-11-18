@@ -134,7 +134,7 @@ LIBS = {
     "media": "modelos locais de imagem, vídeo, som e voz (PyTorch, diffusers, transformers — vários GB)",
     "local": "modelos GGUF embutidos: texto, imagem e vídeo (llama-cpp-python e stable-diffusion-cpp-python; compilam código nativo)",
     "quant": "comprimir ao carregar os modelos originais em Q8, Q6, Q4, Q3 ou Q2 (biblioteca optimum-quanto; roda em qualquer aparelho, até na CPU)",
-    "tensorflow": "TensorFlow/Keras, para rodar no nó «Modelo PyTorch/TensorFlow» os modelos feitos para eles (.keras, .h5, SavedModel); pesado (centenas de MB) e NÃO vem no «all»: peça com --extras tensorflow",
+    "tensorflow": "TensorFlow/Keras, opcional (para quem quer o TensorFlow neste Python; nenhum nó do OpenFlow o exige); pesado (centenas de MB) e NÃO vem no «all»: peça com --extras tensorflow",
     "voxcpm": "voz do VoxCPM2 (openbmb/VoxCPM2): fala em 30 idiomas, voz por descrição e clonagem (biblioteca voxcpm; precisa do Python 3.10 ou mais novo)",
 }
 OPT_IN = {"tensorflow"}   # extras pesados que o «all» não instala: só quando pedidos pelo nome

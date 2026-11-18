@@ -310,21 +310,16 @@ class ProjectStore:
                 if "folders" in n["params"]:
                     prune_folder_files(n["params"]["folders"], {a["id"] for a in cur["assets"]})
                 n["result"]["assets"] = [f for f in n["result"]["assets"] if f != aid]
-                if n["type"] == "editor":
-                    tl = n["params"]["timeline"]
-                    tl["clips"] = [c for c in tl["clips"] if c.get("asset") != aid]
             self._write(cur)
             return True
 
     def referenced_assets(self, cur: Dict[str, Any]) -> set:
-        """Ids de arquivos em uso: resultados dos nós, uploads/estilos e clipes fixos dos Editores."""
+        """Ids de arquivos em uso: resultados dos nós, uploads e estilos."""
         used: set = set()
         for n in cur["nodes"]:
             used.update(n["result"]["assets"])
             used.update(n["params"].get("files", []))
             used.update(all_folder_files(n["params"].get("folders", [])))
-            if n["type"] == "editor":
-                used.update(c["asset"] for c in n["params"]["timeline"]["clips"] if c.get("asset"))
         return used
 
     def prune_node_assets(self, cid: str, nid: str, keep: int = 24) -> int:

@@ -19,7 +19,7 @@ from openflow.canvas.engine import CanvasEngine
 from openflow.storage import Store
 
 FF = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
-SKIP = {"text", "upload", "style_prompt", "style_folder", "in_url", "ai_model"}  # sem execução própria / pedem a internet / pedem um arquivo de modelo (ai_model: test_modelrun_v082)
+SKIP = {"text", "upload", "style_prompt", "style_folder", "in_url"}  # sem execução própria / pedem a internet / pedem um arquivo de modelo (ai_model: test_modelrun_v082)
 MULTI2 = ("img_collage", "vid_join", "aud_mix")                                          # pedem ao menos duas entradas
 BASE = {"text_extract": {"what": "numbers"}, "img_text": {"text": "Olá"}, "in_random": {"lines": "a\nb\nc"}, "text_template": {"template": "X {1}"}}
 EXPECTED = re.compile(r"Escreva o (texto a procurar|padrão)|Não achei nada no texto|precisa de um esqueleto|passa do fim|não tem áudio|ficou vazio|antes do início|bibliotecas opcionais")

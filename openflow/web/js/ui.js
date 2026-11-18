@@ -126,7 +126,7 @@ export function toast(msg, type = '') {
   const box = document.getElementById('toasts');
   const el = h('div', { class: 'toast ' + type }, msg);
   box.appendChild(el);
-  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(() => el.remove(), 300); }, type === 'err' ? 6000 : 3000);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; setTimeout(() => el.remove(), 300); }, type === 'err' || String(msg).length > 90 ? 6000 : 3000);
 }
 
 export function modal(title, body, buttons) {
