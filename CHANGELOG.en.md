@@ -2,6 +2,25 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.86.0] — 2026-11-18
+
+### Editing bugs — what was searched
+- The **editing path of generated images and videos** in each family: FLUX.3 Image Klein, Qwen-Image 2.1 and Qwen-Image-Edit (2509/2511), FLUX.2/Kontext, MiniMax H3 (image and video), LTX-2/2.3/2.5 and Wan. For each one: what OpenFlow sends (prompt, references, size, load and run parameters) compared with the documentation and code of stable-diffusion.cpp and diffusers.
+- The screenshot case (FLUX.3 Klein Q2 GGUF, node on «Edit» with the previous node's image, result identical to the input): the arguments sent to sd-cli are right (`-r` with the image, no `--strength`, 16 steps and CFG 1 recipe); what OpenFlow **cannot** fix is a Q2 model, which tends to just copy the reference. The warning now says so.
+
+### Fixed
+- **Qwen-Image-Edit-2511 edited badly:** stable-diffusion.cpp requires `--qwen-image-zero-cond-t` for this model («without it editing quality drops a lot») and OpenFlow never sent it. Every «Qwen-Image-Edit-2511» file now loads with it, through the library (`qwen_image_zero_cond_t`) and through sd-cli. If the installed library is too old for the option, OpenFlow uses sd-cli (or explains how to update) instead of silently editing wrong. It can be turned off in the node's «extra» field: `{"load": {"qwen_image_zero_cond_t": false}}`.
+- **LTX-2 «distilled» (2.5 included) ran with the wrong noise schedule:** the model was trained with 8 fixed noise levels (`DISTILLED_SIGMA_VALUES`) and OpenFlow only asked for «8 steps», which diffusers turns into a linear schedule — blurry video that followed the start image poorly. The «distilled» file now gets its own schedule (if you set another step count in «extra», yours wins). «dev» is unchanged.
+- **Stretched start image:** when animating a generated image (square, say) into a 16:9 video, the image was **distorted** to fit the frame (LTX-2, MiniMax H3, Wan, and video and image → image on local Hugging Face). It is now scaled to cover the frame and the excess is cropped from the center; in multi-reference edits on local Hugging Face each reference keeps its own proportion.
+- **A video wired into a Video node's «Start image» began in the MIDDLE of it:** a new video from another one continued nothing. The Video node now uses the **last frame** of the wired (or `@`-mentioned) video — what continues it. Image nodes keep using the middle frame.
+- **MiniMax H3 Image got the edit request duplicated, with markers it does not understand:** OpenFlow wrote «Edit <Picture 1>. Edit the provided reference image… @name (reference image 1)». The markers now become `<Picture N>` and the prompt opens once with «Edit <Picture 1>.».
+- **The «result almost identical to the input» warning now names the likeliest cause:** when the model file is Q2 or Q3 it says those tiers tend to just copy the image, suggests Q4 or higher, and advises avoiding «slightly» and «a bit» in the request.
+
+### Not verified yet
+- No real model was downloaded or run (Hugging Face blocked) and there is no GPU here: tests use **simulated** stable-diffusion.cpp and diffusers and prove what OpenFlow sends, not image or video quality. That Qwen-Image-Edit-2511 and LTX-2.5 distilled get better with the fixes comes from their documentation, not from a real generation.
+- A video's last frame is read with ffmpeg (tested here with a short synthetic video).
+- The screenshot case was not reproduced with the real model: the likely cause (Q2) is a hypothesis, not a confirmation.
+
 ## [0.85.0] — 2026-11-18
 
 ### Bug hunt 5 — what was searched

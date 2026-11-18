@@ -144,6 +144,14 @@ def edit_prompt(instruction: str) -> str:
             "Make the change clearly visible, and keep everything else exactly the same (subject, face, pose, composition, colors, lighting and background).")
 
 
+def _low_quant(model: str) -> str:
+    """«Q2_K_XL», «Q3_K_S»…: a faixa do arquivo do modelo quando ela tem 3 bits ou menos (senão ""): nelas a edição por referência costuma só copiar a imagem."""
+    from .. import hf
+
+    info = hf.parse_quant(Path(str(model or "")).name)
+    return str(info.get("quant") or "") if 0 < int(info.get("bits") or 0) <= 3 else ""
+
+
 def M_difference(a: bytes, b: bytes) -> Any:
     from .media import image_difference
 
@@ -756,7 +764,10 @@ class CanvasEngine:
             if p["mode"] == "edit" and use_refs and medias:
                 diff = M_difference(use_refs[0][0], medias[0].data)
                 if diff is not None and diff < SAME_IMAGE:
-                    warnings.append("O resultado ficou quase igual à imagem de entrada: o modelo mal aplicou a edição. Descreva a mudança com mais detalhe (de preferência em inglês e dizendo o que fica igual), "
+                    low = _low_quant(p["model"] or model)
+                    warnings.append("O resultado ficou quase igual à imagem de entrada: o modelo mal aplicou a edição. "
+                                    + (f"A quantização do modelo ({low}) é muito baixa: com Q2/Q3 a edição costuma só copiar a imagem — use uma faixa maior (Q4 ou mais) ou o campo «Quantização ao carregar». " if low else "")
+                                    + "Descreva a mudança com mais detalhe (de preferência em inglês e dizendo o que fica igual; evite «levemente» e «um pouco»), "
                                     "configure um modelo de texto em Configuração para o OpenFlow expandir o pedido, ou mude a semente (Gerar de novo).")
             for i, m in enumerate(medias):
                 ids.append(self._save(node, m, "image", f"{self._title(node, 'Imagem')} {i + 1}", prompt, pid, model))
@@ -765,9 +776,9 @@ class CanvasEngine:
             base = "\n\n".join(x for x in (self.inputs(canvas, node, "prompt")["text"], p["prompt"].strip()) if x)
             base, ment_ids, missing = mentions_mod.resolve(canvas, base)
             warnings += [f"@{m}: não há mídia com esse apelido neste canvas — ficou como texto." for m in missing]
-            ment_refs, ment_warn = self._mention_media(canvas, ment_ids, "vídeo")
+            ment_refs, ment_warn = self._mention_media(canvas, ment_ids, "vídeo", last=True)
             warnings += ment_warn
-            first = next(iter(self.image_inputs(canvas, node, "image")), None) or next(iter(ment_refs), None)   # a 1ª imagem (ou quadro de vídeo) citada vira a imagem inicial, se nenhuma está ligada
+            first = next(iter(self.image_inputs(canvas, node, "image", last=True)), None) or next(iter(ment_refs), None)   # v0.86: um vídeo na «Imagem inicial» continua do ÚLTIMO quadro dele; senão, a 1ª imagem (ou quadro de vídeo) citada vira a imagem inicial
             if len(ment_refs) > 1:
                 warnings.append("O vídeo usa uma só imagem inicial: só a primeira citada com @ virou imagem; as outras valem como texto.")
             if not base and not first:
@@ -831,19 +842,23 @@ class CanvasEngine:
             return {"assets": [self._save(node, m, "audio", self._title(node, "Voz"), speech, pid, model)], "text": "", "warnings": warnings}
         raise ValueError(f"Tipo de nó sem gerador: {t}")
 
-    def _video_frame(self, a: Dict[str, Any]) -> Optional[Tuple[bytes, str]]:
-        """O quadro do meio de um vídeo do canvas como (png, mime)."""
+    def _video_frame(self, a: Dict[str, Any], last: bool = False) -> Optional[Tuple[bytes, str]]:
+        """O quadro do meio de um vídeo do canvas como (png, mime); com `last`, o ÚLTIMO quadro (v0.86: para CONTINUAR um vídeo — um vídeo novo que começa no meio do anterior não continua nada)."""
         src = self.cs.asset_path(self.cid, a["file"])
         ff = shutil.which("ffmpeg")
         if not (ff and src):
             return None
         with tempfile.TemporaryDirectory() as td:
             dst = Path(td) / "f.png"
+            if last:   # `-sseof` conta do fim; `-update 1` regrava o mesmo arquivo a cada quadro, então sobra o último
+                r = subprocess.run([ff, "-y", "-loglevel", "error", "-sseof", "-0.3", "-i", str(src), "-update", "1", "-frames:v", "9999", str(dst)], capture_output=True, timeout=120)
+                if r.returncode == 0 and dst.exists() and dst.stat().st_size:
+                    return dst.read_bytes(), "image/png"
             r = subprocess.run([ff, "-y", "-loglevel", "error", "-ss", f"{(a.get('duration') or 2.0) / 2:.2f}", "-i", str(src), "-frames:v", "1", str(dst)], capture_output=True, timeout=120)
             return (dst.read_bytes(), "image/png") if r.returncode == 0 and dst.exists() else None
 
-    def _mention_media(self, canvas: Dict[str, Any], ids: List[str], target: str) -> Tuple[List[Tuple[bytes, str]], List[str]]:
-        """As mídias citadas com @ como imagens de referência: imagem → ela mesma; vídeo → o quadro do meio; som → nada (só texto), com aviso. `target`: «imagem» ou «vídeo» (para a mensagem)."""
+    def _mention_media(self, canvas: Dict[str, Any], ids: List[str], target: str, last: bool = False) -> Tuple[List[Tuple[bytes, str]], List[str]]:
+        """As mídias citadas com @ como imagens de referência: imagem → ela mesma; vídeo → o quadro do meio (`last`: o último); som → nada (só texto), com aviso. `target`: «imagem» ou «vídeo» (para a mensagem)."""
         assets = self._assets(canvas)
         out: List[Tuple[bytes, str]] = []
         warn: List[str] = []
@@ -854,15 +869,15 @@ class CanvasEngine:
             if a["kind"] == "audio":
                 warn.append(f"«{a.get('name') or i}» é um som: modelos de {target} não usam áudio como referência — ficou só como texto.")
                 continue
-            got = (self._asset_bytes(a), a["mime"]) if a["kind"] == "image" else self._video_frame(a)
+            got = (self._asset_bytes(a), a["mime"]) if a["kind"] == "image" else self._video_frame(a, last)
             if got and got[0]:
                 out.append(got)
             else:
                 warn.append(f"«{a.get('name') or i}» não pôde ser lida (arquivo ausente ou vídeo sem quadro): a imagem citada não foi enviada como referência.")
         return out, warn
 
-    def image_inputs(self, canvas: Dict[str, Any], node: Dict[str, Any], port: str) -> List[Tuple[bytes, str]]:
-        """Imagens de uma porta como (bytes, mime). Um vídeo ligado numa porta de imagem entra pelo quadro do meio."""
+    def image_inputs(self, canvas: Dict[str, Any], node: Dict[str, Any], port: str, last: bool = False) -> List[Tuple[bytes, str]]:
+        """Imagens de uma porta como (bytes, mime). Um vídeo ligado numa porta de imagem entra pelo quadro do meio (`last`: pelo último, para continuar o vídeo)."""
         out: List[Tuple[bytes, str]] = []
         for a in self.inputs(canvas, node, port)["assets"]:
             if a["kind"] == "image":
@@ -870,7 +885,7 @@ class CanvasEngine:
                 if b:
                     out.append((b, a["mime"]))
             elif a["kind"] == "video":
-                fr = self._video_frame(a)
+                fr = self._video_frame(a, last)
                 if fr:
                     out.append(fr)
         return out

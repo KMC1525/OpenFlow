@@ -2,6 +2,25 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.86.0] — 2026-11-18
+
+### Bugs ao editar — o que foi procurado
+- O caminho de **edição de imagens e vídeos gerados** em cada família: FLUX.3 Image Klein, Qwen-Image 2.1 e Qwen-Image-Edit (2509/2511), FLUX.2/Kontext, MiniMax H3 (imagem e vídeo), LTX-2/2.3/2.5 e Wan. Para cada uma: o que o OpenFlow envia (prompt, referências, tamanho, parâmetros de carga e de geração) comparado com a documentação e o código da stable-diffusion.cpp e do diffusers.
+- O caso da captura de tela (FLUX.3 Klein Q2 GGUF, nó em «Editar» com a imagem do nó anterior, resultado igual à entrada): os argumentos enviados ao sd-cli estão certos (`-r` com a imagem, sem `--strength`, receita de 16 passos e CFG 1); o que **não** dá para resolver no OpenFlow é um modelo em Q2, que costuma só copiar a referência. Agora o aviso diz isso.
+
+### Corrigido
+- **Qwen-Image-Edit-2511 editava mal:** a stable-diffusion.cpp exige a opção `--qwen-image-zero-cond-t` para esse modelo («sem ela a qualidade da edição cai muito») e o OpenFlow nunca a enviava. Agora todo arquivo «Qwen-Image-Edit-2511» carrega com ela, pela biblioteca (`qwen_image_zero_cond_t`) e pelo sd-cli. Se a biblioteca instalada for antiga demais para a opção, o OpenFlow usa o sd-cli (ou explica como atualizar) em vez de editar errado em silêncio. Dá para desligar no campo «extra» do nó: `{"load": {"qwen_image_zero_cond_t": false}}`.
+- **LTX-2 «distilled» (2.5 incluso) saía com o ruído errado:** o modelo foi treinado com 8 etapas de ruído fixas (`DISTILLED_SIGMA_VALUES`) e o OpenFlow só pedia «8 passos», o que o diffusers transforma numa escala linear — vídeo borrado e que seguia mal a imagem inicial. Agora o arquivo «distilled» recebe a escala dele (se você escolher outro número de passos no «extra», vale o seu). O «dev» continua como estava.
+- **Imagem inicial esticada:** ao animar uma imagem gerada (quadrada, por exemplo) num vídeo 16:9, a imagem era **deformada** para caber no quadro (LTX-2, MiniMax H3, Wan, vídeo e imagem → imagem do Hugging Face local). Agora ela é reduzida até cobrir o quadro e o excesso é cortado do centro; nas edições com várias referências pelo Hugging Face local, cada referência mantém a própria proporção.
+- **Vídeo ligado na «Imagem inicial» de um vídeo começava no MEIO dele:** um vídeo novo a partir de outro não continuava nada. Agora o nó Vídeo usa o **último quadro** do vídeo ligado (ou citado com `@`) — o que continua o vídeo. Nos nós de imagem, o quadro do meio continua como antes.
+- **MiniMax H3 Image recebia o pedido de edição duplicado e com marcas que ele não entende:** o OpenFlow escrevia «Edit <Picture 1>. Edit the provided reference image… @nome (reference image 1)». Agora as marcas viram `<Picture N>` e o prompt abre uma vez só com «Edit <Picture 1>.».
+- **O aviso «resultado quase igual à entrada» agora aponta a causa mais provável:** quando o arquivo do modelo está em Q2 ou Q3, diz que nessas faixas a edição costuma só copiar a imagem e sugere Q4 ou maior, e orienta a evitar «levemente» e «um pouco» no pedido.
+
+### Ainda não verificado
+- Nenhum modelo real foi baixado ou executado (Hugging Face bloqueado) e não há GPU aqui: os testes usam a stable-diffusion.cpp e o diffusers **simulados** e provam o que o OpenFlow envia, não a qualidade da imagem ou do vídeo. Que o Qwen-Image-Edit-2511 e o LTX-2.5 distilled fiquem melhores com as correções vem da documentação deles, não de uma geração real.
+- O último quadro de um vídeo é lido com o ffmpeg (testado aqui com um vídeo curto sintético).
+- O caso da captura de tela não foi reproduzido com o modelo real: a causa provável (Q2) é uma hipótese, não uma confirmação.
+
 ## [0.85.0] — 2026-11-18
 
 ### Caçando bugs 5 — o que foi procurado

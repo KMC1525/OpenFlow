@@ -192,6 +192,7 @@ class Ctl:
 
 
 #: GGUF que juntam várias imagens de referência na mesma geração (edição, Kontext, FLUX.2 klein/dev, Qwen-Image 2.1): as referências valem também no modo Gerar
+_QWEN_EDIT_2511 = re.compile(r"qwen[-_ ]?image[-_ ]?edit.*2511", re.I)   # v0.86: o Qwen-Image-Edit-2511 só edita bem com `--qwen-image-zero-cond-t` (cartão da stable-diffusion.cpp: «sem isso a qualidade cai muito»)
 _H3_IMAGE = re.compile(r"minimax[-_ ]?h3[-_ ]?image", re.I)   # MiniMax H3 Image: edita com até 16 imagens de referência (<Picture 1>, <Picture 2>…)
 _GGUF_MULTI_REF = re.compile(r"edit|kontext|klein|qwen[-_]?image[-_]?2[._]?1|flux[-_. ]?2[-_. ]?dev", re.I)
 
@@ -978,14 +979,14 @@ class LocalHFMedia(MediaProvider):
                 if guidance > 1.0 and "negative_prompt" not in kw:
                     kw["negative_prompt"] = " "
             if pil and (klein or lowmem.edit_style(params)):   # edição pelo próprio pipeline (FLUX.2 klein/FLUX.2, FLUX Kontext, Qwen-Image-Edit): não há `strength`; as imagens ligadas guiam o resultado
-                imgs = [p.resize((w, h)) for p in pil]
+                imgs = [cover_fit(p, w, h) for p in pil] if len(pil) == 1 else [fit_inside(p, w, h) for p in pil]   # v0.86: sem esticar (várias referências: cada uma com a própria proporção)
                 if klein or lowmem.multi_image(type(target).__name__):
                     kw["image"] = imgs
                 else:
                     kw["image"] = imgs[0]
             elif pil:
                 kw.pop("width"), kw.pop("height")
-                kw.update(image=pil[0].resize((w, h)), strength=0.8 if fast else 0.75)
+                kw.update(image=cover_fit(pil[0], w, h), strength=0.8 if fast else 0.75)
                 if fast:
                     kw["num_inference_steps"] = max(4, steps)   # modelos «turbo»: com strength < 1 sobram menos passos, e precisam de pelo menos 1
             kw = lowmem.keep(kw, params)   # só o que o pipeline aceita (o campo «Extra» do usuário vai depois, sem filtro)
@@ -1501,7 +1502,7 @@ class LocalHFMedia(MediaProvider):
             raise ProviderError(f"«{model}» só gera vídeo a partir de texto (o pipeline dele não aceita uma imagem). Desligue a imagem do nó ou escolha um modelo de imagem → vídeo (ex.: um LTX-Video ou Wan «i2v»).")
         kw: Dict[str, Any] = {"prompt": prompt, "width": w, "height": h, "num_frames": int(max(9, min(161, duration * fps)) // 8 * 8 + 1)}
         if image:
-            kw["image"] = open_rgb(image[0]).resize((w, h))
+            kw["image"] = cover_fit(open_rgb(image[0]), w, h)
         if params is not None and "frame_rate" in params:
             kw["frame_rate"] = fps   # LTX: o pipeline assume 25 quadros por segundo; o MP4 sai a 24, então diz a taxa real (senão o movimento fica ~4% mais lento)
         kw = lowmem.keep(kw, params)
@@ -1672,7 +1673,12 @@ def _pil_refs(refs: Sequence[Ref], limit: int = 4, keep_alpha: bool = False) -> 
 def h3_picture_prompt(prompt: str, n: int) -> str:
     """MiniMax H3 Image: as imagens de referência (`-r`) são `<Picture 1>`, `<Picture 2>`… no prompt. Se o prompt já as cita, fica como está; senão o OpenFlow acrescenta a convenção do cartão:
     com uma referência «Edit <Picture 1>. …», com várias lista todas antes do pedido."""
-    if n <= 0 or re.search(r"<Picture\s*\d+>", prompt or ""):
+    if n <= 0:
+        return prompt
+    # v0.86: o OpenFlow marca as imagens citadas com «@apelido (reference image N)» e, no modo Editar, abre com «Edit the provided reference image.»: o H3 só entende <Picture N>
+    prompt = re.sub(r"\(reference image (\d+)(?:,[^)]*)?\)", lambda m: f"<Picture {m.group(1)}>", prompt or "")
+    prompt = re.sub(r"^Edit the provided reference image\.", "Edit <Picture 1>." if n == 1 else "Edit the reference images.", prompt)
+    if re.search(r"<Picture\s*\d+>", prompt):
         return prompt
     if n == 1:
         return "Edit <Picture 1>. " + prompt
@@ -1705,6 +1711,31 @@ def _size_like(ref: Any, w: int, h: int, mult: int) -> Tuple[int, int]:
     long = max(w, h)
     k = long / max(rw, rh)
     return max(256, int(rw * k) // mult * mult), max(256, int(rh * k) // mult * mult)
+
+
+def cover_fit(img: Any, w: int, h: int) -> Any:
+    """A imagem no tamanho w×h SEM esticar (v0.86): reduz até cobrir o quadro e corta o excesso do centro. `resize((w, h))` deformava a imagem inicial quando a proporção dela não era a do vídeo
+    (ex.: uma imagem quadrada gerada virando vídeo 16:9: o rosto saía achatado)."""
+    from PIL import Image  # type: ignore
+
+    iw, ih = img.size
+    if (iw, ih) == (w, h):
+        return img
+    k = max(w / iw, h / ih)
+    nw, nh = max(w, int(round(iw * k))), max(h, int(round(ih * k)))
+    big = img.resize((nw, nh), Image.LANCZOS)
+    left, top = (nw - w) // 2, (nh - h) // 2
+    return big.crop((left, top, left + w, top + h))
+
+
+def fit_inside(img: Any, w: int, h: int, mult: int = 16) -> Any:
+    """A imagem cabendo DENTRO de w×h, com a proporção dela (lados em múltiplos de `mult`): referências de edição com várias imagens não devem ser esticadas nem cortadas."""
+    from PIL import Image  # type: ignore
+
+    iw, ih = img.size
+    k = min(w / iw, h / ih)
+    nw, nh = max(mult, int(iw * k) // mult * mult), max(mult, int(ih * k) // mult * mult)
+    return img if (nw, nh) == (iw, ih) else img.resize((nw, nh), Image.LANCZOS)
 
 
 _SD_LOG: "collections.deque[Tuple[int, str]]" = collections.deque(maxlen=120)   # (nível, texto) das mensagens da stable-diffusion.cpp; níveis: 0 debug, 1 info, 2 aviso, 3 erro
@@ -1945,6 +1976,17 @@ class _SDLoadError(ProviderError):
     """O modelo não carregou na stable-diffusion.cpp (a biblioteca não avisa: devolve um contexto nulo e o erro só aparece depois como «NULL pointer access»)."""
 
 
+def _lib_accepts(sdc: Any, key: str) -> bool:
+    """O construtor `StableDiffusion` da biblioteca aceita o parâmetro `key`? (Verdadeiro se a assinatura não puder ser lida.)"""
+    import inspect
+
+    try:
+        params = inspect.signature(sdc.StableDiffusion.__init__).parameters
+    except (TypeError, ValueError, AttributeError):
+        return True
+    return key in params or any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params.values())
+
+
 class _SDUnsupportedModel(_SDLoadError):
     """A stable-diffusion.cpp embutida na biblioteca instalada não reconhece o formato do modelo («get sd version from file failed»): tentar de novo não adianta."""
 
@@ -2089,6 +2131,8 @@ class GGUFMedia(MediaProvider):
         (sdc,) = _local_import("stable_diffusion_cpp", extra="local")
         _install_sd_log(sdc)   # guarda as mensagens da stable-diffusion.cpp: quando a geração falha com «NULL pointer access», o motivo de verdade está nelas
         kw = self._load_kwargs(path, load)
+        if kw.get("qwen_image_zero_cond_t") and not _lib_accepts(sdc, "qwen_image_zero_cond_t"):   # biblioteca antiga: sem a opção o 2511 edita mal — o sd-cli (que a tem) assume, em vez de rodar errado em silêncio
+            raise _SDUnsupportedModel(f"A stable-diffusion-cpp-python instalada não tem a opção qwen_image_zero_cond_t, que o {path.name} exige para editar imagens. Atualize a biblioteca (flow libs) ou use o botão «Baixar o executável pronto» (sd-cli). [[flow-sd-cli]] [[flow-sd-update]]")
         isolated = isinstance(getattr(sdc, "__file__", None), str) and os.environ.get("OPENFLOW_SD_INPROC", "") in ("", "0")   # biblioteca de verdade: roda em processo à parte (ver `_SDProxy`)
 
         def build() -> Any:
@@ -2216,6 +2260,8 @@ class GGUFMedia(MediaProvider):
         user_load = extra.pop("load", None) or {}
         load = {**base.get("load", {}), **user_load}
         load = self._with_quant(load, path, extra.pop("quant", ""))
+        if _QWEN_EDIT_2511.search(path.name):
+            load.setdefault("qwen_image_zero_cond_t", True)   # v0.86 (o nó pode desligar com {"load": {"qwen_image_zero_cond_t": false}})
         fam_img = support.family_of(path.name)
         if fam_img and fam_img.get("negative_default") and not (negative or "").strip():   # a receita do modelo pede um negativo de UM espaço: negativo vazio desliga o CFG verdadeiro
             negative = fam_img["negative_default"]
@@ -2268,7 +2314,7 @@ class GGUFMedia(MediaProvider):
             if _GGUF_MULTI_REF.search(path.name) and "ref_images" in params:
                 ref_kw["ref_images"] = pil                       # modelos de edição: as imagens guiam a edição
             elif "init_image" in params:
-                ref_kw["init_image"] = pil[0].resize((w, h))    # demais: imagem → imagem
+                ref_kw["init_image"] = cover_fit(pil[0], w, h)    # demais: imagem → imagem
                 ref_kw.setdefault("strength", 0.75)
             else:
                 raise ProviderError("A versão instalada da stable-diffusion-cpp-python não aceita imagens de entrada (init_image/ref_images). Atualize-a (flow libs) ou use um modelo de nuvem para editar.")
@@ -2379,7 +2425,7 @@ class GGUFMedia(MediaProvider):
         if image is not None and "init_image" in params:   # imagem inicial (modelos TI2V aceitam texto + imagem)
             pil = _pil_refs([image])
             if pil:
-                kw["init_image"] = pil[0].resize((w, h))
+                kw["init_image"] = cover_fit(pil[0], w, h)
         kw = {"prompt": prompt, "width": w, "height": h, "seed": int(seed) if seed else -1, **kw, **extra}
         if params:   # versões da biblioteca diferem nos parâmetros: o que ela não conhece é descartado (com aviso) em vez de derrubar a geração
             dropped = [k for k in kw if k not in params]
@@ -2411,8 +2457,10 @@ class GGUFMedia(MediaProvider):
         self.ctl.note(f"Carregando o LTX-{info['version']} ({info['variant']}) pelo diffusers (pode demorar e exige bastante memória)…")
         pipe = _local_load("video", f"ltx2:{path.name}:{bool(pil)}", lambda: ltx2.load_pipeline(path, info["base"], bool(pil)))
         self.ctl.note("Gerando vídeo com áudio (pode demorar)…")
-        data = ltx2.generate(pipe, prompt=prompt, width=w, height=h, frames=frames, steps=int(extra.get("sample_steps") or steps), cfg=float(extra.get("cfg_scale") or cfg),
-                             seed=int(seed or 0), image=pil[0].resize((w, h)) if pil else None, check=self.ctl.check)
+        user_steps = int(extra.get("sample_steps") or 0)
+        sigmas = ltx2.DISTILLED_SIGMAS if info["variant"] == "distilled" and user_steps in (0, len(ltx2.DISTILLED_SIGMAS)) else None   # v0.86: o distilled tem a escala de ruído dele (ver ltx2.DISTILLED_SIGMAS)
+        data = ltx2.generate(pipe, prompt=prompt, width=w, height=h, frames=frames, steps=user_steps or steps, cfg=float(extra.get("cfg_scale") or cfg),
+                             seed=int(seed or 0), image=cover_fit(pil[0], w, h) if pil else None, check=self.ctl.check, sigmas=sigmas)
         return Media(data, "video/mp4")
 
     def _start_image(self, vinfo: Dict[str, Any], image: Optional[Ref]) -> Optional[Ref]:
@@ -2445,7 +2493,7 @@ class GGUFMedia(MediaProvider):
             pil = _pil_refs([image])
             if pil:
                 b = io.BytesIO()
-                pil[0].resize((w, h)).save(b, format="PNG")
+                cover_fit(pil[0], w, h).save(b, format="PNG")
                 init = b.getvalue()
         container = vinfo.get("container")
         if container:   # o próprio sd-cli grava o vídeo (com áudio estéreo): nada de quadros soltos nem ffmpeg

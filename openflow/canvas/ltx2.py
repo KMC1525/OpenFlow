@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 import tempfile
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from ..providers.base import ProviderError
 
@@ -20,6 +20,9 @@ from ..providers.base import ProviderError
 BASES = {"2": "Lightricks/LTX-2", "2.3": "Lightricks/LTX-2.5-Diffusers", "2.5": "Lightricks/LTX-2.5-Diffusers"}
 #: (passos, CFG) — o «dev» é o modelo completo; o «distilled» é o destilado (8 passos, sem CFG), segundo os cartões
 RUN = {"dev": (30, 3.0), "distilled": (8, 1.0)}
+#: v0.86: o modelo «distilled» foi treinado com ESTAS 8 etapas de ruído (receita do diffusers: `sigmas=DISTILLED_SIGMA_VALUES, num_inference_steps=8, guidance_scale=1.0`); sem elas o diffusers usa uma
+#: escala linear (1,0 → 0,125) e o vídeo (principalmente a partir de uma imagem) sai borrado e sem seguir a imagem inicial
+DISTILLED_SIGMAS = [1.0, 0.99375, 0.9875, 0.98125, 0.975, 0.909375, 0.725, 0.421875]
 NEGATIVE = "worst quality, inconsistent motion, blurry, jittery, distorted"   # o do exemplo da documentação do diffusers
 FPS = 24
 #: o que NÃO se baixa do repositório diffusers: o transformador (vem do GGUF), arquivos soltos de mídia e os pesos duplicados do codificador de texto
@@ -141,7 +144,7 @@ def load_pipeline(path: Optional[Path], base: str, image: bool, token: str = "",
 
 
 def generate(pipe: Any, *, prompt: str, negative: str = "", width: int, height: int, frames: int, steps: int, cfg: float, seed: int = 0, image: Any = None,
-             check: Callable[[], None] = lambda: None, extra: Optional[Dict[str, Any]] = None) -> bytes:
+             check: Callable[[], None] = lambda: None, extra: Optional[Dict[str, Any]] = None, sigmas: Optional[List[float]] = None) -> bytes:
     """Gera o vídeo (com áudio) e devolve os bytes do MP4. `image`: imagem PIL inicial (pipeline de imagem → vídeo)."""
     torch, _, encode_video = _imports()
     import inspect
@@ -152,6 +155,13 @@ def generate(pipe: Any, *, prompt: str, negative: str = "", width: int, height: 
         kw["image"] = image
     if seed:
         kw["generator"] = torch.Generator("cpu").manual_seed(int(seed))
+    try:
+        takes_sigmas = "sigmas" in inspect.signature(pipe.__call__).parameters
+    except (TypeError, ValueError):
+        takes_sigmas = True
+    if sigmas and takes_sigmas:
+        kw["sigmas"] = [float(x) for x in sigmas]
+        kw["num_inference_steps"] = len(kw["sigmas"])
     kw.update(extra or {})
     try:
         if "callback_on_step_end" in inspect.signature(pipe.__call__).parameters:   # cancelar no meio da geração
