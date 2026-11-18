@@ -2,6 +2,24 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.85.0] — 2026-11-18
+
+### Caçando bugs 5 — o que foi procurado
+- **O downloader de modelos**, com um servidor local que quebra de propósito: sem suporte a faixas (`Range`), resposta em pedaços (`chunked`) sem tamanho, queda de conexão no meio (com e sem tamanho), `429` no começo, redirecionamento, `.part` pela metade, completo, de outra versão e legado — com 1 e com 4 conexões.
+- **A acessibilidade** das telas principais com o axe-core (regras de nomes, rótulos e títulos; o contraste de cores não foi avaliado): projetos, editor, Biblioteca (3 abas), as 5 abas de Configurações, a boas-vindas, a busca de modelos aberta e um nó selecionado, em português e em inglês.
+- Os trabalhos em segundo plano e quem os lista; o caminho completo das faixas Q2–Q8 (sem novos problemas além dos abaixo).
+
+### Corrigido
+- **Download com resposta em pedaços cortada derrubava o download:** quando o servidor (ou um proxy) manda o arquivo em `Transfer-Encoding: chunked` e a conexão cai, o Python levanta `IncompleteRead`, que o downloader não tratava como queda de rede: o download falhava em vez de retomar. Agora retoma (com uma e com várias conexões).
+- **Um resto de download de OUTRA versão do arquivo era devolvido como «completo»:** se o `.part` ficasse maior que o arquivo novo, o servidor respondia `416` e o downloader aceitava o `.part` como pronto — modelo corrompido, maior que o original. Agora ele confere o tamanho que o servidor informa e, se não bate, descarta o resto e baixa de novo.
+- **Uma página de erro, de login ou de portal de rede (Wi-Fi de hotel) virava um «modelo»:** baixada com status 200, era salva como `.gguf` e só falhava ao carregar, com um erro sem relação com o download. Agora todo `.gguf` baixado é conferido («GGUF» no começo) antes de ganhar o nome final; se não for, o arquivo é apagado e o erro diz o que provavelmente aconteceu. As partes boas de um modelo dividido ficam para o próximo download continuar.
+- **«Criar faixa» e o download de «Modelo próprio» não apareciam na aba Downloads** (nem no contador ao lado da busca) e **não impediam** limpar o disco ou mudar a pasta da Biblioteca enquanto escreviam no disco. Agora aparecem, com o título e as mensagens, e contam como download em andamento.
+- **Acessibilidade (axe-core):** o link do logotipo tinha um nome que não começava pelo texto visível (agora «OpenFlow — tela inicial» pelo conteúdo, com o «F» escondido dos leitores); o editor do projeto não tinha título de página (agora há um `h1` só para leitores de tela); os títulos dos cartões de Configurações, da Biblioteca, da lista vazia de projetos e dos grupos da paleta pulavam de nível (agora são de nível 2); o campo de «outra cor» só tinha `title` (ganhou nome); o link de cada cartão de projeto tinha um rótulo que não continha o texto visível (agora o nome vem do conteúdo).
+
+### Ainda não verificado
+- Nenhum modelo real foi baixado ou executado (Hugging Face bloqueado); o downloader foi testado com um servidor local, não com o CDN do Hugging Face. Não há leitor de tela de verdade na verificação: o axe-core é automático e só acha parte dos problemas.
+- A caça não esgota o programa: foram os caminhos descritos acima.
+
 ## [0.84.0] — 2026-11-18
 
 ### Caçando bugs 4 — o que foi procurado

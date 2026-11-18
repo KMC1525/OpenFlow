@@ -23,6 +23,7 @@ FILES = {  # nome no repositório → conteúdo
     "broken-Q6_K-00001-of-00002.gguf": b"x" * 10,  # falta a parte 2
     "README.md": b"# readme",
 }
+FILES = {n: (b"GGUF" + b[4:] if n.endswith(".gguf") else b) for n, b in FILES.items()}   # v0.85: o download confere que um .gguf começa com «GGUF» (o tamanho de cada arquivo não muda)
 
 
 class FakeHF:

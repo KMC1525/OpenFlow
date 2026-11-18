@@ -67,7 +67,7 @@ export function renderSide() {
   const demo = gen === 'demo';
   const stale = state.diskVersion && state.diskVersion !== state.version;   // há uma versão mais nova instalada do que a que está rodando
   side.replaceChildren(
-    h('a', { class: 'brand', href: '#/projects', title: 'OpenFlow', 'aria-label': t('OpenFlow — tela inicial'), onclick: () => { state.ctx = {}; } }, h('span', { class: 'logo' }, 'F'), h('span', { class: 'word' }, 'OpenFlow')),
+    h('a', { class: 'brand', href: '#/projects', title: 'OpenFlow', onclick: () => { state.ctx = {}; } }, h('span', { class: 'logo', 'aria-hidden': 'true' }, 'F'), h('span', { class: 'word' }, 'OpenFlow'), h('span', { class: 'sr-only' }, ' — ' + t('tela inicial'))),   // v0.85: o nome do link começa pelo texto visível («OpenFlow — tela inicial»)
     h('button', { class: 'searchbtn', type: 'button', title: t('Buscar (Ctrl+K)'), onclick: () => shell && shell.openPalette() }, icon('search', 16), h('span', null, t('Buscar…')), h('span', { class: 'kbd' }, 'Ctrl K')),
     h('nav', { 'aria-label': t('Telas') }, NAV.map(([id, label, ic]) => h('a', { class: 'item' + (cur === id ? ' active' : ''), href: '#/' + id, title: t(label), 'aria-current': cur === id ? 'page' : null, onclick: () => { state.ctx = {}; } },
       icon(ic, 19), h('span', { class: 'lbl' }, t(label))))),

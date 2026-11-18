@@ -156,7 +156,7 @@ class HfDownloadTests(unittest.TestCase):
         tmp = Path(tempfile.mkdtemp())
 
         def fake(url, part, headers, conns, progress, cancelled):
-            part.write_bytes(b"gguf")
+            part.write_bytes(b"GGUF")
             self.assertTrue(url.endswith("/acme/m/resolve/main/m-Q4_K_M.gguf"))
             self.assertEqual(conns, 5)
             return 4
@@ -169,7 +169,7 @@ class HfDownloadTests(unittest.TestCase):
                 out = hf.download("acme/m", "m-Q4_K_M.gguf", tmp)
             finally:
                 hf.CONNECTIONS = 4
-        self.assertEqual((out.name, out.read_bytes()), ("m-Q4_K_M.gguf", b"gguf"))
+        self.assertEqual((out.name, out.read_bytes()), ("m-Q4_K_M.gguf", b"GGUF"))
         self.assertFalse((tmp / "m-Q4_K_M.gguf.part").exists())
 
 

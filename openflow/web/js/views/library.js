@@ -237,9 +237,9 @@ export default async function render(root, ctx) {
   // ---------------------------------------------------------------------------------------------- downloads
   async function downloadsTab(box) {
     const active = h('div', { class: 'col', id: 'lib-active', 'aria-live': 'polite' }), recent = h('div', { class: 'col', id: 'lib-recent' }), done = h('div', { class: 'col', id: 'lib-done' });
-    box.append(h('div', { class: 'card', style: { marginBottom: '16px' } }, h('h3', null, t('Em andamento')), active),
-      h('div', { class: 'card', style: { marginBottom: '16px' } }, h('h3', null, t('Recentes (desta sessão)')), recent),
-      h('div', { class: 'card' }, h('h3', null, t('Modelos baixados')), h('p', { class: 'muted small', style: { marginTop: 0 } }, t('Todos os modelos GGUF neste computador, dos mais novos aos mais antigos.')), done));
+    box.append(h('div', { class: 'card', style: { marginBottom: '16px' } }, h('h3', { role: 'heading', 'aria-level': '2' }, t('Em andamento')), active),
+      h('div', { class: 'card', style: { marginBottom: '16px' } }, h('h3', { role: 'heading', 'aria-level': '2' }, t('Recentes (desta sessão)')), recent),
+      h('div', { class: 'card' }, h('h3', { role: 'heading', 'aria-level': '2' }, t('Modelos baixados')), h('p', { class: 'muted small', style: { marginTop: 0 } }, t('Todos os modelos GGUF neste computador, dos mais novos aos mais antigos.')), done));
     let alive = true, timer = 0, lastModels = '';
     const row = (d) => {
       const pc = d.total ? Math.min(1, d.done / d.total) : 0;
@@ -294,7 +294,7 @@ export default async function render(root, ctx) {
         h('button', { class: 'btn sm', type: 'button', id: 'where-' + k, disabled: r.busy, title: r.busy ? t('Espere as tarefas em andamento terminarem.') : '', onclick: () => change(k, label, r) }, t('Alterar…')),
         x.custom ? h('button', { class: 'btn sm ghost', type: 'button', disabled: r.busy, id: 'where-default-' + k, onclick: () => apply(k, '', true) }, t('Usar a padrão')) : null);
     };
-    box.replaceChildren(h('div', { class: 'card', style: { marginBottom: '16px' } }, h('h3', null, t('Onde guardar')),
+    box.replaceChildren(h('div', { class: 'card', style: { marginBottom: '16px' } }, h('h3', { role: 'heading', 'aria-level': '2' }, t('Onde guardar')),
       h('p', { class: 'muted small', style: { marginTop: 0 } }, t('Guarde os modelos e os arquivos dos projetos em outro disco: um HD ou SSD externo, um pendrive ou outra pasta do computador. O que já existe pode ser movido junto (copia primeiro e só apaga a pasta antiga no fim).')),
       ...(r.warnings || []).map((w) => h('p', { class: 'res warn small' }, '⚠ ' + w)),
       row('models', t('Modelos de IA')), row('files', t('Arquivos dos projetos (imagens, vídeos e sons)'))));
@@ -354,14 +354,14 @@ export default async function render(root, ctx) {
       const cleanRow = (id, what, label, hint) => cl[what].files ? h('div', { class: 'row nw', style: { padding: '6px 0' } }, h('div', { class: 'grow' }, h('div', null, label + ' · ' + fmtBytes(cl[what].bytes) + ' (' + t('{n} item(ns)', { n: cl[what].files }) + ')'), h('div', { class: 'dim small' }, hint)),
         h('button', { class: 'btn sm', type: 'button', id: 'st-' + id, onclick: () => clean([what]) }, t('Limpar'))) : null;
       body.replaceChildren(
-        h('div', { class: 'card', style: { marginBottom: '16px' } }, h('h3', null, t('Disco')),
+        h('div', { class: 'card', style: { marginBottom: '16px' } }, h('h3', { role: 'heading', 'aria-level': '2' }, t('Disco')),
           h('p', { class: 'muted small', style: { marginTop: 0 } }, t('{k} · {f} livres de {t}', { k: KIND[r.disk.kind], f: fmtBytes(r.disk.free), t: fmtBytes(r.disk.total) }) + (r.disk.kind === 'hdd' ? ' · ' + t('Em HDD o OpenFlow baixa por uma conexão só e lê o modelo em sequência, para o disco não ficar procurando.') : '')),
           h('div', { class: 'bar', role: 'img', 'aria-label': t('Espaço usado pelo OpenFlow') }, h('i', { style: { width: Math.min(100, Math.max(1, Math.round(100 * used / Math.max(1, r.disk.total)))) + '%' } })),
           h('p', { class: 'muted small' }, t('O OpenFlow ocupa {n}.', { n: fmtBytes(used) }))),
-        h('div', { class: 'card', style: { marginBottom: '16px' } }, h('h3', null, t('O que ocupa espaço')),
+        h('div', { class: 'card', style: { marginBottom: '16px' } }, h('h3', { role: 'heading', 'aria-level': '2' }, t('O que ocupa espaço')),
           row(t('Modelos de texto'), r.models.text || 0), row(t('Modelos de imagem'), r.models.image || 0), row(t('Modelos de vídeo'), r.models.video || 0), row(t('Modelos de som, voz e transcrição'), (r.models.sound || 0) + (r.models.voice || 0) + (r.models.stt || 0)),
           row(t('Projetos (arquivos gerados e enviados)'), r.projects), row(t('Envios soltos'), r.uploads)),
-        h('div', { class: 'card' }, h('h3', null, t('Limpeza')),
+        h('div', { class: 'card' }, h('h3', { role: 'heading', 'aria-level': '2' }, t('Limpeza')),
           total ? [cleanRow('partials', 'partials', t('Downloads incompletos'), t('Parciais abandonados há mais de 1 hora (baixar de novo recomeça do zero).')),
             cleanRow('temp', 'temp', t('Temporários'), t('Sobras de gerações interrompidas.')), cleanRow('orphans', 'orphans', t('Arquivos sem projeto'), t('Arquivos na pasta de um projeto que nenhum nó nem a lista de arquivos usa mais.')),
             h('div', { style: { marginTop: '8px' } }, h('button', { class: 'btn primary', type: 'button', id: 'st-all', onclick: () => clean(['partials', 'temp', 'orphans']) }, t('Limpar tudo ({n})', { n: fmtBytes(total) })))]

@@ -74,6 +74,7 @@ export default async function render(root, ctx, cid) {
   const hub = modelSearchBar({ cid, selected: () => nodeById(S.sel) || null, onUsed: (res, n) => { if (n) { n.params.provider = res.provider; if (res.cap !== 'text') n.params.model = res.model; refreshNode(n.id); } api('/api/media/providers').then((p) => { prov.providers = p.providers; }).catch(() => {}); } });
   const dl = downloadsIndicator();   // downloads de modelos em andamento, ao lado da barra de pesquisa
   const top = h('div', { class: 'cv-top' },
+    h('h1', { class: 'sr-only', id: 'cv-h1' }, t('Editor do projeto')),
     h('button', { class: 'btn ghost icon sm cv-back', title: t('Voltar aos projetos'), 'aria-label': t('Voltar aos projetos'), onclick: async () => { await save(); location.hash = '#/projects'; } }, icon('chev', 16)),
     nameInput, savedLbl, hub.el, dl.el, h('span', { class: 'grow' }),
     h('button', { class: 'btn ghost', title: t('Provedores de mídia'), onclick: () => c.openConfig() }, icon('config', 14), t('Provedores')),
@@ -104,7 +105,7 @@ export default async function render(root, ctx, cid) {
   function paintPalette() {
     const toks = fold(palSearch.value).split(/\s+/).filter(Boolean);
     const groups = palItems.map(({ g, list }) => [g, list.filter((i) => toks.every((k) => i.hay.includes(k)))]).filter(([, l]) => l.length);
-    palList.replaceChildren(...(groups.length ? groups.map(([g, list]) => h('div', null, h('h4', null, t(g)),
+    palList.replaceChildren(...(groups.length ? groups.map(([g, list]) => h('div', null, h('h4', { role: 'heading', 'aria-level': '2' }, t(g)),
       list.map(({ type }) => h('button', { class: 'it', 'data-type': type, draggable: 'true', title: t(TYPE_HELP[type]), style: { '--c': OUT_COLOR[types[type].out] },
         ondragstart: (e) => { e.dataTransfer.setData('text/flow-node', type); e.dataTransfer.effectAllowed = 'copy'; },
         onclick: () => addCenter(type) }, icon(types[type].icon, 17), h('span', null, t(LABEL[type])))))) : [h('div', { class: 'dim small', style: { padding: '8px' } }, t('Nenhum nó encontrado.'))]));

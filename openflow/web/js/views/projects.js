@@ -82,7 +82,7 @@ export default async function render(root, ctx) {
 
   function paint() {
     fill(grid, list.map((c) => h('div', { class: 'cv-card', role: 'listitem' },
-      h('a', { class: 'cv-open', href: '#/project/' + c.id, 'aria-label': t('Abrir o projeto {n}', { n: c.name }), onclick: () => { state.ctx = {}; } },
+      h('a', { class: 'cv-open', href: '#/project/' + c.id, onclick: () => { state.ctx = {}; } },
         h('div', { class: 'th', style: c.thumb ? { backgroundImage: `url("${c.thumb}")` } : {} }, c.thumb ? null : icon('canvas', 34)),
         h('div', { class: 'inf' }, h('div', { class: 'nm', title: c.name }, mark(c.name === 'Novo projeto' || c.name === 'Novo projeto' ? t('Novo projeto') : c.name)),
           c.match ? h('div', { class: 'mt match' }, t('Achado em:') + ' ', h('em', null, mark(c.match))) : null,
@@ -92,10 +92,10 @@ export default async function render(root, ctx) {
     grid.classList.toggle('hidden', none);
     empty.classList.toggle('hidden', !none);
     if (none) {
-      if (query) fill(empty, h('h3', null, t('Nenhum projeto encontrado para “{q}”', { q: query })), h('p', null, t('A pesquisa olha o nome, a descrição e os textos dos nós (prompts, falas, títulos e pastas de estilo).')),
+      if (query) fill(empty, h('h3', { role: 'heading', 'aria-level': '2' }, t('Nenhum projeto encontrado para “{q}”', { q: query })), h('p', null, t('A pesquisa olha o nome, a descrição e os textos dos nós (prompts, falas, títulos e pastas de estilo).')),
         h('div', { class: 'row', style: { justifyContent: 'center' } }, h('button', { class: 'btn', type: 'button', onclick: () => { input.value = ''; query = ''; input.focus(); load(); } }, t('Limpar pesquisa')),
           h('button', { class: 'btn primary', type: 'button', onclick: () => create({ name: query }) }, icon('plus', 14), t('Criar um projeto chamado “{q}”', { q: query }))));
-      else fill(empty, h('h3', null, t('Crie seu primeiro projeto')), h('p', null, t('Ligue nós de texto, imagem, vídeo, som e voz — e monte tudo no Editor de vídeo. Estilos valem para o projeto inteiro.')),
+      else fill(empty, h('h3', { role: 'heading', 'aria-level': '2' }, t('Crie seu primeiro projeto')), h('p', null, t('Ligue nós de texto, imagem, vídeo, som e voz — e monte tudo no Editor de vídeo. Estilos valem para o projeto inteiro.')),
         h('button', { class: 'btn primary', type: 'button', onclick: () => create() }, icon('plus', 14), t('Novo projeto')));
     }
     status.textContent = query ? (list.length ? t('{n} de {m} projetos', { n: list.length, m: total }) : t('Nenhum projeto encontrado.')) : (total ? t('{n} projetos', { n: total }) : '');
