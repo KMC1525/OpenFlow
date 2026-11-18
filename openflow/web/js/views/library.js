@@ -217,6 +217,41 @@ export default async function render(root, ctx) {
         }, 'danger']]));
   }
 
+  // v0.89: codificadores de texto e VAEs baixados, com a faixa de cada um; escolha uma faixa menor e o OpenFlow baixa a pronta (se o repositório tem) ou a cria a partir do arquivo
+  function supportCard() {
+    const body = h('div', { class: 'col', id: 'lib-support-list' });
+    const card = h('div', { class: 'card', id: 'lib-support', style: { marginTop: '18px' } }, h('h3', { role: 'heading', 'aria-level': '2' }, t('Codificadores de texto e VAEs')),
+      h('p', { class: 'muted small', style: { marginTop: 0 } }, t('Os arquivos de apoio dos modelos de imagem e vídeo. Obtenha uma faixa menor (Q2…Q8) para gastar menos memória; depois escolha a faixa no nó, em «Faixa dos arquivos de apoio». Num VAE quase nada é quantizável: o arquivo mal encolhe.')), body);
+    const paint = async () => {
+      if (S.support) draw(S.support);   // a lista aparece na hora quando a Biblioteca se redesenha (sem piscar), e a resposta nova a atualiza
+      let r; try { r = await api('/api/models/support/files'); } catch (e) { if (!S.support) body.replaceChildren(h('div', { class: 'errbox' }, e.message)); return; }
+      S.support = r; draw(r);
+    };
+    const draw = (r) => {
+      if (!r.files.length) { body.replaceChildren(h('div', { class: 'dim small', id: 'lib-support-empty' }, t('Nenhum codificador de texto nem VAE baixado ainda: eles chegam junto dos modelos (botão «Baixar os arquivos de apoio» do nó).'))); return; }
+      body.replaceChildren(...r.files.map((f) => {
+        const tierSel = h('select', { 'aria-label': t('Faixa'), dataset: { f: f.name } }, f.lower.map((q) => h('option', { value: q }, q)));
+        const howSel = h('select', { 'aria-label': t('Como obter') }, [['auto', t('Baixar a pronta ou criar')], ['download', t('Só baixar a pronta')], ['create', t('Só criar deste arquivo')]].map(([v, l]) => h('option', { value: v }, l)));
+        const getBtn = h('button', { class: 'btn sm', type: 'button', dataset: { act: 'support-tier' }, onclick: async () => {
+          let jid; try { jid = (await api('/api/models/support/tier', { method: 'POST', body: { kind: f.kind, name: f.name, tier: tierSel.value, how: howSel.value } })).job_id; } catch (e) { return toast(e.status === 409 ? t('Já há uma faixa de arquivo de apoio sendo obtida: espere ela terminar.') : e.message, 'err'); }
+          getBtn.disabled = true; toast(t('Obtendo {f}…', { f: f.name + ' → ' + tierSel.value }));
+          events('/api/jobs/' + jid + '/events', (ev) => {
+            if (ev.type === 'done') { toast(t('Faixa pronta: {f}', { f: ev.name }), 'ok'); paint(); }
+            else if (ev.type === 'error') { toast(ev.message, 'err'); getBtn.disabled = false; }
+            else if (ev.type === 'cancelled') { toast(t('Cancelado')); getBtn.disabled = false; }
+          });
+        } }, icon('download', 13), t('Obter faixa'));
+        return h('div', { class: 'row nw', dataset: { support: f.name }, style: { gap: '8px', flexWrap: 'wrap', alignItems: 'center' } },
+          h('div', { class: 'grow', style: { minWidth: 0 } }, h('div', { class: 'mono', style: { fontSize: '13px', overflowWrap: 'anywhere' } }, f.name),
+            h('div', { class: 'dim small' }, [t(f.role_label), f.kind === 'video' ? t('Vídeo') : t('Imagem'), fmtBytes(f.size), f.quant || (f.bits ? 'fp' + f.bits : '')].filter(Boolean).join(' · '))),
+          f.have.map((q) => h('span', { class: 'chip on', title: t('Faixa já instalada') }, q)),
+          f.lower.length ? [tierSel, howSel, getBtn] : h('span', { class: 'dim small' }, t('(nada menor para obter)')));
+      }));
+    };
+    paint();
+    return card;
+  }
+
   function emptyText() {
     if (data.search) return t('Nada encontrado para «{q}».', { q: S.q });
     if (S.folder) return t('Esta pasta está vazia. Arraste itens para cá ou crie uma subpasta.');
@@ -229,7 +264,8 @@ export default async function render(root, ctx) {
     content.replaceChildren(
       ...(folders.length ? [h('h4', { class: 'lib-h' }, t('Pastas')), h('div', { class: 'lib-grid', id: 'lib-folders' }, folders.map(folderCard))] : []),
       ...(items.length ? [h('h4', { class: 'lib-h' }, S.scope === 'models' ? t('Modelos') : t('Arquivos')), h('div', { class: 'lib-grid', id: 'lib-items' }, items.map((i) => S.scope === 'models' ? modelCard(i) : fileCard(i)))] : []),
-      !folders.length && !items.length ? h('div', { class: 'lib-empty muted' }, emptyText()) : null);
+      !folders.length && !items.length ? h('div', { class: 'lib-empty muted' }, emptyText()) : null,
+      S.scope === 'models' && !S.folder && !S.q ? supportCard() : null);
     content.ondragover = (e) => { if (S.folder && e.dataTransfer.types.includes(DRAG) && e.target === content) { e.preventDefault(); } };
   }
 

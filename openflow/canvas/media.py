@@ -2056,6 +2056,19 @@ class GGUFMedia(MediaProvider):
             self.ctl.note(note)
         return load
 
+    def _with_support_tier(self, load: Dict[str, Any], path: Path, want: Any) -> Dict[str, Any]:
+        """O campo «Faixa dos arquivos de apoio» do nó (Q2…Q8, v0.89): usa o codificador de texto e o VAE na faixa pedida, se ela já está na pasta (senão avisa como instalar e usa o arquivo como está)."""
+        from . import support_tiers
+
+        tier = quants.wanted(want)
+        if str(want or "").strip() and not tier:
+            self.ctl.note(f"«support_quant: {want}» não é uma faixa conhecida (use Q2, Q3, Q4, Q6 ou Q8): ignorei.")
+            return load
+        load, notes = support_tiers.swap_tier(path.parent, load, tier)
+        for n in notes:
+            self.ctl.note(n)
+        return load
+
     def _cancelled(self) -> bool:
         try:
             self.ctl.check()
@@ -2258,6 +2271,7 @@ class GGUFMedia(MediaProvider):
         user_load = extra.pop("load", None) or {}
         load = {**base.get("load", {}), **user_load}
         load = self._with_quant(load, path, extra.pop("quant", ""))
+        load = self._with_support_tier(load, path, extra.pop("support_quant", ""))
         if _QWEN_EDIT_2511.search(path.name):
             load.setdefault("qwen_image_zero_cond_t", True)   # v0.86 (o nó pode desligar com {"load": {"qwen_image_zero_cond_t": false}})
         fam_img = support.family_of(path.name)
@@ -2380,6 +2394,8 @@ class GGUFMedia(MediaProvider):
         if fam and fam.get("engine") == "ltx2":   # LTX-2.x: pelo diffusers (ltx2.py), não pela stable-diffusion.cpp
             if str(extra.pop("quant", "") or "").strip():   # v0.84: a recompressão ao carregar é da stable-diffusion.cpp; o LTX-2 carrega o arquivo como ele é
                 self.ctl.note("A «Quantização ao carregar» não vale para o LTX-2 (ele roda pelo diffusers): usando o arquivo como ele é. Para outra faixa, baixe ou crie o arquivo dela.")
+            if str(extra.pop("support_quant", "") or "").strip():
+                self.ctl.note("A «Faixa dos arquivos de apoio» não vale para o LTX-2 (os componentes vêm do repositório diffusers dele): usando os arquivos como eles são.")
             return self._video_ltx2(path, prompt, duration, aspect, image, seed, long_side, extra)
         base: Dict[str, Any] = {}
         if fam and not extra.get("load"):   # família conhecida (Wan2.2 TI2V…, ver `support.FAMILIES`): acha o VAE e o codificador de texto ao lado do modelo
@@ -2392,6 +2408,7 @@ class GGUFMedia(MediaProvider):
         extra = {**base.get("run", {}), **extra}
         vload = {**base.get("load", {}), **(extra.pop("load", None) or {})}
         vload = self._with_quant(vload, path, extra.pop("quant", ""))
+        vload = self._with_support_tier(vload, path, extra.pop("support_quant", ""))
         if fam and (fam.get("video") or {}).get("container"):   # MiniMax H3…: VAE de áudio, `--backend te=cpu` e a trilha estéreo só existem no sd-cli (a biblioteca Python não os tem)
             if not self._cli_fallback(_SDUnsupportedModel(path.name)):
                 raise self._no_cli_error(path)

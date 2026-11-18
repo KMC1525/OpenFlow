@@ -17,7 +17,7 @@ OpenFlow is a local-first app for creative AI creation through node flows (image
 
 ## Map
 - `openflow/cli.py` — the `flow` command · `server.py`, `routes_projects.py`, `routes_preinstalled.py` — HTTP API (`/api/projects`, `/api/hf/*`, `/api/models/support`, `/api/media/*`) · `storage.py` — settings and folders.
-- `openflow/canvas/` — `schema.py` (node types, Style Folder tree), `engine.py` (execution, cache, styles), `store.py` (project files, search), `media.py` (providers), `support.py` (VAE / text encoders / mmproj plan + install), `nodes_ext.py` (30 utility nodes), `render.py` (video Editor).
+- `openflow/canvas/` — `schema.py` (node types, Style Folder tree), `engine.py` (execution, cache, styles), `store.py` (project files, search), `media.py` (providers), `support.py` (VAE / text encoders / mmproj plan + install), `support_tiers.py` (Q2–Q8 tiers of text encoders and VAEs), `nodes_ext.py` (30 utility nodes), `render.py` (video Editor).
 - `openflow/hf.py` (Hugging Face search/download) · `preinstalled.py` (recommended models) · `providers/` (text AI) · `team.py` (agents and effort) · `native/` (Rust core).
 - `openflow/web/` — `main.js` (router), `views/projects.js` (home + search), `views/canvas_edit.js` (editor), `views/models.js`, `views/settings.js`, `canvas_nodes.js` (nodes, Style Folder tree).
 - `tests/` — `python -m unittest discover -s tests -t .` (browser tests need Node + Playwright + Chromium).

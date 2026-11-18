@@ -196,7 +196,10 @@ function providerBlock(c, n, cap, resolutionField) {
   // v0.81: usa o arquivo GGUF numa faixa menor que a dele (Q2…Q8): a stable-diffusion.cpp recomprime os pesos ao carregar. O valor vai em «extra.quant».
   const quantField = (cap === 'image' || cap === 'video') && eff && eff.id === 'gguf_local'
     ? [lab(t('Quantização ao carregar'), select([['', t('Automática (a do arquivo)')], ...['Q8', 'Q6', 'Q4', 'Q3', 'Q2'].map((q) => [q, q])], String((n.params.extra || {}).quant || ''), (v) => { const ex = { ...(n.params.extra || {}) }; if (v) ex.quant = v; else delete ex.quant; c.change(n, 'extra', ex, true); })),
-      (n.params.extra || {}).quant ? h('div', { class: 'dim small' }, t('Só vale para uma faixa menor que a do arquivo: a stable-diffusion.cpp recomprime os pesos ao carregar (a carga demora mais, a memória cai).')) : null] : [];
+      (n.params.extra || {}).quant ? h('div', { class: 'dim small' }, t('Só vale para uma faixa menor que a do arquivo: a stable-diffusion.cpp recomprime os pesos ao carregar (a carga demora mais, a memória cai).')) : null,
+      // v0.89: o codificador de texto e o VAE numa faixa que já está na pasta (Biblioteca → Codificadores de texto e VAEs); o valor vai em «extra.support_quant»
+      lab(t('Faixa dos arquivos de apoio'), select([['', t('Automática (o arquivo padrão)')], ...['Q8', 'Q6', 'Q4', 'Q3', 'Q2'].map((q) => [q, q])], String((n.params.extra || {}).support_quant || ''), (v) => { const ex = { ...(n.params.extra || {}) }; if (v) ex.support_quant = v; else delete ex.support_quant; c.change(n, 'extra', ex, true); })),
+      (n.params.extra || {}).support_quant ? h('div', { class: 'dim small' }, t('Usa o codificador de texto e o VAE nesta faixa, se ela já foi obtida em Biblioteca → Codificadores de texto e VAEs; senão usa o arquivo como está e avisa.')) : null] : [];
   return [lab(t('Modelo'), modelPicker(c, n, cap)), warn, resolutionField || null, ...quantField];
 }
 
@@ -644,7 +647,7 @@ export function nodeResult(c, n) {
       btn.onclick = async () => {
         btn.disabled = true;
         try {
-          const r = await api('/api/media/support/download', { method: 'POST', body: { model: sup[1], cap: n.type === 'video' ? 'video' : 'image' } });
+          const r = await api('/api/media/support/download', { method: 'POST', body: { model: sup[1], cap: n.type === 'video' ? 'video' : 'image', tier: (n.params.extra || {}).support_quant || '' } });   // v0.89: já na faixa escolhida no nó, se houver
           toast(t('Baixando {f} (≈ {g} GB)…', { f: r.files.join(', '), g: r.approx_gb }));
           events('/api/jobs/' + r.job_id + '/events', (ev) => {
             if (ev.type === 'progress' && ev.total) btn.lastChild.textContent = ' ' + Math.round(ev.done / ev.total * 100) + '%';

@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from .. import hf
+from . import support_tiers
 
 FAMILIES: List[Dict[str, Any]] = [
     # ---- Unsloth (v0.17.30): Qwen-Image 2.1 e Turbo, Z-Image e Turbo (imagem) e Wan2.2 TI2V 5B (vídeo). As receitas vêm dos cartões dos repositórios unsloth/*-GGUF (VAE, codificador de texto, passos e CFG).
@@ -256,11 +257,21 @@ def find_companions(folder: Path, model: Path, fam: Dict[str, Any]) -> Dict[str,
     """Para cada parâmetro de carga da família, o nome do arquivo de apoio achado em `folder` (None se falta)."""
     files = sorted(f for f in folder.iterdir() if f.is_file() and f != model and not f.name.endswith(".part")) if folder.is_dir() else []
     out: Dict[str, Optional[str]] = {}
+    from . import support_tiers as st
+
     for key, pat in fam["load"].items():
         hits = [f for f in files if re.search(pat, f.name, re.I)]
-        if (fam.get("downloads", {}).get(key) or {}).get("derive"):   # o que acompanha o modelo: prefere o de mesma quantização
+        spec = (fam.get("downloads", {}) or {}).get(key) or {}
+        if spec.get("derive"):   # o que acompanha o modelo: prefere o de mesma quantização
             want = Path(download_spec(fam, key, model.name)["file"]).name.lower()
             hits.sort(key=lambda f: f.name.lower() != want)
+        elif key in st.QUANT_KEYS and spec.get("file"):
+            # v0.89: o mesmo codificador/VAE em outras faixas (criadas ou baixadas) também conta, e o «Automático» escolhe pela ordem de st.auto_rank (o arquivo padrão da família, o original e só então Q8 → Q2):
+            # antes valia a ordem do alfabeto, e uma Q2 criada de propósito virava a escolha por acaso («Q2» vem antes de «Q4»)
+            base = Path(spec.get("dest") or spec["file"]).name
+            want = st.stem(base)
+            hits += [f for f in files if f not in hits and st.stem(f.name) == want and not st._SKIP.search(f.name)]
+            hits.sort(key=lambda f: st.auto_rank(f.name, base))
         out[key] = hits[0].name if hits else None
     return out
 
@@ -291,8 +302,9 @@ def missing(folder: Path, filename: str) -> Dict[str, Any]:
 
 
 def download_missing(folder: Path, filename: str, token: str = "", progress: Optional[Callable[[int, int], None]] = None,
-                     cancelled: Callable[[], bool] = lambda: False, note: Callable[[str], None] = lambda m: None) -> List[str]:
-    """Baixa para `folder` os arquivos de apoio que faltam (retoma downloads parciais). Devolve os nomes baixados."""
+                     cancelled: Callable[[], bool] = lambda: False, note: Callable[[str], None] = lambda m: None, tier: str = "") -> List[str]:
+    """Baixa para `folder` os arquivos de apoio que faltam (retoma downloads parciais). Devolve os nomes baixados. Com `tier` (v0.89), um codificador de texto que o repositório tem pronto nessa faixa
+    é baixado JÁ NELA (em vez de baixar o padrão, maior, para depois comprimir)."""
     info = missing(folder, filename)
     got: List[str] = []
     n = len(info["missing"])
@@ -305,6 +317,16 @@ def download_missing(folder: Path, filename: str, token: str = "", progress: Opt
                 progress(int((base + (done / total if total else 0)) * 1000), n * 1000)
 
         folder.mkdir(parents=True, exist_ok=True)
+        if tier and t["key"] in support_tiers.QUANT_KEYS:
+            try:
+                opt = support_tiers.repo_option(Path(t.get("dest") or t["file"]).name, tier, token)
+            except Exception:  # noqa: BLE001 — sem rede ou sem a faixa: baixa o padrão (e a faixa é criada depois)
+                opt = None
+            if opt:
+                dest = support_tiers.dest_name_for(Path(t.get("dest") or t["file"]).name, opt["file"], hf.parse_quant(opt["file"]).get("quant", ""))
+                hf.download(opt["repo"], opt["file"], folder, token, prog, cancelled, any_file=True, dest_name=dest)
+                got.append(dest)
+                continue
         if t.get("dest"):   # o arquivo é grafado com outro nome (o VAE de um repositório pode se chamar só «diffusion_pytorch_model.safetensors»)
             hf.download(t["repo"], t["file"], folder, token, prog, cancelled, any_file=True, dest_name=t["dest"])
         else:

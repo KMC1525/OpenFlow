@@ -20,7 +20,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from .. import hf
 from ..providers.base import ProviderError
-from . import quants, sdcli
+from . import quants, sdcli, support_tiers
 
 KINDS = ("text", "image", "video")
 _LLAMA_SCRIPT = (
@@ -48,6 +48,10 @@ def plan(models_dir: Path, kind: str, name: str, tier: str) -> Dict[str, Any]:
         raise ProviderError("Escolha a faixa: Q2, Q3, Q4, Q6 ou Q8.")
     folder = hf.kind_dir(models_dir, kind)
     src = folder / Path(name).name
+    if kind in ("image", "video") and support_tiers.is_support_file(src.name):   # v0.89: codificador de texto ou VAE (safetensors ou GGUF)
+        sp = support_tiers.plan(folder, name, tier)
+        eff = support_tiers.bits_of(sp["src"].name) or 16
+        return {"src": sp["src"], "dst": sp["dst"], "tier": tier, "tool": sp["tool"], "estimate": int(sp["src"].stat().st_size * quants.BITS[tier] / max(min(eff, 16), 1.0)), "from": sp["from"]}
     if src.suffix.lower() != ".gguf" or not src.is_file():
         raise ProviderError("Esse arquivo GGUF não foi baixado (ou não está nesta pasta).")
     if hf.SHARD_RE.match(src.name):
@@ -121,7 +125,8 @@ def create(models_dir: Path, kind: str, name: str, tier: str, cancelled: Callabl
     src, dst = pl["src"], pl["dst"]
     _need_space(dst, pl["estimate"])
     exe: Optional[Path] = None
-    if kind in ("image", "video"):
+    tool = pl.get("tool") or ("sdcli" if kind in ("image", "video") else "llama")   # v0.89: um LLM em GGUF que mora na pasta de imagem (codificador de texto) é comprimido pelo llama.cpp, não pelo sd-cli
+    if tool == "sdcli":
         exe = sdcli.find()
         if exe is None:
             raise ProviderError("Criar uma faixa de imagem/vídeo precisa do sd-cli (stable-diffusion.cpp). Rode  flow update  ou use o botão «Baixar o executável pronto» em um nó de imagem.")
@@ -136,6 +141,8 @@ def create(models_dir: Path, kind: str, name: str, tier: str, cancelled: Callabl
         if not tmp.is_file() or tmp.stat().st_size < 1024:
             raise ProviderError("A compressão terminou sem gerar o arquivo. Veja o terminal onde o OpenFlow roda.")
         os.replace(tmp, dst)
+        if pl.get("tool"):
+            note(support_tiers.size_note(src, dst))
     finally:
         tmp.unlink(missing_ok=True)
     return dst

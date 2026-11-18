@@ -711,13 +711,17 @@ def _models(args: argparse.Namespace) -> int:
             print(f"{'✓' if m['installed'] else '·'} {m['id']:<26} {m['kind']:<6} {m['label']} ({m['quant']}) · {m['size'] / 1024 ** 3:.1f} GB · {m['repo']}")
         return 0
     if args.action == "support":
-        return _models_support(store)
+        return _models_support(store, args)
     if args.action == "quant":
         return _models_quant(store, args)
     token = (store.get_settings().get("hf") or {}).get("token", "")
     explicit = args.which or os.environ.get("OPENFLOW_MODELS") or ""
     ask = _ask_terminal if getattr(args, "ask", False) and not explicit else None
-    return preinstalled.install_selected(store, explicit or "all", token, ask=ask)
+    code = preinstalled.install_selected(store, explicit or "all", token, ask=ask)
+    tier = (getattr(args, "tier", "") or "").upper()
+    if tier:   # v0.89: `flow models install --tier Q4`: depois de instalar, obtém também a faixa dos codificadores de texto e VAEs
+        code = (code or 0) or _support_tier_all(store, tier, getattr(args, "how", "") or "auto", token)
+    return code
 
 
 def _models_quant(store, args: argparse.Namespace) -> int:
@@ -727,9 +731,12 @@ def _models_quant(store, args: argparse.Namespace) -> int:
     from .providers import ProviderError
 
     if args.name:
-        kind = args.kind or next((k for k in ("image", "video", "text") if any(m["name"] == args.name for m in hf.local_models(store.models_dir, k))), "")
+        from .canvas import support_tiers
+
+        kind = args.kind or next((k for k in ("image", "video", "text") if any(m["name"] == args.name for m in hf.local_models(store.models_dir, k))), "") \
+            or next((f["kind"] for f in support_tiers.listing(store.models_dir) if f["name"] == args.name), "")   # v0.89: também codificadores de texto e VAEs (.safetensors)
         if not kind:   # v0.84: «x» que não está baixado dizia «só modelos de texto, imagem e vídeo»: confuso
-            print(_("⚠  Não achei «{n}» entre os modelos GGUF baixados (texto, imagem e vídeo). Veja a lista com:  flow models quant", n=args.name))
+            print(_("⚠  Não achei «{n}» entre os modelos GGUF nem entre os codificadores de texto e VAEs baixados. Veja a lista com:  flow models quant", n=args.name))
             return 1
         try:
             path = requant.create(store.models_dir, kind, args.name, (args.tier or "").upper(), lambda: False, lambda m: print("  " + m, flush=True))
@@ -744,7 +751,12 @@ def _models_quant(store, args: argparse.Namespace) -> int:
             can = [t for t in quants.TIERS if m.get("parts", 1) <= 1 and m.get("bits") and quants.NOMINAL[t] < m["bits"]]
             print(f"· {m['name']:<48} {kind:<6} {m.get('quant') or '?':<8} " + (_("dá para criar: {t}", t=", ".join(can)) if can else _("(nada menor para criar)")))
             shown += 1
-    print(_("Nenhum modelo GGUF baixado ainda.") if not shown else _("Para criar uma faixa:  flow models quant --name ARQUIVO.gguf --tier Q4"))
+    from .canvas import support_tiers
+
+    for f in support_tiers.listing(store.models_dir):   # v0.89: codificadores de texto e VAEs
+        print(f"· {f['name']:<48} {f['kind']:<6} {f.get('quant') or ('fp%d' % f['bits'] if f.get('bits') else '?'):<8} [{_(f['role_label'])}] " + (_("dá para criar: {t}", t=", ".join(f["lower"])) if f["lower"] else _("(nada menor para criar)")))
+        shown += 1
+    print(_("Nenhum modelo GGUF baixado ainda.") if not shown else _("Para criar uma faixa:  flow models quant --name ARQUIVO --tier Q4   (também vale para codificadores de texto e VAEs)"))
     return 0
 
 
@@ -802,8 +814,9 @@ def _torch(args: argparse.Namespace) -> int:
     return 1
 
 
-def _models_support(store) -> int:
-    """`flow models support`: confere os arquivos de apoio (VAE, codificadores de texto, mmproj) de cada modelo instalado e baixa o que falta."""
+def _models_support(store, args: Optional[argparse.Namespace] = None) -> int:
+    """`flow models support`: confere os arquivos de apoio (VAE, codificadores de texto, mmproj) de cada modelo instalado e baixa o que falta. Com `--tier Q4` (v0.89), obtém também a faixa pedida
+    de cada codificador de texto e VAE baixado (baixa a pronta; sem ela, cria a partir do arquivo)."""
     from . import hf
     from .canvas import support
     from .providers import ProviderError
@@ -829,9 +842,43 @@ def _models_support(store) -> int:
             for f in res["failed"]:
                 print("⚠  " + _("{l}: não baixou ({e})", l=f["label"], e=f["error"]))
                 bad += 1
-    if not todo and not bad:
+    tier = (getattr(args, "tier", "") or "").upper()
+    if tier:
+        bad += _support_tier_all(store, tier, getattr(args, "how", "") or "auto", token)
+    elif not todo and not bad:
         print(_("Nenhum modelo instalado precisa de arquivos de apoio agora."))
     return 1 if bad else 0
+
+
+def _support_tier_all(store, tier: str, how: str, token: str) -> int:
+    """A faixa `tier` de cada codificador de texto e VAE baixado (pastas de imagem e vídeo). Devolve quantos falharam."""
+    from .canvas import quants, support_tiers
+    from .providers import ProviderError
+
+    if tier not in quants.TIERS:
+        print(_("⚠  Escolha a faixa: Q2, Q3, Q4, Q6 ou Q8."))
+        return 1
+    files = support_tiers.listing(store.models_dir)
+    if not files:
+        print(_("Nenhum codificador de texto nem VAE baixado ainda."))
+        return 0
+    bad = 0
+    for f in files:
+        if tier in f["have"] or f["tier"] == tier:
+            print(f"✓ {f['name']}: " + _("já tem a faixa {t}", t=tier))
+            continue
+        if tier not in f["lower"]:
+            print(f"· {f['name']}: " + _("{t} não é menor que o arquivo ({q}): ignorado", t=tier, q=f.get("quant") or f["bits"]))
+            continue
+        print(f"· {f['name']} → {tier}")
+        try:
+            res = support_tiers.install_tier(store.models_dir, f["kind"], f["name"], tier, how, token, None, lambda: False, lambda m: print("  " + m, flush=True))
+        except ProviderError as exc:
+            print("⚠  " + str(exc))
+            bad += 1
+            continue
+        print("✓ " + _("{n} ({h})", n=res["name"], h=res["how"]))
+    return bad
 
 
 def _setup(args: argparse.Namespace) -> int:
@@ -1026,7 +1073,8 @@ def main(argv=None) -> int:
     mod = sub.add_parser("models", help=_("modelos locais: list | install (pré-instalados, com VAE, codificadores de texto e mmproj) | support (confere e baixa o que falta dos modelos instalados) | quant (cria uma faixa Q2, Q3, Q4, Q6 ou Q8 a partir de um GGUF baixado)"))
     mod.add_argument("action", choices=("list", "install", "support", "quant"), nargs="?", default="list")
     mod.add_argument("--name", default="", help=_("quant: o arquivo GGUF baixado de origem"))
-    mod.add_argument("--tier", default="", help=_("quant: a faixa a criar (Q2, Q3, Q4, Q6 ou Q8)"))
+    mod.add_argument("--tier", default="", help=_("quant: a faixa a criar; support e install: obtém essa faixa de cada codificador de texto e VAE baixado (Q2, Q3, Q4, Q6 ou Q8)"))
+    mod.add_argument("--how", default="auto", choices=("auto", "download", "create"), help=_("support --tier: baixar a faixa pronta, criar a partir do arquivo ou automático (padrão: baixa; sem a pronta, cria)"))
     mod.add_argument("--kind", default="", help=_("quant: text, image ou video (padrão: onde o arquivo estiver)"))
     mod.add_argument("--which", default="", help=_("all (padrão), none, text, image ou ids (também OPENFLOW_MODELS)"))
     mod.add_argument("--ask", action="store_true", help=_("pergunta no terminal (sim/não) antes de baixar o que falta; sem efeito se --which ou OPENFLOW_MODELS já disseram o que fazer"))

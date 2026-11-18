@@ -2,6 +2,24 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.89.0] — 2026-11-18
+
+### New — Q2, Q3, Q4, Q6 and Q8 tiers of text encoders and VAEs
+- **Library → «Text encoders and VAEs»:** lists the support files of the downloaded image and video models (VAE, Qwen/Mistral LLM, T5/UMT5, CLIP) with each one's tier, the tiers already in the folder and the ones you can still get. Pick the tier and the mode — **download the ready one** (when the file's repository has GGUF in that tier: the unsloth LLM encoders and the GGUF T5/UMT5), **create** it from the downloaded file, or **automatic** (downloads the ready one; without it, creates).
+- **Creating a tier:** GGUF LLM encoder → `llama_model_quantize` (llama.cpp); T5/UMT5/CLIP and VAE (safetensors or GGUF) → `sd-cli -M convert`. The created tier is named after the source file + the tier (`t5xxl_fp8_e4m3fn-Q4_K.gguf`) and only appears complete. OpenFlow reports the resulting size.
+- **Using it:** in an image or video node (GGUF models), the new **«Support files tier»** field loads the text encoder and the VAE in the chosen tier if it is already in the folder (otherwise it uses the file as it is and says how to install). The node's «Download the support files» button then downloads the encoder already in the chosen tier (instead of downloading the default and compressing later).
+- **Terminal:** `flow models support --tier Q4` and `flow models install --tier Q4` (with `--how auto|download|create`) get the tier of every downloaded encoder and VAE; `flow models quant` now lists those files too and `--name FILE --tier Q4` creates their tier.
+- API: `GET /api/models/support/files` and `POST /api/models/support/tier` («Support file (tier)» task in the Downloads tab).
+
+### Fixed
+- **«Automatic» picked the support file by alphabetical order:** with more than one file of the same encoder in the folder (say, the default Q4_K_M and a created Q2), the first one alphabetically won — and «Q2» sorts before «Q4». «Automatic» now uses the family's default file, then the original, and only then Q8 → Q2.
+- **Creating a tier of a GGUF text encoder that lives in the image folder used the wrong program** (sd-cli, which cannot read an LLM): it now goes to llama.cpp.
+
+### Honest limits (please read)
+- **Almost nothing in a VAE is quantizable:** ggml only quantizes tensors whose first dimension is a multiple of the block size (32; 256 for the «K» tiers), and a VAE's 3×3 convolutions are not. The «quantized» file barely shrinks (OpenFlow reports the size) and VAE quality is sensitive; there is no ready VAE tier to download.
+- The sd-cli and llama.cpp commands follow their documentation and code, but **were not run against the real programs and files** (Hugging Face blocked, no GPU): the tests simulate the programs and prove what OpenFlow asks for and how it picks files. Whether sd.cpp loads a T5/CLIP/VAE GGUF created by it, and whether llama.cpp quantizes a newer-architecture encoder (e.g. Qwen3-VL), depends on the installed version.
+- The vision projector (mmproj), CLIP vision, the audio VAE and the tokenizer are not quantized (vision is precision-sensitive and they are small). LTX-2 (diffusers) does not use the field.
+
 ## [0.88.0] — 2026-11-18
 
 ### Bug hunt 7 — what was searched
