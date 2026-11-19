@@ -127,7 +127,7 @@ class InstallAndUseTests(TmpCase):
             dest.write_bytes(bad.getvalue())
 
         with mock.patch.object(sdcli, "latest_release", return_value={"tag_name": "t", "assets": ASSETS}), mock.patch.object(sdcli, "_download", fake_download), \
-                mock.patch("platform.system", return_value="Linux"), mock.patch("platform.machine", return_value="x86_64"):
+                mock.patch.object(sdcli, "glibc_version", return_value=None), mock.patch("platform.system", return_value="Linux"), mock.patch("platform.machine", return_value="x86_64"):
             with self.assertRaises(ProviderError) as cm:
                 sdcli.install()
         self.assertIn("não roda", str(cm.exception))
