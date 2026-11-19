@@ -138,6 +138,8 @@ class EveryTemplateTests(unittest.TestCase):
             no_ffmpeg = set()
             if not shutil.which("ffmpeg"):   # macOS/Windows do CI não têm o ffmpeg: o vídeo do Demo diz isso (e é o comportamento certo)
                 no_ffmpeg = {k for k, v in bad.items() if "precisa do ffmpeg" in v[2]}
+                if no_ffmpeg:   # os nós que vêm depois do que falhou ficam parados (idle), sem erro próprio
+                    no_ffmpeg |= {k for k, v in bad.items() if v[1] == "idle" and not v[2]}
                 bad = {k: v for k, v in bad.items() if k not in no_ffmpeg}
             self.assertEqual(bad, {} if t["id"] != "blank" else bad, t["id"])
             stale = [i for i in CanvasEngine(store, cid, lambda ev: None, lambda: False).stale_ids(cs.get(cid)) if i not in no_ffmpeg]   # o nó que falhou por falta de ffmpeg fica «desatualizado» de propósito
