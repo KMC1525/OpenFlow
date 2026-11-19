@@ -68,6 +68,7 @@ class LibsTests(unittest.TestCase):
         self.assertTrue(marker.exists())
         self.assertIn("flow libs --sd-latest", out)
 
+    @unittest.skipIf(os.name == "nt", "simula o Linux trocando os.name: o pathlib do Windows não aceita")
     def test_missing_build_tools_are_named_instead_of_failing_in_pip(self):
         marker = Path(tempfile.mkdtemp()) / "sd_needs_newer"
         marker.write_text("x")
@@ -78,6 +79,7 @@ class LibsTests(unittest.TestCase):
         self.assertIn("compilador", out)
         self.assertFalse(any(cli.SD_GIT in c for call in calls for c in call))
 
+    @unittest.skipIf(os.name == "nt", "simula o Linux trocando os.name: o pathlib do Windows não aceita")
     def test_cmake_is_not_required_because_pip_fetches_it_when_building(self):
         marker = Path(tempfile.mkdtemp()) / "sd_needs_newer"
         marker.write_text("x")

@@ -29,8 +29,9 @@ class ResolveTests(unittest.TestCase):
         with self.assertRaises(ProviderError):
             sp.resolve("models", str(f))
         with self.assertRaises(ProviderError) as cm:
-            sp.resolve("models", "/nao/existe/nem/o/pai")
-        self.assertIn("conectado", str(cm.exception))
+            sp.resolve("models", "/nao/existe/nem/o/pai" if os.name != "nt" else "Q:\\\\nao\\\\existe\\\\nem\\\\o\\\\pai")   # no Windows, uma unidade que não existe
+        if os.name != "nt":
+            self.assertIn("conectado", str(cm.exception))
 
     def test_creates_the_folder_and_a_disk_root_becomes_a_subfolder(self):
         d = Path(tempfile.mkdtemp()) / "modelos"
@@ -118,7 +119,7 @@ class StoreTests(unittest.TestCase):
         self.assertEqual((st.models_dir, Path(st.projects.folder)), (ext / "m", ext / "p"))
         self.assertTrue((ext / "m").is_dir())
         self.assertEqual(Store(home).models_dir, ext / "m")                         # lembra depois de reabrir
-        st.save_settings({"storage": {"models_dir": "/proc/nao-existe/hd", "files_dir": ""}})   # um caminho que não dá para criar: como um disco externo desligado
+        st.save_settings({"storage": {"models_dir": "/proc/nao-existe/hd" if os.name != "nt" else "Q:\\\\nao-existe\\\\hd", "files_dir": ""}})   # um caminho que não dá para criar: como um disco externo desligado
         st2 = Store(home)
         self.assertEqual(st2.models_dir, home / "models")                           # dispositivo desligado: cai na padrão, sem quebrar
         self.assertTrue(st2.storage_warnings)

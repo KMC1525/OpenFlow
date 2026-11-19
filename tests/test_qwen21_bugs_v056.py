@@ -107,7 +107,7 @@ class ProviderTests(unittest.TestCase):
         args, _ = sdcli.build_args(Path("/x/sd-cli"), {"diffusion_model_path": "/m/a.gguf", "llm_vision_path": "/m/v.gguf"}, {}, prompt="p", width=512, height=512, seed=1, negative=" ", refs=[Path("/r.png")], out=Path("/o.png"))
         self.assertEqual(args[args.index("-n") + 1], " ")
         self.assertIn("--llm_vision", args)
-        self.assertEqual(args[args.index("-r") + 1], "/r.png")
+        self.assertEqual(Path(args[args.index("-r") + 1]), Path("/r.png"))   # no Windows o caminho vira «\\r.png»
 
     def test_the_vision_error_from_sd_cli_becomes_an_actionable_message(self):
         p = self.provider(default=MODEL)
