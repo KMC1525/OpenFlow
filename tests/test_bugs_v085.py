@@ -199,7 +199,7 @@ class DownloadsPanelTests(unittest.TestCase):
             data = self.downloads()
             kinds = {d["kind"]: d for d in data["downloads"]}
             self.assertEqual(kinds["requant"]["label"], "Criar faixa (Q2–Q8)")   # v0.87: o tipo «Modelo próprio» saiu junto com o nó
-            self.assertEqual(kinds["requant"]["title"], "flux-Q4_K.gguf")
+            self.assertEqual(sorted(d["title"] for d in data["downloads"] if d["kind"] == "requant"), ["flux-Q4_K.gguf", "outro-Q8_0.gguf"])   # a ordem entre dois trabalhos iniciados no mesmo instante varia (no Windows o relógio tem ~15 ms)
             self.assertEqual(data["running"], 2)
         finally:
             gate.set()
