@@ -98,7 +98,7 @@ class InstallAndUseTests(TmpCase):
 
         notes = []
         with mock.patch.object(sdcli, "latest_release", return_value={"tag_name": "master-1-abc1234", "assets": ASSETS}), mock.patch.object(sdcli, "_download", fake_download), \
-                mock.patch("platform.system", return_value="Linux"), mock.patch("platform.machine", return_value="x86_64"):
+                mock.patch.object(sdcli, "glibc_version", return_value=None), mock.patch("platform.system", return_value="Linux"), mock.patch("platform.machine", return_value="x86_64"):
             exe = sdcli.install(note=notes.append)
         return exe, notes
 
