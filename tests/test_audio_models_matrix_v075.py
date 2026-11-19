@@ -11,10 +11,25 @@ from openflow.canvas import localmodels as lm
 from openflow.canvas import media, modelkind
 from openflow.canvas.media import LocalHFMedia, Media
 from openflow.providers import ProviderError
+from tests.helpers import voxcpm_python_ok
 
 
 def wav(seconds=1.0, rate=16000):
     return media._wav_from_array(0.3 * np.sin(np.linspace(0, 200 * np.pi, int(seconds * rate))), rate)
+
+
+
+_VOX_PATCH = None
+
+
+def setUpModule():
+    global _VOX_PATCH
+    _VOX_PATCH = voxcpm_python_ok()   # os testes simulam a biblioteca voxcpm: a exigência de Python 3.10 não é o assunto deles
+
+
+def tearDownModule():
+    if _VOX_PATCH is not None:
+        _VOX_PATCH.stop()
 
 
 class Base(unittest.TestCase):

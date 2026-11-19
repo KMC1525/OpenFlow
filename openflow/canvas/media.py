@@ -1350,7 +1350,7 @@ class LocalHFMedia(MediaProvider):
         """VoxCPM / VoxCPM2 (openbmb/VoxCPM2): fala em 30 idiomas, «design de voz» pela descrição, clonagem controlável (áudio de referência) e clonagem fiel (referência + o texto dela). Saída em 48 kHz."""
         (np,) = _local_import("numpy")
         (torch,) = _local_import("torch")
-        if sys.version_info < (3, 10):
+        if not _voxcpm_python_ok():
             raise ProviderError(f"A biblioteca voxcpm precisa do Python 3.10 ou mais novo (este é o {sys.version_info[0]}.{sys.version_info[1]}). Instale um Python mais novo e rode o instalador do OpenFlow de novo.")
         try:
             vox = __import__("voxcpm", fromlist=["_"])
@@ -1709,6 +1709,11 @@ def _size_like(ref: Any, w: int, h: int, mult: int) -> Tuple[int, int]:
     long = max(w, h)
     k = long / max(rw, rh)
     return max(256, int(rw * k) // mult * mult), max(256, int(rh * k) // mult * mult)
+
+
+def _voxcpm_python_ok() -> bool:
+    """A biblioteca voxcpm exige o Python 3.10+ (função à parte para os testes, que simulam a biblioteca, poderem rodar também no 3.9)."""
+    return sys.version_info >= (3, 10)
 
 
 def cover_fit(img: Any, w: int, h: int) -> Any:

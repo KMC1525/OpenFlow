@@ -51,7 +51,7 @@ function Find-Python {
     try {
       $exe = $cand[0]; $args0 = @($cand | Select-Object -Skip 1)
       & $exe @args0 -c "import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)" 2>$null
-      if ($LASTEXITCODE -eq 0) { return (@($exe) + $args0) }
+      if ($LASTEXITCODE -eq 0) { return ,@(@($exe) + $args0) }   # a vírgula mantém o ARRAY: com um só elemento («python») o PowerShell o transformava na string «python», e $py[0] virava «p» (v0.90)
     } catch { }
   }
   return $null
@@ -101,7 +101,8 @@ if (Test-Path $venv) {
   $vv = if ($vv) { "$vv".Trim() } else { '' }
   if ((-not $vv) -or ([version]$vv -lt [version]$pyV)) {
     Note (L "Recriando o ambiente para o Python $pyV (antes: $(if ($vv) { $vv } else { 'quebrado' })) — as bibliotecas serão reinstaladas …" "Recreating the environment for Python $pyV (before: $(if ($vv) { $vv } else { 'broken' })) — the libraries will be reinstalled …")
-    Remove-Item -Recurse -Force -ErrorAction Stop $venv
+    try { Remove-Item -Recurse -Force -ErrorAction Stop $venv }
+    catch { Die (L "Não consegui apagar o ambiente antigo ($venv): algum programa o está usando. Feche o OpenFlow (e os terminais com o flow aberto) e rode este comando de novo." "Could not delete the old environment ($venv): a program is using it. Close OpenFlow (and any terminal running flow) and run this command again.") }
   }
 }
 if (Test-Path $venvPy) { Note (L "Ambiente já existe ($venv) — reaproveitando." "Environment already exists ($venv) — reusing it.") }
@@ -147,18 +148,42 @@ else {
 $new = & $venvPy -I -c "import openflow; print(openflow.__version__)"
 
 # 4) comando `flow`
+# O atalho aponta para o flow.exe pelo caminho RELATIVO ao próprio arquivo (bin\..\app\venv): gravado em ASCII, um caminho absoluto com acento (C:\Users\João\…) virava «Jo?o» e o comando `flow` não abria (v0.90).
 $shim = Join-Path $BinDir 'flow.cmd'
-Set-Content -ErrorAction Stop -Path $shim -Value "@echo off`r`n`"$venv\Scripts\flow.exe`" %*" -Encoding ASCII
+Set-Content -ErrorAction Stop -Path $shim -Value "@echo off`r`n`"%~dp0..\app\venv\Scripts\flow.exe`" %*" -Encoding ASCII
 
 # 4b) o comando `flow` no PATH — do usuário (para novos terminais) e deste terminal (para usar já). Feito ANTES das bibliotecas, que demoram.
 $flow = Join-Path $venv 'Scripts\flow.exe'
 function Same-Dir($a, $b) { return ($a.TrimEnd('\') -ieq $b.TrimEnd('\')) }
-$userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
-$userParts = @(if ($userPath) { $userPath -split ';' | Where-Object { $_ } })   # o Path do usuário pode ser vazio (null) numa conta nova
-if (-not ($userParts | Where-Object { Same-Dir $_ $BinDir })) {
-  [Environment]::SetEnvironmentVariable('Path', (($userParts + $BinDir) -join ';'), 'User')
-  Note (L 'Adicionei o comando ao seu PATH.' 'I added the command to your PATH.')
+# O Path do usuário no registro costuma ter entradas «%USERPROFILE%\…» (tipo REG_EXPAND_SZ). Ler com GetEnvironmentVariable e regravar trocava tudo pelo valor já expandido (e o tipo por REG_SZ): perdia as variáveis (v0.90).
+# Aqui o valor CRU é lido e só se acrescenta a pasta; devolve $null se ela já está lá.
+function Merge-PathEntry($raw, $dir) {
+  $parts = @(if ($raw) { "$raw" -split ';' | Where-Object { $_ } })
+  foreach ($p in $parts) { if (Same-Dir ([Environment]::ExpandEnvironmentVariables($p)) $dir) { return $null } }
+  return (($parts + $dir) -join ';')
 }
+function Add-UserPath($dir) {
+  try {
+    $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true)
+    try {
+      $raw = $key.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+      $kind = [Microsoft.Win32.RegistryValueKind]::ExpandString
+      try { $kind = $key.GetValueKind('Path') } catch { }
+      $merged = Merge-PathEntry $raw $dir
+      if ($null -eq $merged) { return $false }
+      $key.SetValue('Path', $merged, $kind)
+    } finally { $key.Close() }
+    [Environment]::SetEnvironmentVariable('OPENFLOW_PATH_REFRESH', $null, 'User')   # só para o Windows avisar os programas abertos de que o ambiente mudou
+    return $true
+  } catch {
+    $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+    $merged = Merge-PathEntry $userPath $dir
+    if ($null -eq $merged) { return $false }
+    [Environment]::SetEnvironmentVariable('Path', $merged, 'User')
+    return $true
+  }
+}
+if (Add-UserPath $BinDir) { Note (L 'Adicionei o comando ao seu PATH.' 'I added the command to your PATH.') }
 if (-not (($env:Path -split ';') | Where-Object { $_ -and (Same-Dir $_ $BinDir) })) { $env:Path = $env:Path.TrimEnd(';') + ';' + $BinDir }   # vale já neste terminal (com `irm | iex`)
 
 # 5) bibliotecas do OpenFlow (todas, a menos que OPENFLOW_EXTRAS diga outra coisa); a lista vem da versão recém-instalada

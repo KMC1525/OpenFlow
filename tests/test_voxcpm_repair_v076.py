@@ -11,6 +11,21 @@ from openflow.canvas import localmodels as lm
 from openflow.canvas import voxcpm
 from openflow.providers import ProviderError
 from tests.test_voxcpm_nodes_v075 import FF, MODEL, Base, DubNodeTests
+from tests.helpers import voxcpm_python_ok
+
+
+
+_VOX_PATCH = None
+
+
+def setUpModule():
+    global _VOX_PATCH
+    _VOX_PATCH = voxcpm_python_ok()   # os testes simulam a biblioteca voxcpm: a exigência de Python 3.10 não é o assunto deles
+
+
+def tearDownModule():
+    if _VOX_PATCH is not None:
+        _VOX_PATCH.stop()
 
 
 class MissingCodecTests(unittest.TestCase):

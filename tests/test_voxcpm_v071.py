@@ -25,6 +25,7 @@ from openflow.canvas.engine import CanvasEngine
 from openflow.canvas.media import LocalHFMedia, Media, MediaProvider
 from openflow.providers import ProviderError
 from openflow.storage import Store
+from tests.helpers import voxcpm_python_ok
 
 FF = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
 REPO_FILES = ["", ".gitattributes", "README.md", "audiovae.pth", "config.json", "model.safetensors", "special_tokens_map.json", "tokenization_voxcpm2.py", "tokenizer.json", "tokenizer_config.json"]   # o que o openbmb/VoxCPM2 tem no Hub
@@ -33,6 +34,20 @@ REPO_FILES = ["", ".gitattributes", "README.md", "audiovae.pth", "config.json", 
 def seconds(data):
     w = wave.open(io.BytesIO(data), "rb")
     return w.getnframes() / w.getframerate(), w.getframerate()
+
+
+
+_VOX_PATCH = None
+
+
+def setUpModule():
+    global _VOX_PATCH
+    _VOX_PATCH = voxcpm_python_ok()   # os testes simulam a biblioteca voxcpm: a exigência de Python 3.10 não é o assunto deles
+
+
+def tearDownModule():
+    if _VOX_PATCH is not None:
+        _VOX_PATCH.stop()
 
 
 class PureTests(unittest.TestCase):

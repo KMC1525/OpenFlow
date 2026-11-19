@@ -92,7 +92,7 @@ class CliLanguageTests(unittest.TestCase):
             return mock.Mock(returncode=0)
 
         with mock.patch.object(cli, "_managed_app_dir", return_value=Path("/home/u/.openflow/app")), mock.patch("urllib.request.urlopen") as uo, \
-                mock.patch.object(cli.subprocess, "run", side_effect=fake_run), mock.patch.object(cli.os, "name", "posix"), mock.patch.dict(os.environ, {"OPENFLOW_LANG": "en"}):
+                mock.patch.object(cli.subprocess, "run", side_effect=fake_run), mock.patch.object(cli, "os", _FakeOs("posix")), mock.patch.dict(os.environ, {"OPENFLOW_LANG": "en"}):
             uo.return_value.__enter__.return_value.read.return_value = b"echo hi"
             cli._update_with_installer(__import__("argparse").Namespace(force=False, core=False, extras="", no_python=False, rust="yes"))
         self.assertEqual((seen["env"]["OPENFLOW_LANG"], seen["env"]["OPENFLOW_RUST"]), ("en", "yes"))
@@ -242,6 +242,17 @@ if __name__ == "__main__":
     unittest.main()
 
 
+class _FakeOs:
+    """O módulo `os` do cli com outro `name`: trocar o os.name de verdade quebra o pathlib no Windows («cannot instantiate PosixPath»)."""
+
+    def __init__(self, name):
+        self.name = name
+
+    def __getattr__(self, key):
+        import os
+        return getattr(os, key)
+
+
 class FolderCommandTests(unittest.TestCase):
     def test_folder_opens_the_data_folder_and_print_only_prints(self):
         import contextlib
@@ -251,7 +262,7 @@ class FolderCommandTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             home = Path(d) / "dados"
             out = io.StringIO()
-            with mock.patch.object(cli.subprocess, "run") as run, contextlib.redirect_stdout(out), mock.patch.object(cli.sys, "platform", "linux"), mock.patch.object(cli.os, "name", "posix"):
+            with mock.patch.object(cli.subprocess, "run") as run, contextlib.redirect_stdout(out), mock.patch.object(cli.sys, "platform", "linux"), mock.patch.object(cli, "os", _FakeOs("posix")):
                 self.assertEqual(cli.main(["folder", "--home", str(home)]), 0)
                 self.assertEqual(run.call_args[0][0], ["xdg-open", str(home)])
             self.assertTrue(home.is_dir())                                   # cria se ainda não existir
@@ -260,8 +271,8 @@ class FolderCommandTests(unittest.TestCase):
                 self.assertEqual(cli.main(["folder", "--print", "--home", str(home)]), 0)
                 run.assert_not_called()
             self.assertEqual(o2.getvalue().strip(), str(home))
-            with mock.patch.object(cli.subprocess, "run", side_effect=OSError("sem xdg-open")), contextlib.redirect_stdout(io.StringIO()), mock.patch.object(cli.sys, "platform", "linux"), mock.patch.object(cli.os, "name", "posix"):
+            with mock.patch.object(cli.subprocess, "run", side_effect=OSError("sem xdg-open")), contextlib.redirect_stdout(io.StringIO()), mock.patch.object(cli.sys, "platform", "linux"), mock.patch.object(cli, "os", _FakeOs("posix")):
                 self.assertEqual(cli.main(["folder", "--home", str(home)]), 1)   # sem gerenciador de arquivos: avisa e devolve erro
-            with mock.patch.object(cli.sys, "platform", "darwin"), mock.patch.object(cli.os, "name", "posix"), mock.patch.object(cli.subprocess, "run") as run, contextlib.redirect_stdout(io.StringIO()):
+            with mock.patch.object(cli.sys, "platform", "darwin"), mock.patch.object(cli, "os", _FakeOs("posix")), mock.patch.object(cli.subprocess, "run") as run, contextlib.redirect_stdout(io.StringIO()):
                 cli.main(["folder", "--home", str(home)])
                 self.assertEqual(run.call_args[0][0][0], "open")

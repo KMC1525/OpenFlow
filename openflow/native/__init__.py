@@ -172,6 +172,7 @@ def load(force: bool = False) -> Any:
         if os.environ.get("OPENFLOW_NO_NATIVE", "") not in ("", "0"):
             _REASON = "desligado por OPENFLOW_NO_NATIVE"
             return None
+        _clean_old()
         for path in _candidates():
             if not path.is_file():
                 continue
@@ -305,12 +306,56 @@ def build(verbose: bool = True) -> int:
     if not built.is_file():
         print(_("Compilou, mas não achei a biblioteca gerada."))
         return 1
-    shutil.copyfile(built, dest / _libname())
+    _swap_in(built, dest / _libname(), copy=True)
     _mark()
     shutil.rmtree(dest / "target", ignore_errors=True)  # só a biblioteca fica (a pasta de compilação ocupa centenas de MB)
     load(force=True)
     print(_("Núcleo em Rust ativo:"), status()["path"] if available() else status()["reason"])
     return 0 if available() else 1
+
+
+def _swap_in(src: Path, final: Path, copy: bool = False) -> None:
+    """Põe a biblioteca nova no lugar da antiga (`final`). No Windows um arquivo .dll CARREGADO não pode ser sobrescrito nem apagado — e o `flow native setup` já carregou a antiga ao conferir se ela está
+    em dia, então `os.replace` falhava com «acesso negado» e o núcleo nunca era atualizado (v0.90). Mas uma .dll carregada PODE ser renomeada: a antiga sai do caminho (`.old<pid>`, apagada na próxima vez
+    que o OpenFlow abrir) e a nova entra. `copy`: copia `src` em vez de mover (a compilação deixa o arquivo na pasta `target`)."""
+    def put() -> None:
+        if copy:
+            shutil.copyfile(src, final)
+        else:
+            os.replace(src, final)
+
+    try:
+        put()
+        return
+    except PermissionError:
+        if not final.exists():
+            raise
+    old = final.with_name(f"{final.name}.old{os.getpid()}")
+    os.replace(final, old)
+    try:
+        put()
+    except OSError:
+        try:
+            os.replace(old, final)   # não deixa o computador sem núcleo
+        except OSError:
+            pass
+        raise
+    try:
+        old.unlink()
+    except OSError:
+        pass   # ainda carregada: sai na próxima abertura (`_clean_old`)
+
+
+def _clean_old() -> None:
+    """Apaga as `.old<pid>` que uma atualização no Windows não conseguiu apagar na hora (a biblioteca ainda estava carregada)."""
+    try:
+        for f in native_dir().glob(Path(_libname()).name + ".old*"):
+            try:
+                f.unlink()
+            except OSError:
+                pass
+    except OSError:
+        pass
 
 
 def fetch_prebuilt(version: str = "", verbose: bool = True) -> int:
@@ -355,7 +400,7 @@ def fetch_prebuilt(version: str = "", verbose: bool = True) -> int:
         if lib.flow_abi_version() != ABI:
             raise OSError(f"interface {lib.flow_abi_version()} ≠ {ABI}")
         del lib
-        os.replace(tmp, dest / _libname())
+        _swap_in(tmp, dest / _libname())
     except (OSError, AttributeError) as exc:
         say(_("O núcleo baixado não carrega aqui ({e}).", e=str(exc)[:120]))
         try:
