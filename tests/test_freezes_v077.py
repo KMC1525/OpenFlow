@@ -108,7 +108,9 @@ class StepCallbackTests(unittest.TestCase):
     def test_heartbeat_emits_while_the_block_runs_and_stops_after(self):
         ctl = Ctl()
         with lowmem.heartbeat(ctl, "Ainda gerando", interval=0.05):
-            time.sleep(0.3)
+            end = time.time() + 5   # espera os avisos em vez de contar o tempo: num runner lento (macOS do CI) 0,3 s rendia só 2
+            while len(ctl.notes) < 3 and time.time() < end:
+                time.sleep(0.05)
         n = len(ctl.notes)
         self.assertGreaterEqual(n, 3)
         self.assertTrue(ctl.notes[0].startswith("Ainda gerando… "))
