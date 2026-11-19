@@ -135,10 +135,13 @@ class EveryTemplateTests(unittest.TestCase):
             CanvasEngine(store, cid, lambda ev: None, lambda: False).run(None, True)
             cv = cs.get(cid)
             bad = {x["id"]: (x["type"], x["result"]["state"], x["result"].get("error", "")[:100]) for x in cv["nodes"] if x["type"] not in ("style_prompt", "text") and x["result"]["state"] != "done"}
+            no_ffmpeg = set()
             if not shutil.which("ffmpeg"):   # macOS/Windows do CI não têm o ffmpeg: o vídeo do Demo diz isso (e é o comportamento certo)
-                bad = {k: v for k, v in bad.items() if "precisa do ffmpeg" not in v[2]}
+                no_ffmpeg = {k for k, v in bad.items() if "precisa do ffmpeg" in v[2]}
+                bad = {k: v for k, v in bad.items() if k not in no_ffmpeg}
             self.assertEqual(bad, {} if t["id"] != "blank" else bad, t["id"])
-            self.assertEqual(CanvasEngine(store, cid, lambda ev: None, lambda: False).stale_ids(cs.get(cid)), [], t["id"])
+            stale = [i for i in CanvasEngine(store, cid, lambda ev: None, lambda: False).stale_ids(cs.get(cid)) if i not in no_ffmpeg]   # o nó que falhou por falta de ffmpeg fica «desatualizado» de propósito
+            self.assertEqual(stale, [], t["id"])
 
     def test_a_template_with_a_custom_prompt_keeps_it(self):
         g = schema.build_template("text_image", "Um dragão de papel")
