@@ -428,6 +428,12 @@ class VideoTests(unittest.TestCase):
 
 
 class VoxcpmLibsTests(unittest.TestCase):
+    def setUp(self):
+        from tests.helpers import voxcpm_python_ok
+
+        p = voxcpm_python_ok()   # a checagem do Python 3.10 vale só no test_python_39 (que a liga de novo)
+        self.addCleanup(p.stop)
+
     def test_all_includes_voxcpm_on_python_310_plus(self):
         from openflow import cli
 
@@ -462,7 +468,7 @@ class VoxcpmLibsTests(unittest.TestCase):
     def test_python_39_gets_a_clear_message(self):
         lp = LocalHFMedia({"id": "local_hf"})
         imports = {"numpy": __import__("numpy"), "torch": mock.MagicMock()}
-        with mock.patch.object(M, "_local_import", side_effect=lambda *n, **k: [imports[x] for x in n]), mock.patch.object(M.sys, "version_info", (3, 9, 18, "final", 0)):
+        with mock.patch.object(M, "_local_import", side_effect=lambda *n, **k: [imports[x] for x in n]), mock.patch.object(M, "_voxcpm_python_ok", return_value=False):
             with self.assertRaises(ProviderError) as cm:
                 lp._voice_voxcpm("oi", "openbmb/VoxCPM2", None, "", None, "")
         self.assertIn("Python 3.10", str(cm.exception))

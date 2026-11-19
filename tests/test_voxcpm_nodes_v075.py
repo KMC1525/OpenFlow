@@ -20,10 +20,25 @@ from openflow.canvas import media
 from openflow.canvas import procedural as proc
 from openflow.canvas.engine import CanvasEngine
 from openflow.storage import Store
+from tests.helpers import voxcpm_python_ok
 
 FF = bool(shutil.which("ffmpeg") and shutil.which("ffprobe"))
 MODEL = "openbmb/VoxCPM2"
 RATE = 48000
+
+
+
+_VOX_PATCH = None
+
+
+def setUpModule():
+    global _VOX_PATCH
+    _VOX_PATCH = voxcpm_python_ok()   # os testes simulam a biblioteca voxcpm: a exigência de Python 3.10 não é o assunto deles
+
+
+def tearDownModule():
+    if _VOX_PATCH is not None:
+        _VOX_PATCH.stop()
 
 
 class FakeTorch:

@@ -178,3 +178,14 @@ class ServerCase(_unittest.TestCase):
         cls.httpd.shutdown()
         cls.httpd.server_close()
         _shutil.rmtree(cls.tmp, ignore_errors=True)
+
+
+def voxcpm_python_ok():
+    """Faz a checagem «voxcpm precisa do Python 3.10+» passar nos testes que SIMULAM a biblioteca (no Python 3.9 do CI eles falhavam só por causa dessa checagem). Devolve o patcher já iniciado: `.stop()` no fim."""
+    from unittest import mock
+
+    from openflow.canvas import media
+
+    p = mock.patch.object(media, "_voxcpm_python_ok", return_value=True)
+    p.start()
+    return p

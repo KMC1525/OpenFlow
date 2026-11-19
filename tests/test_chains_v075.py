@@ -135,6 +135,8 @@ class EveryTemplateTests(unittest.TestCase):
             CanvasEngine(store, cid, lambda ev: None, lambda: False).run(None, True)
             cv = cs.get(cid)
             bad = {x["id"]: (x["type"], x["result"]["state"], x["result"].get("error", "")[:100]) for x in cv["nodes"] if x["type"] not in ("style_prompt", "text") and x["result"]["state"] != "done"}
+            if not shutil.which("ffmpeg"):   # macOS/Windows do CI não têm o ffmpeg: o vídeo do Demo diz isso (e é o comportamento certo)
+                bad = {k: v for k, v in bad.items() if "precisa do ffmpeg" not in v[2]}
             self.assertEqual(bad, {} if t["id"] != "blank" else bad, t["id"])
             self.assertEqual(CanvasEngine(store, cid, lambda ev: None, lambda: False).stale_ids(cs.get(cid)), [], t["id"])
 

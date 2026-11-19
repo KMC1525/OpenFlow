@@ -41,7 +41,7 @@ class RouteTests(ServerCase):
     def test_info_then_download_and_use_on_the_node(self):
         cv = self.store.projects.create("Modelos")
         self.store.projects.save_layout(cv["id"], {"nodes": [node("image", nid="im", model="flux-3-image-klein-Q4_K_M.gguf", provider="gguf_local")], "edges": []})
-        with mock.patch.object(hf, "repo_files", return_value=LEEJET), mock.patch.object(hf, "download_many", side_effect=self.download):
+        with mock.patch.object(hf, "repo_files", return_value=LEEJET), mock.patch.object(hf, "download_many", side_effect=self.download), mock.patch.object(self.app, "_auto_support", return_value=False):   # sem baixar o VAE e o codificador de verdade
             s, r = self.c.json("GET", "/api/media/sd-native?model=flux-3-image-klein-Q4_K_M.gguf")
             self.assertEqual(s, 200, r)
             self.assertEqual((r["repo"], r["file"], r["quant"], r["installed"]), ("leejet/flux-3-image-klein-GGUF", "flux3-image-klein-Q4_K.gguf", "Q4_K", False))

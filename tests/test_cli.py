@@ -451,7 +451,8 @@ class InstallerTests(unittest.TestCase):
         self.assertNotRegex(ps, r"(?m)^\$ErrorActionPreference\s*=\s*'Stop'")
         self.assertIn("$ErrorActionPreference = 'Continue'", ps)
         # o comando `flow` precisa funcionar logo após instalar: PATH do usuário (aceitando Path vazio) e PATH deste terminal, antes das bibliotecas
-        self.assertIn("if ($userPath)", ps)
+        self.assertIn("function Merge-PathEntry", ps)   # v0.90: o Path vem CRU do registro (aceita vazio/null) e só ganha a pasta do flow
+        self.assertIn("if ($raw)", ps)
         self.assertIn("$env:Path = $env:Path.TrimEnd(';')", ps)
         self.assertLess(ps.index("$env:Path = $env:Path.TrimEnd(';')"), ps.index("& $flow libs"))
         self.assertNotIn("$userPath.TrimEnd", ps)  # com Path vazio (null) isso falha em silêncio e o PATH nunca era configurado

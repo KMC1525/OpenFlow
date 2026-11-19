@@ -151,7 +151,7 @@ class ApiTests(ServerCase):
         ext = Path(tempfile.mkdtemp()) / "m"
         s, r = self.c.json("POST", "/api/storage/location", {"kind": "models", "path": str(ext), "move": False})
         self.assertEqual((s, r["moved"]), (200, False))
-        self.assertEqual(self.store.models_dir, ext)
+        self.assertEqual(self.store.models_dir.resolve(), ext.resolve())   # macOS: /var/folders… é um link para /private/var/folders…
         self.assertEqual(self.c.json("GET", "/api/storage/locations")[1]["models"]["custom"], True)
 
     def test_moving_models_keeps_them_listed_and_empties_the_old_folder(self):
@@ -161,7 +161,7 @@ class ApiTests(ServerCase):
         s, r = self.c.json("POST", "/api/storage/location", {"kind": "models", "path": str(ext), "move": True})
         self.assertEqual(s, 200, r)
         self.assertEqual(self.wait(r["job_id"])["status"], "done")
-        self.assertEqual(self.store.models_dir, ext)
+        self.assertEqual(self.store.models_dir.resolve(), ext.resolve())
         self.assertTrue((ext / "image" / "z-Q4_K_M.gguf").exists())
         self.assertFalse((old / "image" / "z-Q4_K_M.gguf").exists())
         names = [m["name"] for m in self.c.json("GET", "/api/hf/local?kind=image")[1]["models"]]
