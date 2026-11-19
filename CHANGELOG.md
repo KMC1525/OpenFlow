@@ -2,6 +2,26 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.90.0] — 2026-11-19
+
+### Bugs ao instalar no Windows e no macOS — o que foi procurado
+- **Os instaladores** (`install.ps1` e `install.sh`) lidos linha por linha e **rodados de verdade**: o `install.ps1` no PowerShell 7 (os trechos que dão para provar fora do Windows) e, no GitHub, **no Windows e no macOS reais**, instalando a partir desta pasta e reinstalando.
+- **O pacote inteiro de testes no Windows e no macOS** (Python 3.9 e 3.13): foi a primeira vez em muito tempo — veja o primeiro item de «Corrigido».
+
+### Corrigido
+- **O CI do GitHub não rodava desde a v0.10:** o arquivo `.github/workflows/ci.yml` era YAML inválido (um nome de passo com «numpy: os» sem aspas), então o GitHub não criava nenhum job: os testes no Windows, macOS e Linux e os testes dos instaladores **nunca rodaram** nas últimas ~80 versões (aparecia só «falhou» em zero segundo). Corrigido, e há um teste que lê os workflows como YAML.
+- **Windows — o instalador não achava o Python em muitas máquinas:** quando o único Python era o `python` (o da Microsoft Store, o do conda, do Chocolatey/Scoop, ou um instalado sem o lançador `py`), o PowerShell devolvia a string «python» no lugar de uma lista de um elemento e o instalador executava o comando «p» («não reconhecido»). Quem tem o `py` não via o erro.
+- **Windows — o comando `flow` quebrava com acento no nome do usuário** (`C:\Users\João\…`): o atalho `flow.cmd` era gravado em ASCII com o caminho completo, e o «ã» virava «?». Agora ele aponta para o programa pelo caminho relativo ao próprio arquivo (sem nenhum nome de usuário dentro).
+- **Windows — o instalador reescrevia o PATH do usuário já «expandido»:** entradas como `%USERPROFILE%\bin` viravam o caminho literal (e o tipo do valor, REG_EXPAND_SZ, virava REG_SZ). Agora o valor cru é lido do registro e só se acrescenta a pasta do `flow`.
+- **Windows — o núcleo Rust (.dll) nunca era atualizado numa atualização:** o `flow native setup` já carregava a .dll antiga ao conferir a versão e, no Windows, uma .dll carregada não pode ser sobrescrita (acesso negado), então o OpenFlow seguia com o núcleo velho. Agora a antiga é renomeada (isso o Windows permite) e a nova entra; a sobra é apagada na próxima abertura.
+- **Windows — erro claro ao recriar o ambiente:** se o ambiente antigo está em uso (OpenFlow aberto), o instalador agora diz isso em vez de um erro técnico.
+- **Testes que só falhavam fora do Linux** (por isso nunca apareceram): a checagem do Python 3.10 do voxcpm derrubava 21 testes no Python 3.9; caminhos do macOS (`/var` → `/private/var`) e do Windows (nomes curtos «RUNNER~1», barras invertidas, `/proc`); o ffmpeg ausente nos modelos de projeto; um teste que baixava de verdade os arquivos de apoio do FLUX.3; o visualizador 3D lendo caminhos com barra invertida; testes que trocavam `os.name` (o `pathlib` do Windows não aceita).
+
+### Ainda não verificado
+- **Nenhum computador real foi usado por mim:** o que se sabe de Windows e macOS vem do CI do GitHub (instalação a partir da pasta e reinstalação passaram; o resultado dos testes está no PR) e do PowerShell 7 no Linux. O Windows com um Python **sem** o `py` e o nome de usuário com acento foram provados só por testes do PowerShell, não por uma máquina assim.
+- A atualização do núcleo (.dll carregada) foi simulada (recusa de sobrescrever + renomeação), não rodada com uma .dll carregada no Windows.
+- A instalação pelo `winget` (Python), o Homebrew e as Command Line Tools do macOS não são exercitados pelo CI (o Python do runner é mantido).
+
 ## [0.89.0] — 2026-11-18
 
 ### Novo — faixas Q2, Q3, Q4, Q6 e Q8 dos codificadores de texto e VAEs

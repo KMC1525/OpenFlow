@@ -2,6 +2,26 @@
 
 Format: `## [version] — date`. Each version lists what changed for users and, honestly, what was **not** verified. [Português](CHANGELOG.md)
 
+## [0.90.0] — 2026-11-19
+
+### Bugs when installing on Windows and macOS — what was searched
+- **The installers** (`install.ps1` and `install.sh`) read line by line and **actually run**: `install.ps1` in PowerShell 7 (the parts that can be proven outside Windows) and, on GitHub, **on real Windows and macOS**, installing from this folder and reinstalling.
+- **The whole test suite on Windows and macOS** (Python 3.9 and 3.13): the first time in a long while — see the first «Fixed» item.
+
+### Fixed
+- **GitHub CI had not been running since v0.10:** `.github/workflows/ci.yml` was invalid YAML (a step name with «numpy: os» without quotes), so GitHub created no job at all: the Windows, macOS and Linux tests and the installer tests **never ran** in the last ~80 versions (only a zero-second «failed» showed up). Fixed, and a test now reads the workflows as YAML.
+- **Windows — the installer did not find Python on many machines:** when the only Python was `python` (the Microsoft Store one, conda, Chocolatey/Scoop, or one installed without the `py` launcher), PowerShell returned the string «python» instead of a one-element list and the installer ran the command «p» («not recognized»). People with `py` never saw the error.
+- **Windows — the `flow` command broke with an accent in the user name** (`C:\Users\João\…`): the `flow.cmd` shim was written in ASCII with the full path, and «ã» became «?». It now points to the program by a path relative to the file itself (no user name inside).
+- **Windows — the installer rewrote the user PATH already «expanded»:** entries like `%USERPROFILE%\bin` became the literal path (and the value type, REG_EXPAND_SZ, became REG_SZ). It now reads the raw value from the registry and only appends the `flow` folder.
+- **Windows — the Rust core (.dll) was never updated on an update:** `flow native setup` already loaded the old .dll when checking the version and, on Windows, a loaded .dll cannot be overwritten (access denied), so OpenFlow kept the old core. The old one is now renamed (Windows allows that) and the new one goes in; the leftover is deleted at the next launch.
+- **Windows — clear error when recreating the environment:** if the old environment is in use (OpenFlow open), the installer now says so instead of a technical error.
+- **Tests that only failed outside Linux** (so they never showed up): the voxcpm Python 3.10 check knocked down 21 tests on Python 3.9; macOS paths (`/var` → `/private/var`) and Windows paths (short names «RUNNER~1», backslashes, `/proc`); a missing ffmpeg in the project templates; a test that really downloaded FLUX.3's support files; the 3D viewer reading backslash paths; tests that swapped `os.name` (Windows' `pathlib` rejects that).
+
+### Not verified yet
+- **I used no real computer:** what is known about Windows and macOS comes from GitHub's CI (installing from the folder and reinstalling passed; the test results are in the PR) and from PowerShell 7 on Linux. Windows with a Python **without** `py` and a user name with an accent were proven only by PowerShell tests, not by such a machine.
+- The core update (loaded .dll) was simulated (overwrite refused + rename), not run with a loaded .dll on Windows.
+- Installing Python through `winget`, Homebrew and the macOS Command Line Tools are not exercised by the CI (the runner's Python is kept).
+
 ## [0.89.0] — 2026-11-18
 
 ### New — Q2, Q3, Q4, Q6 and Q8 tiers of text encoders and VAEs
