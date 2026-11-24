@@ -128,6 +128,23 @@ def _run(args: argparse.Namespace) -> int:
     return 0
 
 
+def _worker(args: argparse.Namespace) -> int:
+    """Servidor do OpenFlow em Python como worker do `flow` em Rust (v0.91): sem navegador, sem atualização, só em 127.0.0.1 numa porta privada. O Rust valida Host/Origin antes de repassar."""
+    if args.home:
+        os.environ["OPENFLOW_HOME"] = args.home
+    from .server import make_server
+    from .storage import Store
+
+    httpd, _app = make_server("127.0.0.1", args.port, Store())
+    try:
+        httpd.serve_forever(poll_interval=0.3)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        httpd.server_close()
+    return 0
+
+
 # Bibliotecas opcionais do OpenFlow (extras do pacote): nome → para que servem. A ordem é da mais leve para a mais pesada.
 LIBS = {
     "docs": "extração de PDFs mais precisa",
@@ -1096,7 +1113,12 @@ def main(argv=None) -> int:
     tor.add_argument("--index", default="", help=_("índice do PyTorch a usar (ex.: cu126, rocm6.4, xpu, cpu)"))
     sub.add_parser("doctor", help=_("mostra diagnóstico do ambiente"))
     sub.add_parser("version", help=_("mostra a versão"))
+    wk = sub.add_parser("worker", help=argparse.SUPPRESS)   # v0.91: o servidor Python como worker do `flow` em Rust (só em 127.0.0.1, numa porta privada)
+    wk.add_argument("--port", type=int, required=True)
+    wk.add_argument("--home", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    if args.cmd == "worker":
+        return _worker(args)
     if args.cmd in ("setup", "install"):
         return _setup(args)
     if args.cmd == "update":

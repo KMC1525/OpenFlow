@@ -10,3 +10,5 @@ venv/
 openflow/native/target/
 node_modules/
 .DS_Store
+# Rust (v0.91): o binário `flow` compilado
+rust/target/
