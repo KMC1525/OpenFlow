@@ -1,5 +1,7 @@
 //! `flow` — o OpenFlow em Rust (v0.91). Um binário: servidor HTTP, interface web embutida e a linha de comando.
 
+#![allow(dead_code)] // SSE, `q()` e afins já estão prontos para as próximas rotas portadas
+
 mod app;
 mod assets;
 mod dev;
