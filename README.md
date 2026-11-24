@@ -8,13 +8,13 @@ Connect a few nodes, see each result on the node, edit the final video without l
 
 [Install](#install) · [Use](#use) · [Nodes](#nodes) · [Models](#models) · [Settings](#settings) · [Data](#your-data) · [Development](#development) · [Changelog](CHANGELOG.en.md) · [Português](README.pt-BR.md)
 
-`MIT` · `Windows` · `macOS` · `Linux` · `Python 3.9+` · `Rust core` · `v0.91.0`
+`MIT` · `Windows` · `macOS` · `Linux` · `Rust` · `Python 3.9+ (optional worker)` · `v0.91.0`
 
 </div>
 
 ---
 
-OpenFlow is the *Canvas* mode of [ASTA](https://github.com/KMC1525/ASTA) turned into an app of its own: Python (standard library only) + a small Rust core, plain HTML/CSS/JS interface, one `flow` command.
+OpenFlow is the *Canvas* mode of [ASTA](https://github.com/KMC1525/ASTA) turned into an app of its own: a Rust program (one `flow` binary: HTTP server, embedded plain HTML/CSS/JS interface and terminal), with Python as an **optional worker** for what is not ported yet (v0.91).
 
 ## Install
 
@@ -28,9 +28,9 @@ curl -fsSL https://raw.githubusercontent.com/KMC1525/OpenFlow/main/install.sh | 
 irm https://raw.githubusercontent.com/KMC1525/OpenFlow/main/install.ps1 | iex             # Windows
 ```
 
-Open a new terminal and run `flow`. The installer sets up an isolated environment, Python 3.9+ if missing, the optional libraries, the pre-installed models (it **asks** before several GB) and the Rust core (ready-made library checked by SHA-256). With pip: `pip install "openflow @ https://github.com/KMC1525/OpenFlow/archive/refs/heads/main.zip"`.
+Open a new terminal and run `flow`. The installer downloads the `flow` program (one file per platform, checked by SHA-256) and sets up the isolated Python environment that serves as its worker: Python 3.9+ if missing, the optional libraries, the pre-installed models (it **asks** before several GB) and the Rust core. Without the Rust program (no network, `OPENFLOW_FLOW_RUST=no`) `flow` stays the Python one of before. With pip: `pip install "openflow @ https://github.com/KMC1525/OpenFlow/archive/refs/heads/main.zip"`.
 
-Useful variables: `OPENFLOW_EXTRAS=all|none|docs,media,local` · `OPENFLOW_MODELS=ask|all|text|image|none` · `OPENFLOW_RUST=yes|ask|no` · `OPENFLOW_PYTHON=auto|keep` · `OPENFLOW_SOURCE=<url|folder>` · `OPENFLOW_FORCE=1` · `OPENFLOW_HOME` · `OPENFLOW_LANG=pt|en`.
+Useful variables: `OPENFLOW_EXTRAS=all|none|docs,media,local` · `OPENFLOW_MODELS=ask|all|text|image|none` · `OPENFLOW_RUST=yes|ask|no` · `OPENFLOW_FLOW_RUST=yes|no` · `OPENFLOW_PYTHON=auto|keep` · `OPENFLOW_SOURCE=<url|folder>` · `OPENFLOW_FORCE=1` · `OPENFLOW_HOME` · `OPENFLOW_LANG=pt|en`.
 
 ## Use
 
@@ -86,6 +86,8 @@ python -m unittest discover -s tests -t .                  # full suite (browser
 cargo test --release --manifest-path openflow/native/Cargo.toml
 node tests/js/i18n_check.mjs                               # every UI phrase has an English translation
 ```
+
+**v0.91 — Rust program (`rust/`):** the `flow` binary serves the interface (embedded), checks `Host`/`Origin`, answers **settings, preferences, export/import and uploads** itself (same files and answers as Python: `tests/test_rust_parity_v091.py` runs both and compares) and forwards every other `/api/*` route — including uploads and SSE — byte by byte to the Python worker, which it starts on demand on a private `127.0.0.1` port and which exits with it. Porting the rest (projects/canvas, engine, providers, library/Hugging Face, CLI) is the next versions' work; until then the worker is installed by default.
 
 The Rust core (`openflow/native`) does audio synthesis, run order, local-model and RAM planning, CPU/GPU detection and memory release; **every function has a Python mirror**, so OpenFlow works without it, just slower. UI and terminal strings are Portuguese-first with English translations (`openflow/web/js/en.js`, `openflow/term_en.py`); Python 3.9-compatible code.
 
