@@ -26,7 +26,7 @@ def flow_bin(build: bool = True) -> Optional[Path]:
         if p.is_file():
             _CACHED = p
             return p
-    if build and shutil.which("cargo"):
+    if build and shutil.which("cargo") and not os.environ.get("OPENFLOW_NO_FLOW_BUILD"):
         r = subprocess.run(["cargo", "build", "--manifest-path", str(ROOT / "rust" / "Cargo.toml")], capture_output=True, text=True)
         p = ROOT / "rust" / "target" / "debug" / exe
         if r.returncode == 0 and p.is_file():

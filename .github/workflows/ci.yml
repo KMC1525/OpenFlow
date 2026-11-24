@@ -36,7 +36,33 @@ jobs:
       - name: "Instalar (e Pillow e numpy, que os testes de imagem usam)"
         run: python -m pip install -e . pillow numpy
       - name: Testes
+        env:
+          OPENFLOW_NO_FLOW_BUILD: "1"   # o `flow` em Rust tem o próprio job (rust); aqui os testes dele são pulados
         run: python -m unittest discover -s tests -t . -v
+
+  rust:
+    name: flow em Rust (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Testes do flow (cargo)
+        run: cargo test --release --manifest-path rust/Cargo.toml
+      - name: Compilar o flow
+        shell: bash
+        run: |
+          cargo build --release --manifest-path rust/Cargo.toml
+          case "$RUNNER_OS" in Windows) B=flow.exe ;; *) B=flow ;; esac
+          echo "OPENFLOW_FLOW_BIN=$PWD/rust/target/release/$B" >> "$GITHUB_ENV"
+      - name: Paridade com o Python e servidor de ponta a ponta
+        run: python -m unittest tests.test_rust_parity_v091 tests.test_rust_server_v091 -v
 
   browser:
     name: Navegador e editor (Linux)
@@ -77,6 +103,11 @@ jobs:
       OPENFLOW_RUST: "no"
     steps:
       - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Compilar o flow em Rust (o instalador o copia no lugar de baixar da Release)
+        run: |
+          cargo build --release --manifest-path rust/Cargo.toml
+          echo "OPENFLOW_FLOW_BIN=$PWD/rust/target/release/flow" >> "$GITHUB_ENV"
       - name: Sintaxe do install.sh
         run: |
           sh -n install.sh
@@ -85,6 +116,7 @@ jobs:
         run: |
           OPENFLOW_SOURCE="$PWD" OPENFLOW_EXTRAS=docs sh install.sh
           OPENFLOW_SOURCE="$PWD" OPENFLOW_EXTRAS=docs sh install.sh
+          test -f "$HOME/.local/bin/flow" && test ! -L "$HOME/.local/bin/flow"   # o comando é o binário em Rust, não o atalho do Python
           "$HOME/.local/bin/flow" version
           "$HOME/.local/bin/flow" doctor
           "$HOME/.openflow/app/venv/bin/python" -c "import pypdf"
@@ -93,6 +125,20 @@ jobs:
           "$HOME/.local/bin/flow" models list
           "$HOME/.local/bin/flow" models support
           "$HOME/.local/bin/flow" folder --print
+      - name: O flow em Rust abre, serve a interface e liga o worker Python do instalador
+        run: |
+          OPENFLOW_NO_UPDATE=1 "$HOME/.local/bin/flow" --no-browser --no-update --port 18787 > flow.log 2>&1 &
+          sleep 2
+          curl -fsS http://127.0.0.1:18787/ | grep -q OpenFlow
+          curl -fsS http://127.0.0.1:18787/api/settings | grep -q '"theme"'
+          curl -fsS http://127.0.0.1:18787/api/state | grep -q '"version"'
+          kill %1 || true
+          cat flow.log
+      - name: Sem o binário, o instalador cai no Python de antes (OPENFLOW_FLOW_RUST=no)
+        run: |
+          OPENFLOW_FLOW_RUST=no OPENFLOW_SOURCE="$PWD" OPENFLOW_EXTRAS=none sh install.sh
+          test -L "$HOME/.local/bin/flow"
+          "$HOME/.local/bin/flow" version
 
   installer-windows:
     name: Instalador no terminal (Windows)
@@ -107,10 +153,31 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Compilar o flow em Rust (o instalador o copia no lugar de baixar da Release)
+        shell: pwsh
+        run: |
+          cargo build --release --manifest-path rust/Cargo.toml
+          "OPENFLOW_FLOW_BIN=$PWD\rust\target\release\flow.exe" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
       - name: Instalar a partir desta pasta (PowerShell) e conferir o comando flow
         shell: pwsh
         run: |
           $env:OPENFLOW_SOURCE = $PWD.Path
           ./install.ps1
-          & "$env:LOCALAPPDATA\OpenFlow\bin\flow.cmd" version
+          ./install.ps1   # reinstala por cima: o flow.exe em uso/antigo é renomeado, não apagado
+          $bin = "$env:LOCALAPPDATA\OpenFlow\bin"
+          if (-not (Test-Path "$bin\flow.exe")) { throw "o instalador não pôs o flow.exe (Rust)" }
+          & "$bin\flow.exe" version
+          & "$bin\flow.exe" doctor
+          & "$bin\flow.cmd" version   # o atalho do Python continua valendo como alternativa
           & "$env:LOCALAPPDATA\OpenFlow\app\venv\Scripts\flow.exe" doctor
+      - name: O flow em Rust abre, serve a interface e liga o worker Python do instalador
+        shell: pwsh
+        run: |
+          $env:OPENFLOW_NO_UPDATE = "1"
+          $p = Start-Process -PassThru -WindowStyle Hidden "$env:LOCALAPPDATA\OpenFlow\bin\flow.exe" -ArgumentList "--no-browser","--no-update","--port","18787"
+          Start-Sleep -Seconds 3
+          if ((Invoke-WebRequest -UseBasicParsing http://127.0.0.1:18787/).Content -notmatch "OpenFlow") { throw "interface" }
+          if ((Invoke-WebRequest -UseBasicParsing http://127.0.0.1:18787/api/settings).Content -notmatch "theme") { throw "settings" }
+          if ((Invoke-WebRequest -UseBasicParsing http://127.0.0.1:18787/api/state).Content -notmatch "version") { throw "state (worker Python)" }
+          Stop-Process -Id $p.Id -Force

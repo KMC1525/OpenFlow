@@ -223,3 +223,18 @@ class WorkerLifecycleTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class VersionSyncTests(unittest.TestCase):
+    def test_every_version_is_the_same(self):
+        import re
+
+        from openflow import __version__
+
+        def toml_version(p):
+            return re.search(r'^version\s*=\s*"([^"]+)"', (ROOT / p).read_text(encoding="utf-8"), re.M).group(1)
+
+        self.assertEqual(toml_version("rust/Cargo.toml"), __version__)
+        self.assertEqual(toml_version("openflow/native/Cargo.toml"), __version__)
+        lock = (ROOT / "rust" / "Cargo.lock").read_text(encoding="utf-8")
+        self.assertRegex(lock, r'name = "flow"\nversion = "%s"' % re.escape(__version__))
