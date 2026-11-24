@@ -126,6 +126,27 @@ impl Worker {
         Err("O worker Python não respondeu a tempo.".into())
     }
 
+    /// A porta do worker se ele já está no ar (não o liga).
+    pub fn running_port(&self) -> Option<u16> {
+        let mut st = self.state.lock().ok()?;
+        let port = st.port?;
+        let alive = st.child.as_mut().map(|c| c.try_wait().ok().flatten().is_none()).unwrap_or(false);
+        if alive { Some(port) } else { None }
+    }
+
+    /// Avisa o worker (se estiver no ar) de que as configurações mudaram em disco: ele relê pastas de armazenamento e desempenho.
+    pub fn notify_settings(&self) {
+        if let Some(port) = self.running_port() {
+            use std::io::{Read, Write};
+            if let Ok(mut s) = TcpStream::connect(("127.0.0.1", port)) {
+                let _ = s.set_read_timeout(Some(Duration::from_secs(5)));
+                let _ = s.write_all(format!("POST /api/_internal/reload HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").as_bytes());
+                let mut sink = Vec::new();
+                let _ = s.read_to_end(&mut sink);
+            }
+        }
+    }
+
     pub fn stop(&self) {
         if let Ok(mut st) = self.state.lock() {
             if let Some(mut c) = st.child.take() {

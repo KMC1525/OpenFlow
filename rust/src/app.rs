@@ -1,7 +1,7 @@
 //! A aplicação: validação de Host/Origin (anti DNS-rebinding/CSRF, como no servidor Python), roteador, interface estática e o repasse ao worker Python das rotas ainda não portadas.
 
 use crate::http::{read_request, HttpError, Req, Res};
-use crate::{assets, proxy, worker::Worker};
+use crate::{assets, proxy, settings::Store, worker::Worker};
 use serde_json::{json, Value};
 use std::io::BufReader;
 use std::net::{TcpListener, TcpStream};
@@ -12,6 +12,7 @@ pub struct App {
     pub home: PathBuf,
     pub bind_host: String,
     pub worker: Worker,
+    pub store: Store,
     pub routes: Vec<Route>,
 }
 
@@ -35,7 +36,7 @@ pub fn param<'a>(p: &'a Params, name: &str) -> &'a str {
 
 impl App {
     pub fn new(home: PathBuf, bind_host: &str) -> Self {
-        let mut app = App { worker: Worker::new(home.clone()), home, bind_host: bind_host.to_string(), routes: Vec::new() };
+        let mut app = App { worker: Worker::new(home.clone()), store: Store::new(&home), home, bind_host: bind_host.to_string(), routes: Vec::new() };
         crate::routes::register(&mut app);
         app
     }

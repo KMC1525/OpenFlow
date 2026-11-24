@@ -2,9 +2,13 @@
 
 mod app;
 mod assets;
+mod dev;
 mod http;
 mod proxy;
 mod routes;
+mod settings;
+mod uiprefs;
+mod util;
 mod worker;
 
 use std::net::TcpListener;
@@ -140,6 +144,7 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         Some("run") => run(&args[1..]),
+        Some("dev") => dev::run(&args[1..]),
         Some(a) if a.starts_with("--") => run(&args),
         Some(_) => delegate(&args),
     }
