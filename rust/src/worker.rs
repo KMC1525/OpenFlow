@@ -3,7 +3,7 @@
 
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
@@ -15,6 +15,7 @@ pub struct Worker {
 struct State {
     child: Option<Child>,
     port: Option<u16>,
+    keep: Option<ChildStdin>, // mantida aberta: quando o `flow` morre, ela fecha e o worker encerra junto
 }
 
 pub fn exe_name(base: &str) -> String {
@@ -44,46 +45,80 @@ pub fn source_dir(home: &Path) -> Option<PathBuf> {
     cands.into_iter().find(|c| c.join("openflow").join("__init__.py").is_file())
 }
 
-fn venv_python(home: &Path) -> PathBuf {
-    let v = home.join("worker").join("venv");
-    if cfg!(windows) { v.join("Scripts").join("python.exe") } else { v.join("bin").join("python") }
+/// O venv do instalador: OPENFLOW_APP_DIR/venv, ou a pasta padrão do instalador do sistema (`~/.openflow/app` no Linux/macOS, `%LOCALAPPDATA%\\OpenFlow\\app` no Windows).
+fn app_venv_python(home: &Path) -> Vec<PathBuf> {
+    let mut dirs: Vec<PathBuf> = Vec::new();
+    if let Ok(d) = std::env::var("OPENFLOW_APP_DIR") {
+        if !d.is_empty() {
+            dirs.push(PathBuf::from(d));
+        }
+    }
+    dirs.push(home.join("app"));
+    if let Ok(l) = std::env::var("LOCALAPPDATA") {
+        dirs.push(PathBuf::from(l).join("OpenFlow").join("app"));
+    }
+    dirs.push(home.join("worker"));
+    dirs.into_iter().map(|d| if cfg!(windows) { d.join("venv").join("Scripts").join("python.exe") } else { d.join("venv").join("bin").join("python") }).filter(|p| p.is_file()).collect()
 }
 
-/// O Python que roda o worker: OPENFLOW_PYTHON, o venv do worker, ou um `python3`/`python`/`py -3` do sistema (3.9 ou mais novo). `(programa, argumentos antes do -m)`.
-pub fn find_python(home: &Path) -> Option<(String, Vec<String>)> {
+/// Um Python que roda o worker: o programa, argumentos antes do `-m` e se ele precisa do PYTHONPATH do código-fonte (o do venv do instalador já tem o `openflow` instalado).
+pub struct Py {
+    pub exe: String,
+    pub pre: Vec<String>,
+    pub needs_src: bool,
+}
+
+fn runs(exe: &str, pre: &[String], code: &str) -> bool {
+    Command::new(exe).args(pre).args(["-c", code]).stdout(Stdio::null()).stderr(Stdio::null()).status().map(|s| s.success()).unwrap_or(false)
+}
+
+/// O Python do worker: OPENFLOW_PYTHON, o venv do instalador (com o `openflow` instalado) ou um `python3`/`python`/`py -3` do sistema (3.9+, com o código-fonte do worker no PYTHONPATH).
+pub fn find_python(home: &Path) -> Option<Py> {
+    let ver = "import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)";
+    let has_pkg = "import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1); import openflow";
+    let has_src = source_dir(home).is_some();
     let mut cands: Vec<(String, Vec<String>)> = Vec::new();
     if let Ok(p) = std::env::var("OPENFLOW_PYTHON") {
         if !p.is_empty() && p != "auto" && p != "keep" {
             cands.push((p, vec![]));
         }
     }
-    let vp = venv_python(home);
-    if vp.is_file() {
-        cands.push((vp.to_string_lossy().into_owned(), vec![]));
+    for v in app_venv_python(home) {
+        cands.push((v.to_string_lossy().into_owned(), vec![]));
     }
     cands.push(("python3".into(), vec![]));
     cands.push(("python".into(), vec![]));
     cands.push(("py".into(), vec!["-3".into()]));
     for (exe, pre) in cands {
-        let ok = Command::new(&exe).args(&pre).args(["-c", "import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)"]).stdout(Stdio::null()).stderr(Stdio::null()).status().map(|s| s.success()).unwrap_or(false);
-        if ok {
-            return Some((exe, pre));
+        if !runs(&exe, &pre, ver) {
+            continue;
+        }
+        if runs(&exe, &pre, "import openflow") {
+            return Some(Py { exe, pre, needs_src: false });   // venv do instalador (ou o OpenFlow instalado com pip)
+        }
+        if has_src {
+            return Some(Py { exe, pre, needs_src: true });
         }
     }
+    let _ = has_pkg;
     None
 }
 
 impl Worker {
     pub fn new(home: PathBuf) -> Self {
-        Worker { home, state: Mutex::new(State { child: None, port: None }) }
+        Worker { home, state: Mutex::new(State { child: None, port: None, keep: None }) }
     }
 
     /// Comando `python [-3] -m openflow <args>` já com o PYTHONPATH do código do worker (usado também para os comandos do terminal ainda não portados).
     pub fn python_command(&self) -> Result<Command, String> {
-        let src = source_dir(&self.home).ok_or_else(|| "O worker Python do OpenFlow não está instalado (rode: flow worker install).".to_string())?;
-        let (exe, pre) = find_python(&self.home).ok_or_else(|| "Python 3.9 ou mais novo não encontrado (necessário só para os recursos que ainda dependem do worker Python).".to_string())?;
-        let mut c = Command::new(exe);
-        c.args(pre).arg("-m").arg("openflow").env("PYTHONPATH", src).env("PYTHONIOENCODING", "utf-8").env("OPENFLOW_HOME", &self.home);
+        let py = find_python(&self.home).ok_or_else(|| "O worker Python do OpenFlow não foi encontrado (Python 3.9+ com o pacote openflow; rode o instalador de novo).".to_string())?;
+        let mut c = Command::new(&py.exe);
+        c.args(&py.pre).arg("-m").arg("openflow").env("PYTHONIOENCODING", "utf-8").env("OPENFLOW_HOME", &self.home);
+        if py.needs_src {
+            if let Some(src) = source_dir(&self.home) {
+                c.env("PYTHONPATH", src);
+            }
+        }
         Ok(c)
     }
 
@@ -102,11 +137,12 @@ impl Worker {
         let port = listener.local_addr().map_err(|e| e.to_string())?.port();
         drop(listener);
         let mut cmd = self.python_command()?;
-        cmd.args(["worker", "--port", &port.to_string()]).env("OPENFLOW_NO_UPDATE", "1").stdin(Stdio::null());
+        cmd.args(["worker", "--port", &port.to_string(), "--watch-stdin"]).env("OPENFLOW_NO_UPDATE", "1").stdin(Stdio::piped());
         if std::env::var("OPENFLOW_WORKER_LOG").is_err() {
             cmd.stdout(Stdio::null());
         }
-        let child = cmd.spawn().map_err(|e| format!("Não consegui iniciar o worker Python: {e}"))?;
+        let mut child = cmd.spawn().map_err(|e| format!("Não consegui iniciar o worker Python: {e}"))?;
+        st.keep = child.stdin.take();
         st.child = Some(child);
         st.port = Some(port);
         let t0 = Instant::now();
@@ -154,6 +190,7 @@ impl Worker {
                 let _ = c.wait();
             }
             st.port = None;
+            st.keep = None;
         }
     }
 }

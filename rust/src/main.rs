@@ -53,11 +53,12 @@ struct RunArgs {
     host: String,
     port: u16,
     no_browser: bool,
+    no_update: bool,
     home: Option<String>,
 }
 
 fn parse_run(args: &[String]) -> Result<RunArgs, String> {
-    let mut r = RunArgs { host: "127.0.0.1".into(), port: 8787, no_browser: false, home: None };
+    let mut r = RunArgs { host: "127.0.0.1".into(), port: 8787, no_browser: false, no_update: false, home: None };
     let mut it = args.iter();
     while let Some(a) = it.next() {
         match a.as_str() {
@@ -65,12 +66,29 @@ fn parse_run(args: &[String]) -> Result<RunArgs, String> {
             "--port" => r.port = it.next().ok_or("--port precisa de um valor")?.parse().map_err(|_| "porta inválida".to_string())?,
             "--home" => r.home = Some(it.next().ok_or("--home precisa de um valor")?.clone()),
             "--no-browser" => r.no_browser = true,
-            "--no-update" => {}
+            "--no-update" => r.no_update = true,
             "run" => {}
             other => return Err(format!("argumento desconhecido: {other}")),
         }
     }
     Ok(r)
+}
+
+/// Ao abrir o `flow`: o Python do instalador (se existir) vê se há versão nova e atualiza tudo, como antes (a cada 24 h). 20 = atualizou (reabre o programa novo), 21 = o instalador segue em outra janela.
+fn auto_update(home: &std::path::Path) -> Option<ExitCode> {
+    let w = worker::Worker::new(home.to_path_buf());
+    let mut c = w.python_command().ok()?;
+    let code = c.arg("autoupdate").status().ok()?.code()?;
+    match code {
+        20 => {
+            let exe = std::env::current_exe().ok()?;
+            let args: Vec<String> = std::env::args().skip(1).collect();
+            let st = Command::new(exe).args(args).env("OPENFLOW_NO_UPDATE", "1").status().ok()?;
+            Some(ExitCode::from(st.code().unwrap_or(0).clamp(0, 255) as u8))
+        }
+        21 => Some(ExitCode::SUCCESS),
+        _ => None,
+    }
 }
 
 fn run(args: &[String]) -> ExitCode {
@@ -84,6 +102,11 @@ fn run(args: &[String]) -> ExitCode {
     let home = home_dir(a.home.as_deref());
     let _ = std::fs::create_dir_all(&home);
     std::env::set_var("OPENFLOW_HOME", &home);
+    if !a.no_update && std::env::var("OPENFLOW_NO_UPDATE").map(|v| v.is_empty() || v == "0").unwrap_or(true) {
+        if let Some(code) = auto_update(&home) {
+            return code;
+        }
+    }
     let mut bound = None;
     for p in a.port..a.port.saturating_add(20) {
         if let Ok(l) = TcpListener::bind((a.host.as_str(), p)) {

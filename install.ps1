@@ -152,6 +152,41 @@ $new = & $venvPy -I -c "import openflow; print(openflow.__version__)"
 $shim = Join-Path $BinDir 'flow.cmd'
 Set-Content -ErrorAction Stop -Path $shim -Value "@echo off`r`n`"%~dp0..\app\venv\Scripts\flow.exe`" %*" -Encoding ASCII
 
+# v0.91: o `flow` é o programa em Rust (flow.exe, um arquivo só); o Python do ambiente vira o worker opcional dele. Sem o binário (sem internet, OPENFLOW_FLOW_RUST=no), vale o atalho acima (Python) — nada deixa de funcionar.
+# Um flow.exe em uso não pode ser apagado, mas pode ser renomeado: o antigo vira flow.exe.old<pid> (apagado na próxima vez).
+function Install-RustFlow {
+  if ($env:OPENFLOW_FLOW_RUST -eq 'no') { return $false }
+  $tmp = Join-Path ([IO.Path]::GetTempPath()) ('flow-' + [guid]::NewGuid().ToString('N') + '.exe')
+  try {
+    if ($env:OPENFLOW_FLOW_BIN -and (Test-Path $env:OPENFLOW_FLOW_BIN)) { Copy-Item -Force -ErrorAction Stop $env:OPENFLOW_FLOW_BIN $tmp }
+    else {
+      $base = if ($env:OPENFLOW_RELEASE_URL) { $env:OPENFLOW_RELEASE_URL } else { "https://github.com/KMC1525/OpenFlow/releases/download/v$new" }
+      $sums = (Invoke-WebRequest -UseBasicParsing -TimeoutSec 60 -Uri "$base/SHA256SUMS.txt" -ErrorAction Stop).Content
+      if ($sums -is [byte[]]) { $sums = [System.Text.Encoding]::UTF8.GetString($sums) }
+      $line = @($sums -split "`n" | Where-Object { $_ -match 'flow-windows-x86_64\.exe\s*$' })[0]
+      $want = if ($line) { ("$line".Trim() -split '\s+')[0] } else { '' }
+      Invoke-WebRequest -UseBasicParsing -TimeoutSec 600 -Uri "$base/flow-windows-x86_64.exe" -OutFile $tmp -ErrorAction Stop
+      if ((-not $want) -or ((Get-FileHash -Algorithm SHA256 $tmp).Hash.ToLower() -ne $want.ToLower())) { return $false }
+    }
+    $v = & $tmp version 2>$null
+    if ("$v".Trim() -ne "$new") { return $false }
+    $dest = Join-Path $BinDir 'flow.exe'
+    if (Test-Path $dest) {
+      try { Remove-Item -Force -ErrorAction Stop $dest } catch { Rename-Item -Force -ErrorAction Stop $dest ('flow.exe.old' + $PID) }
+    }
+    Move-Item -Force -ErrorAction Stop $tmp $dest
+    return $true
+  } catch { return $false }
+  finally { if (Test-Path $tmp) { Remove-Item -Force -ErrorAction SilentlyContinue $tmp } }
+}
+Get-ChildItem -ErrorAction SilentlyContinue (Join-Path $BinDir 'flow.exe.old*') | ForEach-Object { Remove-Item -Force -ErrorAction SilentlyContinue $_.FullName }
+if (Install-RustFlow) { Note (L 'Comando flow: programa em Rust (o Python fica como worker opcional).' 'flow command: the Rust program (Python stays as the optional worker).') }
+else {
+  $oldExe = Join-Path $BinDir 'flow.exe'
+  if (Test-Path $oldExe) { try { Remove-Item -Force -ErrorAction Stop $oldExe } catch { try { Rename-Item -Force -ErrorAction Stop $oldExe ('flow.exe.old' + $PID) } catch { } } }   # um flow.exe antigo não pode ficar na frente do Python desta versão
+  Note (L 'Comando flow: versão em Python (o programa em Rust não está disponível agora; tente de novo depois).' 'flow command: the Python version (the Rust program is not available right now; try again later).')
+}
+
 # 4b) o comando `flow` no PATH — do usuário (para novos terminais) e deste terminal (para usar já). Feito ANTES das bibliotecas, que demoram.
 $flow = Join-Path $venv 'Scripts\flow.exe'
 function Same-Dir($a, $b) { return ($a.TrimEnd('\') -ieq $b.TrimEnd('\')) }
