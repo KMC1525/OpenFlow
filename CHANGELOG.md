@@ -2,6 +2,24 @@
 
 Formato: `## [versão] — data`. Cada versão traz o que mudou para quem usa e, com honestidade, o que **não** foi verificado. [English](CHANGELOG.en.md)
 
+## [0.91.0] — 2026-11-24
+
+### Novo — o `flow` agora é um programa em Rust (primeira etapa do backend em Rust)
+- **Um binário só** (`rust/`, ~1,4 MB, só biblioteca padrão + `serde_json` e `include_dir`): servidor HTTP/1.1 com SSE, **a interface web embutida** (nada de pasta de arquivos), a mesma checagem de `Host`/`Origin` do servidor Python (anti DNS-rebinding/CSRF), `Range`, upload em fluxo e o terminal básico (`flow`, `--host/--port/--home/--no-browser`, `version`). Uma porta ocupada passa para a seguinte, como antes.
+- **Já respondido pelo próprio Rust**, com os mesmos arquivos em disco e as mesmas respostas do Python: configurações (`GET/PUT /api/settings`, exportar, importar, restaurar seção) com os padrões, a «forma» forçada, o modo só-local, o limite da proteção do computador, a memória e a UI normalizadas e o token do Hugging Face fora do que vai ao navegador; e os anexos (`POST/DELETE /api/uploads`). `tests/test_rust_parity_v091.py` roda **as mesmas entradas no Python e no `flow dev …` e compara os JSON** (centenas de combinações de arquivo salvo × alterações) — foi assim que apareceu uma diferença de arredondamento (`round(5.55, 1)`), já corrigida.
+- **O resto das rotas ainda é do Python** e é **repassado byte a byte** (uploads grandes e SSE incluídos) ao **worker Python**: o `flow` o liga sob demanda numa porta privada de `127.0.0.1`, ele não aceita nada de fora (o Rust confere `Host`/`Origin` antes) e **encerra junto com o `flow`, mesmo se este for morto à força** (a entrada padrão do worker fecha). Não existe mais o Python escutando na porta que você abre.
+- **Instalação:** o `install.sh` e o `install.ps1` baixam o `flow` da Release (um arquivo por plataforma, **conferido por SHA-256**; Linux estático, roda em qualquer distribuição) e o colocam no lugar do atalho; o ambiente Python continua sendo criado como worker. **Sem o binário** (sem rede, plataforma sem versão pronta, `OPENFLOW_FLOW_RUST=no`, versão diferente da do Python) o `flow` **continua sendo o Python de antes** — nada deixa de funcionar. No Windows o `flow.exe` em uso é renomeado (não apagado) na atualização.
+- **Auto-atualização como antes** (a cada 24 h, `--no-update` pula): o Rust pergunta ao Python do instalador, que roda o instalador oficial, e o `flow` reabre já atualizado.
+- A Release passa a publicar `flow-linux-x86_64`, `flow-linux-aarch64`, `flow-macos-aarch64`, `flow-macos-x86_64` e `flow-windows-x86_64.exe` (além do núcleo e dos instaladores). O CI ganhou o job «flow em Rust» (cargo test, paridade e servidor de ponta a ponta nos 3 sistemas) e os instaladores reais passam a exercitar o binário.
+
+### O que ainda NÃO é Rust (próximas versões)
+Projetos e canvas (`store`, `schema`, rotas), o motor de execução e os nós, os provedores (sd-cli, llama.cpp, HTTP, locais em Python), a biblioteca e o Hugging Face (busca, downloads, faixas Q2–Q8, apoio), os trabalhos em segundo plano e SSE, hardware/GPU/guarda e o terminal além do básico (`libs`, `models`, `update`, `doctor`… passam para o Python). **O pedido «substituir todo o backend Python por Rust» não está concluído**: são ~22 mil linhas de Python (e 22 mil de testes) contra 3 mil de Rust. Os recursos que só existem como bibliotecas Python (diffusers/LTX-2, VoxCPM2, Whisper, PyTorch/TensorFlow) continuarão num worker Python opcional mesmo depois do porte.
+
+### Não verificado
+- **Nenhum Windows, macOS ou ARM de verdade**: o binário foi compilado e testado no Linux; Windows, macOS e as releases por plataforma dependem do CI do GitHub (resultado no PR).
+- Performance (o servidor usa uma thread por conexão) e o consumo de memória do Rust sob muitos SSE simultâneos.
+- A atualização de uma instalação antiga (Python) para a nova (Rust) numa máquina real.
+
 ## [0.90.0] — 2026-11-19
 
 ### Bugs ao instalar no Windows e no macOS — o que foi procurado

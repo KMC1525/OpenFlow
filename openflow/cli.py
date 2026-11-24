@@ -37,7 +37,7 @@ def stdio_safe() -> None:
             pass   # fluxo trocado por um objeto sem `reconfigure` (testes, IDEs): já não é o do sistema
 
 
-def _auto_update(args: argparse.Namespace, argv) -> object:
+def _auto_update(args: argparse.Namespace, argv, reexec: bool = True) -> object:
     """Ao abrir o OpenFlow pelo comando `flow`: atualiza/instala tudo como o comando de instalação (Python, OpenFlow, bibliotecas, modelos pré-instalados).
     Roda quando há versão nova publicada e, mesmo sem ela, a cada OPENFLOW_UPDATE_EVERY horas (padrão 24; 0 = a cada abertura) — o instalador pula o que já está em dia.
     Só vale para o OpenFlow instalado pelo instalador oficial (instalação manual/editável nunca é mexida); sem internet, abre normalmente.
@@ -81,6 +81,8 @@ def _auto_update(args: argparse.Namespace, argv) -> object:
         pass
     if _windows():
         return 0  # o instalador segue numa janela nova e o OpenFlow precisa estar fechado para ele trocar os arquivos
+    if not reexec:   # v0.91: quem chama (o `flow` em Rust) reabre o programa já atualizado
+        return 20
     print("\n" + _("Abrindo o OpenFlow atualizado…") + "\n")
     sys.stdout.flush()
     os.execve(sys.executable, [sys.executable, "-m", "openflow", *list(argv)], dict(os.environ, OPENFLOW_NO_UPDATE="1"))
@@ -123,6 +125,35 @@ def _run(args: argparse.Namespace) -> int:
         httpd.serve_forever(poll_interval=0.3)
     except KeyboardInterrupt:
         print("\n" + _("Até logo!"))
+    finally:
+        httpd.server_close()
+    return 0
+
+
+def _worker(args: argparse.Namespace) -> int:
+    """Servidor do OpenFlow em Python como worker do `flow` em Rust (v0.91): sem navegador, sem atualização, só em 127.0.0.1 numa porta privada. O Rust valida Host/Origin antes de repassar."""
+    if args.home:
+        os.environ["OPENFLOW_HOME"] = args.home
+    from .server import make_server
+    from .storage import Store
+
+    if getattr(args, "watch_stdin", False):
+        import threading
+
+        def _watch() -> None:   # o `flow` em Rust mantém a entrada padrão do worker aberta: se ele morrer (até à força), a entrada fecha e o worker encerra junto
+            try:
+                while sys.stdin.buffer.read(4096):
+                    pass
+            except Exception:  # noqa: BLE001
+                pass
+            os._exit(0)
+
+        threading.Thread(target=_watch, daemon=True).start()
+    httpd, _app = make_server("127.0.0.1", args.port, Store())
+    try:
+        httpd.serve_forever(poll_interval=0.3)
+    except KeyboardInterrupt:
+        pass
     finally:
         httpd.server_close()
     return 0
@@ -1096,7 +1127,18 @@ def main(argv=None) -> int:
     tor.add_argument("--index", default="", help=_("índice do PyTorch a usar (ex.: cu126, rocm6.4, xpu, cpu)"))
     sub.add_parser("doctor", help=_("mostra diagnóstico do ambiente"))
     sub.add_parser("version", help=_("mostra a versão"))
+    au = sub.add_parser("autoupdate", help=argparse.SUPPRESS)   # v0.91: o `flow` em Rust pergunta aqui se há versão nova (0 = nada a fazer, 20 = atualizou: reabra, 21 = o instalador segue em outra janela: feche)
+    au.add_argument("--home", help=argparse.SUPPRESS)
+    wk = sub.add_parser("worker", help=argparse.SUPPRESS)   # v0.91: o servidor Python como worker do `flow` em Rust (só em 127.0.0.1, numa porta privada)
+    wk.add_argument("--port", type=int, required=True)
+    wk.add_argument("--home", help=argparse.SUPPRESS)
+    wk.add_argument("--watch-stdin", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    if args.cmd == "worker":
+        return _worker(args)
+    if args.cmd == "autoupdate":
+        done = _auto_update(argparse.Namespace(no_update=False, home=getattr(args, "home", None)), [], reexec=False)
+        return 0 if done is None else (21 if _windows() else (20 if done == 20 else int(done)))
     if args.cmd in ("setup", "install"):
         return _setup(args)
     if args.cmd == "update":

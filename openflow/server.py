@@ -128,6 +128,7 @@ class App:
         a("POST", r"/api/settings/import", self.r_settings_import)
         a("POST", r"/api/settings/reset", self.r_settings_reset)
         a("POST", r"/api/providers/test", self.r_provider_test)
+        a("POST", r"/api/_internal/reload", self.r_reload)   # v0.91: o `flow` em Rust grava as configurações e avisa o worker para reler as pastas e o desempenho
 
         a("POST", r"/api/uploads", self.r_upload)
         a("DELETE", r"/api/uploads/(?P<uid>[\w-]+)", self.r_upload_delete)
@@ -199,6 +200,14 @@ class App:
             raise HttpError(400, str(exc))
         self.store.save_settings(patch)
         req.json({"imported": sorted(patch), "settings": self.store.public_settings()})
+
+    def r_reload(self, req: "Request") -> None:
+        from . import perf
+
+        s = self.store.get_settings()
+        perf.configure(s.get("performance"))
+        self.store.apply_storage(s)
+        req.json({"ok": True})
 
     def r_settings_reset(self, req: "Request") -> None:
         """Volta uma seção das configurações ao padrão (ui, generation, canvas, performance). Chaves de API nunca são tocadas."""

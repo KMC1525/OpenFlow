@@ -6,7 +6,7 @@ name: release
 on:
   push:
     branches: [main]
-    paths: ["openflow/__init__.py", "openflow/native/**", "install.sh", "install.ps1", ".github/workflows/release.yml"]
+    paths: ["openflow/__init__.py", "openflow/native/**", "rust/**", "openflow/web/**", "install.sh", "install.ps1", ".github/workflows/release.yml"]
   workflow_dispatch:
 permissions:
   contents: write
@@ -63,8 +63,46 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: "core-${{ matrix.tag }}", path: core/*, if-no-files-found: error }
 
+  # v0.91: o programa `flow` em Rust (um binário por plataforma, com a interface web embutida). Linux em musl (estático): roda em qualquer distribuição.
+  flow:
+    needs: meta
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.optional || false }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-22.04, tag: linux-x86_64, bin: flow, target: x86_64-unknown-linux-musl }
+          - { os: ubuntu-22.04-arm, tag: linux-aarch64, bin: flow, target: aarch64-unknown-linux-musl, optional: true }
+          - { os: macos-latest, tag: macos-aarch64, bin: flow }
+          - { os: macos-latest, tag: macos-x86_64, bin: flow, target: x86_64-apple-darwin, optional: true }
+          - { os: windows-latest, tag: windows-x86_64, bin: flow.exe, ext: .exe }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Testes do flow
+        if: ${{ !matrix.target || startsWith(matrix.target, 'x86_64-unknown-linux') }}
+        run: cargo test --release --manifest-path rust/Cargo.toml${{ matrix.target && format(' --target {0}', matrix.target) || '' }}
+      - name: Compilar o flow
+        shell: bash
+        run: |
+          if [ -n "${{ matrix.target }}" ]; then
+            cargo build --release --manifest-path rust/Cargo.toml --target "${{ matrix.target }}"
+            OUT="rust/target/${{ matrix.target }}/release/${{ matrix.bin }}"
+          else
+            cargo build --release --manifest-path rust/Cargo.toml
+            OUT="rust/target/release/${{ matrix.bin }}"
+          fi
+          mkdir -p flowbin && cp "$OUT" "flowbin/flow-${{ matrix.tag }}${{ matrix.ext }}"
+          "flowbin/flow-${{ matrix.tag }}${{ matrix.ext }}" version || true
+          ls -la flowbin
+      - uses: actions/upload-artifact@v4
+        with: { name: "flow-${{ matrix.tag }}", path: flowbin/*, if-no-files-found: error }
+
   publish:
-    needs: [meta, core]
+    needs: [meta, core, flow]
     # Os runners macOS às vezes ficam em fila e o GitHub cancela o job após 15 min (aconteceu nas versões 0.52 e 0.53): um núcleo OPCIONAL que faltou não trava a release.
     # Os obrigatórios (Linux x86_64, Windows e macOS ARM) são conferidos abaixo; o que faltar vai avisado nas notas, e o instalador compila essa plataforma na máquina.
     if: ${{ always() && needs.meta.result == 'success' && needs.core.result != 'skipped' }}
@@ -79,9 +117,12 @@ jobs:
           for need in linux-x86_64.so windows-x86_64.dll macos-aarch64.dylib; do
             [ -f "release/flow-core-$need" ] || { echo "::error::falta o núcleo obrigatório flow-core-$need"; exit 1; }
           done
+          for need in flow-linux-x86_64 flow-windows-x86_64.exe flow-macos-aarch64; do
+            [ -f "release/$need" ] || { echo "::error::falta o programa obrigatório $need"; exit 1; }
+          done
           MISSING=""
-          for opt in linux-aarch64.so macos-x86_64.dylib; do
-            [ -f "release/flow-core-$opt" ] || MISSING="$MISSING flow-core-$opt"
+          for opt in flow-core-linux-aarch64.so flow-core-macos-x86_64.dylib flow-linux-aarch64 flow-macos-x86_64; do
+            [ -f "release/$opt" ] || MISSING="$MISSING $opt"
           done
           echo "$MISSING" > missing.txt
           echo "Núcleos que faltam (opcionais):${MISSING:- nenhum}"
@@ -98,7 +139,7 @@ jobs:
           s = open("CHANGELOG.en.md", encoding="utf-8").read()
           m = re.search(r"^## \[%s\][^\n]*\n(.*?)(?=^## \[|\Z)" % re.escape(v), s, re.S | re.M)
           miss = open("missing.txt").read().split()
-          note = ("\n\n> Prebuilt core not available in this release for: " + ", ".join(x.replace("flow-core-", "") for x in miss) + ". The installer / `flow native setup` builds it on that machine (or re-run the release workflow later to add it).") if miss else ""
+          note = ("\n\n> Prebuilt files not available in this release for: " + ", ".join(miss) + ". The installer / `flow native setup` builds it on that machine (or re-run the release workflow later to add it).") if miss else ""
           print((m.group(1).strip() if m else "OpenFlow " + v) + note + "\n\nInstall / update (Linux, macOS): `curl -fsSL https://raw.githubusercontent.com/KMC1525/OpenFlow/main/install.sh | sh` · (Windows PowerShell): `irm https://raw.githubusercontent.com/KMC1525/OpenFlow/main/install.ps1 | iex` — then run `flow`.")
           PY
           if gh release view "$TAG" >/dev/null 2>&1; then

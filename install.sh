@@ -201,8 +201,47 @@ fi
 NEW="$("$APP_DIR/venv/bin/python" -I -c 'import openflow; print(openflow.__version__)')"
 
 # 4) comando `flow`
+# v0.91: o `flow` é o programa em Rust (um binário só: servidor, interface e terminal); o Python do ambiente vira o worker opcional dele. Sem o binário (sem internet, plataforma sem versão pronta,
+# OPENFLOW_FLOW_RUST=no), o `flow` continua sendo o Python de antes — nada deixa de funcionar.
 mkdir -p "$BIN_DIR"
-ln -sf "$APP_DIR/venv/bin/flow" "$BIN_DIR/flow"
+install_rust_flow() {
+  [ "${OPENFLOW_FLOW_RUST:-yes}" = "no" ] && return 1
+  RTMP="$(mktemp -d 2>/dev/null)" || return 1
+  if [ -n "${OPENFLOW_FLOW_BIN:-}" ] && [ -f "$OPENFLOW_FLOW_BIN" ]; then
+    cp "$OPENFLOW_FLOW_BIN" "$RTMP/flow" || { rm -rf "$RTMP"; return 1; }
+  else
+    case "$(uname -s)-$(uname -m)" in
+      Linux-x86_64) PLAT=linux-x86_64 ;;
+      Linux-aarch64|Linux-arm64) PLAT=linux-aarch64 ;;
+      Darwin-arm64) PLAT=macos-aarch64 ;;
+      Darwin-x86_64) PLAT=macos-x86_64 ;;
+      *) rm -rf "$RTMP"; return 1 ;;
+    esac
+    RBASE="${OPENFLOW_RELEASE_URL:-https://github.com/KMC1525/OpenFlow/releases/download/v$NEW}"
+    "$APP_DIR/venv/bin/python" -I - "$RBASE" "$PLAT" "$RTMP" <<'PYEOF' || { rm -rf "$RTMP"; return 1; }
+import hashlib, sys, urllib.request
+base, plat, out = sys.argv[1:4]
+def get(name):
+    with urllib.request.urlopen(base + "/" + name, timeout=60) as r:
+        return r.read()
+sums = get("SHA256SUMS.txt").decode()
+want = next((l.split()[0] for l in sums.splitlines() if l.split()[-1:] == ["flow-" + plat]), "")
+data = get("flow-" + plat)
+if not want or hashlib.sha256(data).hexdigest() != want:
+    sys.exit(1)
+open(out + "/flow", "wb").write(data)
+PYEOF
+  fi
+  chmod +x "$RTMP/flow" && [ "$("$RTMP/flow" version 2>/dev/null)" = "$NEW" ] || { rm -rf "$RTMP"; return 1; }
+  mv -f "$RTMP/flow" "$BIN_DIR/flow.new" && mv -f "$BIN_DIR/flow.new" "$BIN_DIR/flow"
+  RC=$?; rm -rf "$RTMP"; return $RC
+}
+if install_rust_flow; then
+  note "$(L "Comando flow: programa em Rust (o Python fica como worker opcional)." "flow command: the Rust program (Python stays as the optional worker).")"
+else
+  ln -sf "$APP_DIR/venv/bin/flow" "$BIN_DIR/flow"
+  note "$(L "Comando flow: versão em Python (o programa em Rust não está disponível agora; tente de novo depois)." "flow command: the Python version (the Rust program is not available right now; try again later).")"
+fi
 
 # 5) bibliotecas do OpenFlow (todas, a menos que OPENFLOW_EXTRAS diga outra coisa). A lista vem da versão recém-instalada.
 LIBS_FAILED=0
@@ -259,4 +298,4 @@ note "$(L "Para abrir o OpenFlow:   flow" "To open OpenFlow:   flow")"
 note "$(L "Para atualizar:       rode este mesmo comando de novo (ou: flow update) — atualiza o OpenFlow e as bibliotecas dele" "To update:            run this same command again (or: flow update) — it updates OpenFlow, its libraries and (optionally) Rust")"
 echo
 
-if [ "$RUN" = "1" ]; then exec "$APP_DIR/venv/bin/flow"; fi
+if [ "$RUN" = "1" ]; then exec "$BIN_DIR/flow"; fi

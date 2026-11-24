@@ -3,9 +3,10 @@
 Guide for people and AI agents working in this repository.
 
 ## What this is
-OpenFlow is a local-first app for creative AI creation through node flows (images, videos, sounds, voices), derived from the Canvas mode of ASTA. Python (standard library only) + a Rust core + a plain HTML/CSS/JS interface. The terminal command is `flow`.
+OpenFlow is a local-first app for creative AI creation through node flows (images, videos, sounds, voices), derived from the Canvas mode of ASTA. Since v0.91 the `flow` command is a Rust program (`rust/`: HTTP server, embedded plain HTML/CSS/JS interface, CLI); Python (standard library only, `openflow/`) is its optional **worker** for what is not ported yet, plus the Rust core (`openflow/native`, loaded by the worker).
 
 ## Rules that must hold
+- **Porting to Rust (v0.91+):** a route moves to `rust/src/routes.rs` only together with a case in `tests/test_rust_parity_v091.py` (the same input through Python and `flow dev …`, outputs compared). Everything not registered there is forwarded to the Python worker. `cargo test --manifest-path rust/Cargo.toml` + `python -m unittest tests.test_rust_parity_v091 tests.test_rust_server_v091` before pushing.
 - **Keep the Rust ↔ Python parity.** Every function of `openflow/native/src/*.rs` has an equivalent in `openflow/native/__init__.py`. Changing the interface means bumping `ABI` (Python) and `flow_abi_version` (Rust) and keeping old libraries working.
 - **No required dependencies** in the Python core (extras only in `pyproject.toml`). Python ≥ 3.9 (no `match`, no runtime `X | Y`).
 - **Strings are Portuguese-first with an English translation:** UI → `openflow/web/js/en.js` (`node tests/js/i18n_check.mjs`), terminal → `openflow/term_en.py`, installers → `L "pt" "en"`. Maps used with `t(variable)` live in DOM-free modules (`labels.js`, `model_labels.js`, `canvas_nodes.js`) so the check can read them.
@@ -16,7 +17,8 @@ OpenFlow is a local-first app for creative AI creation through node flows (image
 - Never remove existing functionality without authorization; never push, merge or publish releases without it.
 
 ## Map
-- `openflow/cli.py` — the `flow` command · `server.py`, `routes_projects.py`, `routes_preinstalled.py` — HTTP API (`/api/projects`, `/api/hf/*`, `/api/models/support`, `/api/media/*`) · `storage.py` — settings and folders.
+- `rust/src/` — `main.rs` (CLI, auto-update through the worker), `app.rs` (Host/Origin, router, worker proxy), `routes.rs` (ported routes), `settings.rs`/`uiprefs.rs`/`util.rs` (ports of `storage.py`/`uiprefs.py`/`util.py`), `worker.rs` (finds and runs the Python worker), `assets.rs` (embedded UI), `dev.rs` (parity helpers).
+- `openflow/cli.py` — the Python `flow` command (still the CLI for what the Rust program delegates) · `server.py`, `routes_projects.py`, `routes_preinstalled.py` — HTTP API (`/api/projects`, `/api/hf/*`, `/api/models/support`, `/api/media/*`) · `storage.py` — settings and folders.
 - `openflow/canvas/` — `schema.py` (node types, Style Folder tree), `engine.py` (execution, cache, styles), `store.py` (project files, search), `media.py` (providers), `support.py` (VAE / text encoders / mmproj plan + install), `support_tiers.py` (Q2–Q8 tiers of text encoders and VAEs), `nodes_ext.py` (30 utility nodes), `render.py` (video Editor).
 - `openflow/hf.py` (Hugging Face search/download) · `preinstalled.py` (recommended models) · `providers/` (text AI) · `team.py` (agents and effort) · `native/` (Rust core).
 - `openflow/web/` — `main.js` (router), `views/projects.js` (home + search), `views/canvas_edit.js` (editor), `views/models.js`, `views/settings.js`, `canvas_nodes.js` (nodes, Style Folder tree).

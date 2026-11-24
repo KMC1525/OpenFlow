@@ -1,0 +1,20 @@
+[package]
+name = "flow"
+version = "0.91.0"
+edition = "2021"
+description = "OpenFlow em Rust (v0.91): o programa `flow` — servidor HTTP, interface web embutida, CLI e (em transição) um worker Python opcional para o que ainda não foi portado."
+license = "MIT"
+
+[[bin]]
+name = "flow"
+path = "src/main.rs"
+
+[dependencies]
+serde_json = { version = "1", features = ["preserve_order"] }
+include_dir = "0.7"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

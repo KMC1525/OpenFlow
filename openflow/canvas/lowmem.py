@@ -213,3 +213,4 @@ def heartbeat(ctl: Any, label: str, interval: float = 15.0) -> Any:
         yield
     finally:
         stop.set()
+        t.join(timeout=2)   # v0.91: sem isto um aviso já «em voo» ainda saía depois do bloco terminar
