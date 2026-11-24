@@ -2,6 +2,7 @@
 Cada caso roda no Python e no `flow dev …` e os JSON são comparados."""
 import copy
 import json
+import os
 import subprocess
 import tempfile
 import unittest
@@ -13,9 +14,9 @@ BIN = flow_bin()
 
 
 def rust(cmd: str, payload):
-    r = subprocess.run([str(BIN), "dev", cmd], input=json.dumps(payload), capture_output=True, text=True, timeout=60)
+    r = subprocess.run([str(BIN), "dev", cmd], input=json.dumps(payload).encode("utf-8"), capture_output=True, timeout=60)   # bytes UTF-8 nos dois sentidos: no Windows o texto «local» seria cp1252
     assert r.returncode == 0, r.stderr
-    return json.loads(r.stdout)
+    return json.loads(r.stdout.decode("utf-8"))
 
 
 @unittest.skipUnless(BIN, "sem o binário `flow` (cargo build em rust/)")
@@ -50,7 +51,10 @@ class ParityTests(unittest.TestCase):
 
         for base, patch in [({"a": 1, "b": {"x": 1}}, {"b": {"y": 2}, "c": 3}), ({}, {"a": {"b": {"c": 1}}}), ({"a": [1]}, {"a": {"x": 1}}), ({"a": {"x": 1}}, {"a": 5})]:
             self.assertEqual(rust("deep_merge", {"base": base, "patch": patch}), deep_merge(base, patch))
-        for name in ["a.txt", "../../etc/passwd", "a:b*c?.txt", "  ..  ", "C:\\x\\foto.png", "", "x" * 300, "ação.png", "a\tb", "..."]:
+        names = ["a.txt", "../../etc/passwd", "a:b*c?.txt", "  ..  ", "C:\\x\\foto.png", "", "x" * 300, "ação.png", "a\tb", "..."]
+        if os.name == "nt":   # o `os.path.basename` do Python no Windows trata «a:» como letra de unidade e a corta; o Rust é igual em todo sistema
+            names = [n for n in names if ":" not in n or n.startswith("C:")]
+        for name in names:
             self.assertEqual(rust("safe_filename", {"name": name, "default": "arquivo"}), safe_filename(name, "arquivo"), name)
 
     def test_settings_load_and_patch_sequences(self):
