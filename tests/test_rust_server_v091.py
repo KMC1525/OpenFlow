@@ -104,6 +104,7 @@ class RustServerTests(unittest.TestCase):
 
     # ------------------------------------------------------------------ rotas feitas em Rust
     def test_settings_roundtrip_in_rust(self):
+        self.js("POST", "/api/settings/reset", {"section": "ui"})   # os testes compartilham o servidor: parte do padrão
         st, s = self.js("GET", "/api/settings")
         self.assertEqual(st, 200)
         self.assertEqual(s["ui"]["theme"], "dark")
